@@ -1,45 +1,33 @@
 /**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
  * @format
  */
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import { StatusBar } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+import { SessionLocaleProvider } from '@shared/i18n';
+import { KioskCustomerProvider } from '@shared/customer';
+import { AppNavigator } from '@shared/navigation';
+import { EcrConnectionProvider } from '@shared/peripherals/ecr';
+import { KioskSessionProvider, KioskOrderSessionBridge } from '@shared/session';
 
 function App() {
-  const isDarkMode = useColorScheme() === 'dark';
-
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
+      <SessionLocaleProvider>
+        <KioskSessionProvider>
+          <EcrConnectionProvider>
+            <KioskOrderSessionBridge>
+              <KioskCustomerProvider>
+                <StatusBar barStyle="light-content" />
+                <AppNavigator />
+              </KioskCustomerProvider>
+            </KioskOrderSessionBridge>
+          </EcrConnectionProvider>
+        </KioskSessionProvider>
+      </SessionLocaleProvider>
     </SafeAreaProvider>
   );
 }
-
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
-
-  return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
 
 export default App;

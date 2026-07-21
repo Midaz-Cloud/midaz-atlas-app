@@ -1,0 +1,22 @@
+{
+  "home": {
+    "headline": "¿Hambriento?",
+    "subtitle": "Ordena tu comida favorita ahora",
+    "tapToStart": "Toca para comenzar",
+    "languageBadge": "ES / EN"
+  },
+  "languageSelection": {
+    "title": "Select Language",
+    "subtitle": "Elige tu idioma / Choose your language",
+    "spanishLabel": "Español",
+    "spanishDescription": "Continuar en Español",
+    "englishLabel": "English",
+    "englishDescription": "Continue in English"
+  },
+  "orderType": {
+    "title": "¿Cómo quieres tu pedido?",
+    "subtitle": "Selecciona tu preferencia",
+    "dineIn": "Para comer aquí",
+    "takeOut": "Para llevar"
+  }
+}

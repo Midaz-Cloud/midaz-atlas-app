@@ -1,0 +1,22 @@
+{
+  "home": {
+    "headline": "Hungry?",
+    "subtitle": "Order your favorite food now",
+    "tapToStart": "Tap to start",
+    "languageBadge": "ES / EN"
+  },
+  "languageSelection": {
+    "title": "Select Language",
+    "subtitle": "Elige tu idioma / Choose your language",
+    "spanishLabel": "Español",
+    "spanishDescription": "Continuar en Español",
+    "englishLabel": "English",
+    "englishDescription": "Continue in English"
+  },
+  "orderType": {
+    "title": "How would you like your order?",
+    "subtitle": "Select your preference",
+    "dineIn": "Dine in",
+    "takeOut": "Take out"
+  }
+}

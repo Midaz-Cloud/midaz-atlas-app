@@ -1,0 +1,9 @@
+{
+    "baseUrl": "https://midazqa.dis-global.com/apis",
+    "fetchedAt": "2026-07-03T18:28:46.203Z",
+    "serialNumber": "AF910S20250915004",
+    "count": 43,
+    "etag": "d01cd1059f9f031c",
+    "statusCode": 200,
+    "firstProductKeys": "id, name, image, sku, description, price, stock, available, isAvailable, minStock, barcode, unit, imageUrl, productType, categoryId, organizationId, discountPercentage, discountType, discountAmount, isDiscount, taxRateId, isActive, createdAt, updatedAt, createdById, updatedById, category, taxRate, modifierGroups"
+}

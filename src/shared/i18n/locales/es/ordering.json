@@ -1,0 +1,171 @@
+{
+  "menu": {
+    "searchPlaceholder": "Buscar productos...",
+    "categoriesTitle": "Categorías",
+    "featuredTitle": "Destacados",
+    "addProduct": "Agregar al carrito",
+    "productInCart": "Producto en el carrito",
+    "categories": {
+      "cones": "Barquillas",
+      "sundae": "Sundae"
+    },
+    "sections": {
+      "featured": "Destacados",
+      "cups": "Vasos"
+    },
+    "products": {
+      "megaSundae": {
+        "name": "Mega sundae mix",
+        "description": "Helado de vainilla, doble porción de chocolate, fresas frescas y galleta."
+      },
+      "cupSmall": {
+        "name": "Vaso pequeño"
+      },
+      "cupMedium": {
+        "name": "Vaso mediano"
+      },
+      "cupLarge": {
+        "name": "Vaso grande",
+        "description": "Nuestro delicioso helado artesanal servido en un vaso grande. Perfecto para los amantes del helado. Incluye hasta 4 toppings de tu elección completamente gratis."
+      },
+      "featuredCupLarge": {
+        "description": "Fresa con toppings, ideal para compartir en verano."
+      },
+      "cupXLarge": {
+        "name": "Vaso extra grande"
+      },
+      "yogurt": {
+        "name": "Yogurt personalizado",
+        "description": "Arma tu yogurt: elige toppings, sirope y tipo de yogurt."
+      }
+    },
+    "badges": {
+      "new": "Nuevo",
+      "popular": "Popular",
+      "soldOut": "Agotado"
+    },
+    "cart": {
+      "viewCart": "Ver carrito",
+      "next": "Siguiente"
+    }
+  },
+  "productDetail": {
+    "quantity": "Cantidad",
+    "add": "Agregar",
+    "continue": "Continuar",
+    "cartSummary_one": "{{count}} item en carrito",
+    "cartSummary_other": "{{count}} items en carrito",
+    "cartSummaryAfterAdd_one": "Total al agregar ({{count}} item)",
+    "cartSummaryAfterAdd_other": "Total al agregar ({{count}} items)"
+  },
+  "modifiers": {
+    "title": "Elige tus opciones",
+    "subtitle": "Elige hasta {{max}} opciones.",
+    "free": "Gratis",
+    "next": "Siguiente",
+    "addToCart": "Agregar al carrito",
+    "orderSummary": "{{product}} + {{count}} selección",
+    "orderSummary_plural": "{{product}} + {{count}} selecciones",
+    "orderSummaryUnit": "{{product}} ({{unit}}/{{totalUnits}}) · {{slots}} selecciones",
+    "unitBadge": "{{current}}/{{total}} {{product}}",
+    "slotsUsed": "{{used}}/{{max}} seleccionados",
+    "stepProgress": "Paso {{current}} de {{total}}",
+    "groups": {
+      "cupLargeToppings": {
+        "title": "Elige complementos",
+        "description": "Elige hasta {{max}} complementos completamente gratis.",
+        "printLabel": "complementos"
+      },
+      "extras": {
+        "printLabel": "extras"
+      },
+      "yogurtToppings": {
+        "title": "Elige complementos",
+        "description": "Elige hasta {{max}} complementos (opcional).",
+        "printLabel": "complementos"
+      },
+      "yogurtSirope": {
+        "title": "Elige tu sirope",
+        "description": "Selecciona un sirope para tu yogurt.",
+        "printLabel": "sirop"
+      },
+      "yogurtType": {
+        "title": "Tipo de yogurt",
+        "description": "Selecciona light o normal.",
+        "printLabel": "base de yogurt"
+      }
+    },
+    "options": {
+      "siropeFresa": "Sirope fresa",
+      "siropeChocolate": "Sirope chocolate",
+      "yogurtLight": "Light",
+      "yogurtNormal": "Normal"
+    },
+    "toppings": {
+      "oreo": "Oreo",
+      "fresas": "Fresas",
+      "gomitas": "Gomitas",
+      "chispas": "Chispas",
+      "brownie": "Brownie",
+      "sirope": "Sirope"
+    }
+  },
+  "cart": {
+    "title": "Tu pedido",
+    "subtitle": "Revisa los detalles de tu orden antes de proceder al pago.",
+    "modifiersList": "Modificadores: {{names}}",
+    "modifiersSummary": "{{summary}}",
+    "addMore": "Agregar más productos",
+    "checkout": {
+      "bcvRateLabel": "Tasa BCV",
+      "subtotal": "Subtotal",
+      "tax": "IVA (16%)",
+      "igtf": "IGTF (3%)",
+      "total": "Total",
+      "pay": "Finalizar y pagar"
+    }
+  },
+  "scanCart": {
+    "header": {
+      "activeReader": "Lector activo"
+    },
+    "prompt": {
+      "title": "ESCANEAR",
+      "line1": "Pasa el código de barra por el lector",
+      "line2": "Acerca el producto al sensor para agregarlo automáticamente."
+    },
+    "cart": {
+      "title": "Tu carrito",
+      "clear": "Vaciar",
+      "linesSelected_one": "{{count}} artículo seleccionado",
+      "linesSelected_other": "{{count}} artículos seleccionados",
+      "unitPriceEach": "{{price}} c/u",
+      "lineTotal": "{{price}}"
+    },
+    "checkout": {
+      "pay": "Ir a pagar",
+      "orderTotalTitle": "Total del pedido",
+      "rateUpdated": "Tasa actualizada",
+      "bcvRateUsd": "Tasa BCV: {{rate}} VES / USD 1"
+    },
+    "errors": {
+      "notFound": "Producto no encontrado",
+      "hasModifiers": "Este producto requiere personalización",
+      "unavailable": "Producto no disponible"
+    }
+  },
+  "stock": {
+    "title": "Producto no disponible",
+    "subtitleLine1": "Lo sentimos, el artículo seleccionado se",
+    "subtitleLine2": "ha agotado.",
+    "viewSimilarCta": "Ver opciones similares"
+  },
+  "stockShortage": {
+    "title": "Stock insuficiente",
+    "subtitle": "Algunos productos de tu carrito ya no tienen la cantidad solicitada.",
+    "itemSoldOut": "Agotado",
+    "itemLimited": "Solo {{count}} disponibles",
+    "backToCartCta": "Volver al carrito",
+    "removeUnavailableCta": "Eliminar ítems agotados"
+  }
+}

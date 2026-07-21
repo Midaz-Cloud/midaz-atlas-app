@@ -1,0 +1,8 @@
+{
+  "entry": {
+    "title": "Enter your locator",
+    "subtitle": "Enter your locator number. We will notify you with a vibration when your order is ready.",
+    "fieldLabel": "Enter your locator number",
+    "validate": "Start waiting"
+  }
+}

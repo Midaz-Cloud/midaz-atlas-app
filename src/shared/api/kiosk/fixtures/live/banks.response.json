@@ -1,0 +1,155 @@
+[
+    {
+        "code": "0156",
+        "name": "100% Banco",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0151",
+        "name": "BFC Banco Fondo Común",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0172",
+        "name": "Bancamiga",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0114",
+        "name": "Bancaribe",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0171",
+        "name": "Banco Activo",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0166",
+        "name": "Banco Agrícola de Venezuela",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0128",
+        "name": "Banco Caroní",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0175",
+        "name": "Banco Digital de los Trabajadores (BDT)",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0115",
+        "name": "Banco Exterior",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0173",
+        "name": "Banco Internacional de Desarrollo",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0105",
+        "name": "Banco Mercantil",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0191",
+        "name": "Banco Nacional de Crédito",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0138",
+        "name": "Banco Plaza",
+        "requiredCredentialFields": [
+            {
+                "key": "cuenta",
+                "type": "text",
+                "label": "Cuenta"
+            }
+        ]
+    },
+    {
+        "code": "0108",
+        "name": "Banco Provincial",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0137",
+        "name": "Banco Sofitasa",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0102",
+        "name": "Banco de Venezuela",
+        "requiredCredentialFields": [
+            {
+                "key": "apiKey",
+                "type": "password",
+                "label": "API KEY"
+            }
+        ]
+    },
+    {
+        "code": "0177",
+        "name": "Banco de la Fuerza Armada Nacional Bolivariana",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0146",
+        "name": "Banco de la Gente Emprendedora (Bangente)",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0149",
+        "name": "Banco del Pueblo Soberano",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0163",
+        "name": "Banco del Tesoro",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0168",
+        "name": "Bancrecer",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0134",
+        "name": "Banesco",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0174",
+        "name": "Banplus",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0157",
+        "name": "DelSur Banco",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0100",
+        "name": "Disglobal",
+        "requiredCredentialFields": []
+    },
+    {
+        "code": "0169",
+        "name": "R4 Banco Microfinanciero",
+        "requiredCredentialFields": [
+            {
+                "key": "r4Token",
+                "type": "password",
+                "label": "Token R4"
+            }
+        ]
+    },
+    {
+        "code": "0104",
+        "name": "Venezolano de Crédito",
+        "requiredCredentialFields": []
+    }
+]

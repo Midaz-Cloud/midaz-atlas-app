@@ -1,0 +1,6 @@
+## Copy to local.properties and set your Android SDK path.
+## Windows (Android Studio default):
+sdk.dir=C:/Users/YOUR_USER/AppData/Local/Android/Sdk
+
+## Use JDK 17 for Gradle (set in gradle.properties or JAVA_HOME).
+## Example: org.gradle.java.home=C:/Program Files/Java/jdk-17

@@ -1,0 +1,171 @@
+{
+  "menu": {
+    "searchPlaceholder": "Search products...",
+    "categoriesTitle": "Categories",
+    "featuredTitle": "Featured",
+    "addProduct": "Add to cart",
+    "productInCart": "Product in cart",
+    "categories": {
+      "cones": "Cones",
+      "sundae": "Sundae"
+    },
+    "sections": {
+      "featured": "Featured",
+      "cups": "Cups"
+    },
+    "products": {
+      "megaSundae": {
+        "name": "Mega sundae mix",
+        "description": "Vanilla ice cream, double chocolate, fresh strawberries and cookie."
+      },
+      "cupSmall": {
+        "name": "Small cup"
+      },
+      "cupMedium": {
+        "name": "Medium cup"
+      },
+      "cupLarge": {
+        "name": "Large cup",
+        "description": "Our delicious artisan ice cream served in a large cup. Perfect for ice cream lovers. Includes up to 4 toppings of your choice completely free."
+      },
+      "featuredCupLarge": {
+        "description": "Strawberry with toppings, perfect to share in summer."
+      },
+      "cupXLarge": {
+        "name": "Extra large cup"
+      },
+      "yogurt": {
+        "name": "Custom yogurt",
+        "description": "Build your yogurt: choose toppings, syrup and yogurt type."
+      }
+    },
+    "badges": {
+      "new": "New",
+      "popular": "Popular",
+      "soldOut": "Sold out"
+    },
+    "cart": {
+      "viewCart": "View cart",
+      "next": "Next"
+    }
+  },
+  "productDetail": {
+    "quantity": "Quantity",
+    "add": "Add",
+    "continue": "Next",
+    "cartSummary_one": "{{count}} item in cart",
+    "cartSummary_other": "{{count}} items in cart",
+    "cartSummaryAfterAdd_one": "Total if added ({{count}} item)",
+    "cartSummaryAfterAdd_other": "Total if added ({{count}} items)"
+  },
+  "modifiers": {
+    "title": "Choose your options",
+    "subtitle": "Choose up to {{max}} options.",
+    "free": "Free",
+    "next": "Next",
+    "addToCart": "Add to cart",
+    "orderSummary": "{{product}} + {{count}} selection",
+    "orderSummary_plural": "{{product}} + {{count}} selections",
+    "orderSummaryUnit": "{{product}} ({{unit}}/{{totalUnits}}) · {{slots}} selections",
+    "unitBadge": "{{current}}/{{total}} {{product}}",
+    "slotsUsed": "{{used}}/{{max}} selected",
+    "stepProgress": "Step {{current}} of {{total}}",
+    "groups": {
+      "cupLargeToppings": {
+        "title": "Choose add-ons",
+        "description": "Choose up to {{max}} add-ons completely free.",
+        "printLabel": "add-ons"
+      },
+      "extras": {
+        "printLabel": "extras"
+      },
+      "yogurtToppings": {
+        "title": "Choose add-ons",
+        "description": "Choose up to {{max}} add-ons (optional).",
+        "printLabel": "add-ons"
+      },
+      "yogurtSirope": {
+        "title": "Choose your syrup",
+        "description": "Select one syrup for your yogurt.",
+        "printLabel": "syrup"
+      },
+      "yogurtType": {
+        "title": "Yogurt type",
+        "description": "Select light or regular.",
+        "printLabel": "yogurt base"
+      }
+    },
+    "options": {
+      "siropeFresa": "Strawberry syrup",
+      "siropeChocolate": "Chocolate syrup",
+      "yogurtLight": "Light",
+      "yogurtNormal": "Regular"
+    },
+    "toppings": {
+      "oreo": "Oreo",
+      "fresas": "Strawberries",
+      "gomitas": "Gummies",
+      "chispas": "Sprinkles",
+      "brownie": "Brownie",
+      "sirope": "Syrup"
+    }
+  },
+  "cart": {
+    "title": "Your order",
+    "subtitle": "Review your order details before proceeding to payment.",
+    "modifiersList": "Modifiers: {{names}}",
+    "modifiersSummary": "{{summary}}",
+    "addMore": "Add more products",
+    "checkout": {
+      "bcvRateLabel": "BCV rate",
+      "subtotal": "Subtotal",
+      "tax": "VAT (16%)",
+      "igtf": "IGTF (3%)",
+      "total": "Total",
+      "pay": "Finish and pay"
+    }
+  },
+  "scanCart": {
+    "header": {
+      "activeReader": "Scanner active"
+    },
+    "prompt": {
+      "title": "SCAN",
+      "line1": "Pass the barcode in front of the reader",
+      "line2": "Hold the product near the sensor to add it automatically."
+    },
+    "cart": {
+      "title": "Your cart",
+      "clear": "Clear",
+      "linesSelected_one": "{{count}} item selected",
+      "linesSelected_other": "{{count}} items selected",
+      "unitPriceEach": "{{price}} ea",
+      "lineTotal": "{{price}}"
+    },
+    "checkout": {
+      "pay": "Go to pay",
+      "orderTotalTitle": "Order total",
+      "rateUpdated": "Rate updated",
+      "bcvRateUsd": "BCV rate: {{rate}} VES / USD 1"
+    },
+    "errors": {
+      "notFound": "Product not found",
+      "hasModifiers": "This product requires customization",
+      "unavailable": "Product unavailable"
+    }
+  },
+  "stock": {
+    "title": "Product unavailable",
+    "subtitleLine1": "Sorry, the selected item has",
+    "subtitleLine2": "sold out.",
+    "viewSimilarCta": "View similar options"
+  },
+  "stockShortage": {
+    "title": "Insufficient stock",
+    "subtitle": "Some items in your cart no longer have the requested quantity.",
+    "itemSoldOut": "Sold out",
+    "itemLimited": "Only {{count}} available",
+    "backToCartCta": "Back to cart",
+    "removeUnavailableCta": "Remove unavailable items"
+  }
+}

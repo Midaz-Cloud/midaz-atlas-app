@@ -1,0 +1,11 @@
+{
+  "continue": "Continuar",
+  "back": "Volver",
+  "inactivity": {
+    "title": "¿Sigues ahí?",
+    "subtitleLine1": "Tu sesión está a punto de expirar",
+    "subtitleLine2": "por inactividad.",
+    "countdown": "La sesión expira en {{seconds}} s",
+    "continueCta": "Sí, continuar compra"
+  }
+}

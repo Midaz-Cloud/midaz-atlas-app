@@ -1,0 +1,53 @@
+{
+    "id": "6eb06277-1f49-4464-9c2a-435c4fe85927",
+    "kioskDeviceId": "4719e350-858e-4f2a-a5b5-b1a80f2aefbf",
+    "foodServiceEnabled": false,
+    "tableFieldEnabled": false,
+    "printQrEnabled": false,
+    "comandaModel": "printed",
+    "enabledPaymentMethods": [
+        "debito",
+        "pago_movil",
+        "efectivo_ves",
+        "efectivo_usd"
+    ],
+    "linkedPosSerial": null,
+    "kioskInvoicingType": null,
+    "fiscalMachineConfig": null,
+    "appearance": {
+        "title": "",
+        "subtitle": "",
+        "languages": [
+            "es"
+        ],
+        "titleColor": "#ffffff",
+        "primaryColor": "#004be0",
+        "translations": {
+            "es": {
+                "title": "",
+                "subtitle": ""
+            }
+        },
+        "subtitleColor": "rgba(255,255,255,0.6)",
+        "secondaryColor": "#07143a"
+    },
+    "createdAt": "2026-06-11T16:27:07.338Z",
+    "updatedAt": "2026-06-23T19:16:01.264Z",
+    "kitchenOrdersEnabled": true,
+    "organization": {
+        "name": "The Factory HKA",
+        "legalName": "THE FACTORY HKA C.A.",
+        "rif": "J-31217119-3",
+        "logo": null,
+        "primaryCurrency": "VES",
+        "declaresTaxes": false,
+        "takeawayFeeFixed": null,
+        "takeawayFeePercent": null
+    },
+    "pagoMovilAccount": null,
+    "exchangeRates": {
+        "usd": 639.7029,
+        "eur": 728.4808,
+        "date": "2026-07-02"
+    }
+}

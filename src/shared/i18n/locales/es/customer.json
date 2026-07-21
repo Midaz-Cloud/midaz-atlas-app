@@ -1,0 +1,45 @@
+{
+  "lookup": {
+    "title": "Datos de facturación",
+    "subtitle": "Ingresa tu documento de identidad para emitir la factura y continuar con el pago.",
+    "documentLabel": "Número de documento",
+    "documentTypeTitle": "Tipo de documento",
+    "documentTypeClose": "Cerrar selector de tipo",
+    "continue": "Continuar",
+    "loading": "Buscando…"
+  },
+  "register": {
+    "title": "Confirma tus datos",
+    "subtitle": "Verifica que tu nombre sea correcto e ingresa tu número de teléfono para mantenerte al tanto de tu pedido.",
+    "firstName": "Nombre",
+    "lastName": "Apellido",
+    "businessName": "Razón social",
+    "phoneSubscriber": "Ingresa tu número de teléfono",
+    "phoneOperatorTitle": "Código de operadora",
+    "phoneOperatorClose": "Cerrar selector de operadora",
+    "phoneOperatorA11y": "Operadora 0{{code}}",
+    "phoneOperators": {
+      "412": "Digitel",
+      "414": "Movistar",
+      "424": "Movistar",
+      "416": "Movilnet",
+      "426": "Movilnet"
+    },
+    "submit": "Continuar",
+    "back": "Volver"
+  },
+  "errors": {
+    "notFound": "No encontramos un cliente con esta cédula.",
+    "network": "No pudimos verificar la cédula. Intenta de nuevo.",
+    "registerFailed": "No pudimos completar el registro. Intenta de nuevo."
+  },
+  "validation": {
+    "documentV": "La cédula venezolana (V) debe tener 7 u 8 dígitos, por ejemplo 12.345.678.",
+    "documentE": "El documento de extranjero residente (E) debe tener entre 7 y 9 dígitos, por ejemplo 81.234.567.",
+    "documentJ": "El RIF jurídico (J) debe tener 8 dígitos y un dígito verificador válido, por ejemplo 12345678-4.",
+    "firstNameRequired": "El nombre es obligatorio.",
+    "lastNameRequired": "El apellido es obligatorio.",
+    "businessNameRequired": "La razón social es obligatoria.",
+    "phoneRequired": "Selecciona una operadora válida e ingresa 7 dígitos (ej. 0414-1234567)."
+  }
+}

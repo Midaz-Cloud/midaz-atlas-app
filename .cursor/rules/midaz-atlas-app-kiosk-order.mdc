@@ -1,0 +1,33 @@
+---
+description: Kiosk order session (cart + checkout totals) shared across ordering and payment
+globs: MidazAtlasApp/src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# MidazAtlasApp Kiosk Order Session
+
+Cart and checkout totals live in app-wide session state, not inside a navigator.
+
+## Provider
+
+- Wrap the app (inside `SessionLocaleProvider`) with `KioskOrderProvider` from `@shared/kiosk-order`.
+- Mount point: [`App.tsx`](MidazAtlasApp/App.tsx).
+
+## Consumption
+
+- **Ordering** and **payment** screens use `useKioskOrder()` from `@shared/kiosk-order`.
+- Do not add `useState` for cart lines inside `OrderingNavigator`, `PaymentNavigator`, or individual screens unless building an isolated Storybook story with mock props.
+
+## Types and calculations
+
+- `CartLine`, `OrderTotals`, `KioskOrderCheckoutSnapshot`: import from `@shared/kiosk-order`.
+- Fiscal totals: `computeOrderTotals(lines)` or `useKioskOrder().totals` (already memoized in the provider).
+- Handoff to payment: `getCheckoutSnapshot()` after P8 — do not recalculate totals in payment screens from scratch.
+
+## Reset
+
+- Full kiosk reset must clear the order: pass `resetOrder` from `useKioskOrder()` into `resetKioskSession` together with `resetSession` from `useSessionLocale()`.
+
+## Deprecated
+
+- `useKioskCart` in `ordering/hooks` is a re-export alias; prefer `useKioskOrder`.

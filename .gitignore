@@ -63,8 +63,19 @@ yarn-error.log
 # Temporary files created by Metro to check the health of the file watcher
 .metro-health-check*
 
+# Environment (keep .env.example / .env.demo.example in repo)
+.env
+.env.local
+.env.*.local
+
+# react-native-config codegen
+ios/tmp.xcconfig
+
 # testing
 /coverage
+
+# Storybook (auto-generated)
+.rnstorybook/storybook.requires.ts
 
 # Yarn
 .yarn/*
@@ -73,3 +84,14 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Design reference dumps (Stitch/Figma guides — not app runtime assets)
+assets/figma/
+**/stitch-assets/
+
+# Temp API / debug dumps
+tmp-*.json
+
+# Printer SDK: keep the .aar; ignore zip + extracted tree
+android/app/libs/printer-lib-extract/
+android/app/libs/*.zip

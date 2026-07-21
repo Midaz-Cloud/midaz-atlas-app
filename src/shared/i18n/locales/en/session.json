@@ -1,0 +1,14 @@
+{
+  "bootstrap": {
+    "loading": "Preparing kiosk…",
+    "phaseLogin": "Connecting…",
+    "phaseConfig": "Loading configuration…",
+    "phaseProducts": "Loading menu…",
+    "phaseImages": "Downloading images…",
+    "imagesProgress": "Images {{done}} of {{total}}",
+    "imagesRemaining": "{{count}} remaining",
+    "imagesFailed": "Could not download {{count}} image(s)",
+    "authErrorTitle": "Could not connect",
+    "retry": "Retry"
+  }
+}

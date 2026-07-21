@@ -1,0 +1,45 @@
+{
+  "lookup": {
+    "title": "Billing details",
+    "subtitle": "Enter your ID to issue the invoice and continue to payment.",
+    "documentLabel": "ID number",
+    "documentTypeTitle": "Document type",
+    "documentTypeClose": "Close type selector",
+    "continue": "Continue",
+    "loading": "Searching…"
+  },
+  "register": {
+    "title": "Confirm your details",
+    "subtitle": "Verify your name is correct and enter your phone number to stay updated on your order.",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "businessName": "Business name",
+    "phoneSubscriber": "Enter your phone number",
+    "phoneOperatorTitle": "Mobile operator code",
+    "phoneOperatorClose": "Close operator selector",
+    "phoneOperatorA11y": "Operator 0{{code}}",
+    "phoneOperators": {
+      "412": "Digitel",
+      "414": "Movistar",
+      "424": "Movistar",
+      "416": "Movilnet",
+      "426": "Movilnet"
+    },
+    "submit": "Continue",
+    "back": "Back"
+  },
+  "errors": {
+    "notFound": "We could not find a customer with this ID.",
+    "network": "We could not verify the ID. Please try again.",
+    "registerFailed": "Registration could not be completed. Please try again."
+  },
+  "validation": {
+    "documentV": "Venezuelan ID (V) must have 7 or 8 digits, e.g. 12,345,678.",
+    "documentE": "Foreign resident ID (E) must have 7 to 9 digits, e.g. 81,234,567.",
+    "documentJ": "Corporate tax ID (J) must have 8 digits plus a valid check digit, e.g. 12345678-4.",
+    "firstNameRequired": "First name is required.",
+    "lastNameRequired": "Last name is required.",
+    "businessNameRequired": "Business name is required.",
+    "phoneRequired": "Select a valid operator and enter 7 digits (e.g. 0414-1234567)."
+  }
+}

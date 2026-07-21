@@ -1,0 +1,164 @@
+{
+  "methodSelect": {
+    "title": "Elige tu método de pago",
+    "subtitle": "Elige el método que prefieras para completar tu compra de forma segura.",
+    "pos": {
+      "title": "Punto de venta",
+      "description": "Débito o crédito en caja"
+    },
+    "mobile": {
+      "title": "Pago móvil",
+      "description": "Transferencia inmediata"
+    },
+    "cash": {
+      "title": "Efectivo",
+      "description": "Pagar en caja"
+    },
+    "zelle": {
+      "title": "Zelle",
+      "description": "Pago en divisas"
+    }
+  },
+  "flow": {
+    "totalLabel": "Monto total",
+    "continue": "Continuar",
+    "paidEnterReference": "Ya pagué, ingresar referencia"
+  },
+  "payer": {
+    "associatedDocument": "Documento asociado: {{document}}",
+    "changeDocument": "Cambiar número de cédula"
+  },
+  "changeDocumentScreen": {
+    "title": "Nueva cédula",
+    "subtitle": "Ingresa el nuevo número de cédula que deseas usar para este pago. Asegúrate de verificar los datos antes de continuar.",
+    "documentPlaceholder": "Ingresa tu cédula",
+    "continue": "Continuar"
+  },
+  "reference": {
+    "enter": {
+      "title": "Confirma tu pago",
+      "subtitle": "Ingresa los últimos 6 dígitos de tu referencia.",
+      "fieldLabel": "Ingresa tu código de referencia",
+      "validate": "Validar referencia"
+    },
+    "verifying": {
+      "title": "Verificando pago...",
+      "subtitle": "Por favor espera, estamos procesando tu solicitud.",
+      "dontClose": "No cierres esta ventana."
+    },
+    "error": {
+      "title": "Referencia no encontrada",
+      "subtitle": "Verifica los dígitos ingresados e intenta nuevamente.",
+      "retry": "Reintentar",
+      "help": "Solicitar ayuda",
+      "blockedMessage": "Has alcanzado el máximo de intentos. Solicita ayuda al cajero."
+    }
+  },
+  "outcome": {
+    "success": {
+      "title": "¡Pedido confirmado!",
+      "ticketPrinted": "Ticket impreso correctamente.",
+      "pickupInstructions": "Retira tu pedido cuando veas tu número en pantalla.",
+      "orderLabel": "Tu número de pedido",
+      "ticketSlotHint": "Por favor, toma tu ticket impreso y factura en la ranura inferior del kiosco."
+    },
+    "fiscalError": {
+      "title": "Error en la impresora fiscal",
+      "paymentOk": "Tu pago fue registrado con éxito.",
+      "askCashier": "Por favor, solicita tu ticket al cajero",
+      "callCashier": "Llamar al cajero"
+    },
+    "digitalTicket": {
+      "title": "Tu ticket digital",
+      "subtitleLine1": "Escanea el código para ver tu",
+      "subtitleLine2": "factura digital.",
+      "mobileHint": "Guarda tu ticket en el móvil",
+      "orderPrefix": "Orden",
+      "paymentCompleted": "Pago completado exitosamente"
+    }
+  },
+  "error": {
+    "titleLine1": "No pudimos procesar",
+    "titleLine2": "tu pago",
+    "subtitle": "Por favor, verifica los datos de tu tarjeta o intenta con otro método.",
+    "retryCta": "Reintentar pago",
+    "changeMethodCta": "Usar otro método",
+    "orderRegistrationFailed": {
+      "titleLine1": "Pago aprobado en terminal",
+      "titleLine2": "pero no se registró el pedido",
+      "subtitle": "Comunica esta referencia al cajero para conciliar: {{reference}}. No vuelvas a cobrar con tarjeta hasta confirmar con caja.",
+      "retryCta": "Reintentar registrar pedido",
+      "blockedMessage": "Has superado el límite de intentos de envío. Por favor, contacta a un empleado.",
+      "helpCta": "Solicitar ayuda"
+    }
+  },
+  "assistance": {
+    "title": "Asistencia en camino",
+    "subtitle": "Hemos enviado una alerta. Un asesor se acercará a ayudarte en breve.",
+    "orderLabel": "Tu número de pedido",
+    "callAgainCta": "Llamar de nuevo",
+    "cancelOrderCta": "Cancelar pedido",
+    "timeoutMessage": "El tiempo de espera ha expirado. Tu pedido fue cancelado."
+  },
+  "processing": {
+    "title": "Procesando tu pedido...",
+    "status": {
+      "registering": "Registrando transacción",
+      "stock": "Actualizando inventario",
+      "fiscal": "Emitiendo factura fiscal",
+      "printing": "Imprimiendo ticket"
+    }
+  },
+  "pos": {
+    "title": "Acerca tu tarjeta",
+    "subtitle": "Usa tu tarjeta de débito, crédito o con tu NFC.",
+    "syncing": "Sincronizando con el punto de venta...",
+    "connecting": "Conectando con el punto de venta...",
+    "connected": "Punto de venta listo",
+    "processing": "Procesando pago en el terminal...",
+    "mockMode": "Modo mock — sin terminal físico",
+    "nativeMissing": "Módulo POS no instalado — recompila Android",
+    "testChargeBanner": "Cobro en terminal (prueba): {{chargeHint}}. La orden y el ticket usan el total real."
+  },
+  "mobile": {
+    "account": {
+      "title": "Pago móvil",
+      "subtitle": "Completa los datos del pago móvil o escanea el código QR.",
+      "bank": "Banco",
+      "phone": "Teléfono",
+      "rif": "RIF"
+    },
+    "confirm": {
+      "title": "Confirma tu pago móvil",
+      "subtitle": "Para confirmar tu pago de forma, por favor introduce la información de la transacción",
+      "associatedDocument": "Documento asociado: {{document}}",
+      "referencePlaceholder": "Últimos 6 dígitos de referencia",
+      "phonePlaceholder": "Ingresa tu número de teléfono",
+      "bankPlaceholder": "Banco",
+      "continue": "Continuar"
+    },
+    "bankSheet": {
+      "title": "Selecciona tu banco",
+      "searchPlaceholder": "Buscar por nombre o código",
+      "empty": "No hay bancos que coincidan",
+      "loading": "Cargando bancos…",
+      "closeA11y": "Cerrar"
+    }
+  },
+  "zelle": {
+    "title": "Zelle",
+    "subtitle": "Envía tu pago de forma rápida y segura.",
+    "holderName": "Nombre del titular",
+    "email": "Correo de destino",
+    "phone": "Teléfono"
+  },
+  "cash": {
+    "titleLine1": "Ya casi listos!",
+    "titleLine2": "Finaliza tu pago en caja",
+    "subtitle": "Para completar tu compra, acércate a la caja de la tienda y muestra este código o indica tu número de pedido.",
+    "orderLabel": "Tu número de pedido",
+    "backToHome": "Volver al inicio",
+    "submittingTitle": "Registrando tu pedido...",
+    "submittingSubtitle": "Por favor espera un momento."
+  }
+}

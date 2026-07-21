@@ -1,0 +1,14 @@
+{
+  "bootstrap": {
+    "loading": "Preparando kiosco…",
+    "phaseLogin": "Conectando…",
+    "phaseConfig": "Cargando configuración…",
+    "phaseProducts": "Cargando menú…",
+    "phaseImages": "Descargando imágenes…",
+    "imagesProgress": "Imágenes {{done}} de {{total}}",
+    "imagesRemaining": "Quedan {{count}}",
+    "imagesFailed": "No se pudo descargar {{count}} imagen(es)",
+    "authErrorTitle": "No se pudo conectar",
+    "retry": "Reintentar"
+  }
+}

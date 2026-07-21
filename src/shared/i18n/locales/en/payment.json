@@ -1,0 +1,164 @@
+{
+  "methodSelect": {
+    "title": "Choose your payment method",
+    "subtitle": "Pick the option you prefer to complete your purchase securely.",
+    "pos": {
+      "title": "Point of sale",
+      "description": "Debit or credit at the register"
+    },
+    "mobile": {
+      "title": "Mobile payment",
+      "description": "Instant transfer"
+    },
+    "cash": {
+      "title": "Cash",
+      "description": "Pay at the register"
+    },
+    "zelle": {
+      "title": "Zelle",
+      "description": "Pay in foreign currency"
+    }
+  },
+  "flow": {
+    "totalLabel": "Total amount",
+    "continue": "Continue",
+    "paidEnterReference": "I paid, enter reference"
+  },
+  "payer": {
+    "associatedDocument": "Associated ID: {{document}}",
+    "changeDocument": "Change ID number"
+  },
+  "changeDocumentScreen": {
+    "title": "New ID number",
+    "subtitle": "Enter the new ID number you want to use for this payment. Verify the details before continuing.",
+    "documentPlaceholder": "Enter your ID",
+    "continue": "Continue"
+  },
+  "reference": {
+    "enter": {
+      "title": "Confirm your payment",
+      "subtitle": "Enter the last 6 digits of your reference.",
+      "fieldLabel": "Enter your reference code",
+      "validate": "Validate reference"
+    },
+    "verifying": {
+      "title": "Verifying payment...",
+      "subtitle": "Please wait while we process your request.",
+      "dontClose": "Do not close this window."
+    },
+    "error": {
+      "title": "Reference not found",
+      "subtitle": "Check the digits you entered and try again.",
+      "retry": "Try again",
+      "help": "Request help",
+      "blockedMessage": "You have reached the maximum number of attempts. Please ask the cashier for help."
+    }
+  },
+  "outcome": {
+    "success": {
+      "title": "Order confirmed!",
+      "ticketPrinted": "Receipt printed successfully.",
+      "pickupInstructions": "Pick up your order when you see your number on the screen.",
+      "orderLabel": "Your order number",
+      "ticketSlotHint": "Please take your printed receipt and invoice from the slot below the kiosk."
+    },
+    "fiscalError": {
+      "title": "Fiscal printer error",
+      "paymentOk": "Your payment was registered successfully.",
+      "askCashier": "Please ask the cashier for your receipt",
+      "callCashier": "Call the cashier"
+    },
+    "digitalTicket": {
+      "title": "Your digital receipt",
+      "subtitleLine1": "Scan the code to view your",
+      "subtitleLine2": "digital invoice.",
+      "mobileHint": "Save your receipt on your phone",
+      "orderPrefix": "Order",
+      "paymentCompleted": "Payment completed successfully"
+    }
+  },
+  "error": {
+    "titleLine1": "We could not process",
+    "titleLine2": "your payment",
+    "subtitle": "Please check your card details or try another payment method.",
+    "retryCta": "Retry payment",
+    "changeMethodCta": "Use another method",
+    "orderRegistrationFailed": {
+      "titleLine1": "Payment approved on terminal",
+      "titleLine2": "but order was not registered",
+      "subtitle": "Give this reference to the cashier to reconcile: {{reference}}. Do not charge the card again until the cashier confirms.",
+      "retryCta": "Retry registering order",
+      "blockedMessage": "You have exceeded the maximum number of registration attempts. Please contact an employee.",
+      "helpCta": "Request help"
+    }
+  },
+  "assistance": {
+    "title": "Help is on the way",
+    "subtitle": "We sent an alert. A staff member will assist you shortly.",
+    "orderLabel": "Your order number",
+    "callAgainCta": "Call again",
+    "cancelOrderCta": "Cancel order",
+    "timeoutMessage": "The wait time has expired. Your order was cancelled."
+  },
+  "processing": {
+    "title": "Processing your order...",
+    "status": {
+      "registering": "Registering transaction",
+      "stock": "Updating inventory",
+      "fiscal": "Issuing fiscal invoice",
+      "printing": "Printing receipt"
+    }
+  },
+  "pos": {
+    "title": "Tap your card",
+    "subtitle": "Use your debit, credit card, or NFC.",
+    "syncing": "Syncing with point of sale...",
+    "connecting": "Connecting to point of sale...",
+    "connected": "Point of sale ready",
+    "processing": "Processing payment on terminal...",
+    "mockMode": "Mock mode — no physical terminal",
+    "nativeMissing": "POS module missing — rebuild Android",
+    "testChargeBanner": "Terminal charge (test): {{chargeHint}}. Order and receipt use the real total."
+  },
+  "mobile": {
+    "account": {
+      "title": "Mobile payment",
+      "subtitle": "Complete your mobile payment or scan the QR code.",
+      "bank": "Bank",
+      "phone": "Phone",
+      "rif": "Tax ID"
+    },
+    "confirm": {
+      "title": "Confirm your mobile payment",
+      "subtitle": "To confirm your payment, please enter your transaction details",
+      "associatedDocument": "Associated ID: {{document}}",
+      "referencePlaceholder": "Last 6 digits of reference",
+      "phonePlaceholder": "Enter your phone number",
+      "bankPlaceholder": "Bank",
+      "continue": "Continue"
+    },
+    "bankSheet": {
+      "title": "Select your bank",
+      "searchPlaceholder": "Search by name or code",
+      "empty": "No matching banks",
+      "loading": "Loading banks…",
+      "closeA11y": "Close"
+    }
+  },
+  "zelle": {
+    "title": "Zelle",
+    "subtitle": "Send your payment quickly and securely.",
+    "holderName": "Account holder name",
+    "email": "Destination email",
+    "phone": "Phone"
+  },
+  "cash": {
+    "titleLine1": "Almost there!",
+    "titleLine2": "Complete your payment at the register",
+    "subtitle": "To complete your purchase, go to the store register and show this code or give your order number.",
+    "orderLabel": "Your order number",
+    "backToHome": "Back to home",
+    "submittingTitle": "Registering your order...",
+    "submittingSubtitle": "Please wait a moment."
+  }
+}

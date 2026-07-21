@@ -1,0 +1,13 @@
+---
+description: Asset imports via @assets alias in MidazAtlasApp
+globs: MidazAtlasApp/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Assets (`@assets`)
+
+- Import SVG/PNG from `assets/` using **`@assets/images/...`**, never deep relative paths.
+- Examples:
+  - `import IconX from '@assets/images/ordering/menu/icon-search.svg';`
+  - `require('@assets/images/ordering/menu/product-cup-small.png')`
+- Aliases: `@assets` → `./assets` (babel + TypeScript `paths`).

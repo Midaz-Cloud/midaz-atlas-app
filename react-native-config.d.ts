@@ -1,0 +1,21 @@
+declare module 'react-native-config' {
+  export interface NativeConfig {
+    KIOSK_DEMO_MODE?: string;
+    KIOSK_DEMO_REFERENCE_CODE?: string;
+    KIOSK_DEMO_SCENARIO?: string;
+    KIOSK_DEMO_SHORT_TIMEOUTS?: string;
+    KIOSK_API_BASE_URL?: string;
+    KIOSK_UPLOADS_BASE_URL?: string;
+    KIOSK_API_KEY?: string;
+    KIOSK_API_USE_MOCK?: string;
+    KIOSK_DEVICE_SERIAL_OVERRIDE?: string;
+    KIOSK_ADMIN_PASSCODE?: string;
+    KIOSK_QR_GENERATOR_URL?: string;
+    KIOSK_POS_TEST_CHARGE_VES?: string;
+    KIOSK_FISCAL_SERVICE_URL?: string;
+    KIOSK_FISCAL_MOCK?: string;
+  }
+
+  export const Config: NativeConfig;
+  export default Config;
+}
