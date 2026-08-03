@@ -148,6 +148,8 @@ export function fuzzyExtractAmount(
     /"\d+amount"\s*:\s*"?(\d+)/i,
     /\d"amount"\s*:\s*"?(\d+)/i,
     /(?<![a-zA-Z])amount"\s*:\s*"?(\d+)/i,
+    // USB: amou7nt / am0unt — digit/char inserted inside the key
+    /(?<![a-zA-Z])am[o0][a-z0-9]?u[a-z0-9]?nt"\s*:\s*"?(\d+)/i,
     /maount"\s*:\s*"(\d+)/i,
     /maoutn"\s*:\s*"(\d+)/i,
     /amo"unt"\s*:\s*"?(\d+)/i,

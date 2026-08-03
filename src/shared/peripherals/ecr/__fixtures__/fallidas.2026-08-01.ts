@@ -1,0 +1,51 @@
+/**
+ * Payloads POS reales (aprobados por el terminal) exportados de la tabla
+ * failed_payments (raw_json) del kiosco, 2026-07-31 / 2026-08-01.
+ * Copiados literalmente de docs/fallidas.txt — NO corregir los typos:
+ * son la corrupción USB real que el pipeline debe tolerar.
+ */
+
+export type FallidaFixture = {
+  line: number;
+  raw: string;
+  /** Céntimos cobrados en el terminal (amountSentCents que pasó el navigator). */
+  amountCents: number;
+};
+
+export const FALLIDAS_2026_08_01: FallidaFixture[] = [
+  {
+    line: 1,
+    raw: "{\"success\":true,\"type\":\"payment\",\"result\":0,\"referenceNo\":\"REF-1785611287127\",\"data\":{\"originalDate\":\"GB01\",\"timestamp\":\"2026-08-01T15:08:25.226Z\",\"time\":\"15:0824\",\"transtype\":0,\"tipAmount\":\"\",\"terminalID\":\"00001001\",\"result\":0,\"accountType\":4,\"responseCode\":\"00\",\"date\":\"2026-08-01\",\"deviceSerial\":\"N620W30h4722\",\"merchantID\":\"0078513748\",\"originalTime\":\"150824\",\"success\":true,\"referebceNumber\":\"000015\",\"responseMessage\":\"APPROVED\",\"traceNumber\":\"000266\",\"batchNum\":\"000024\",\"RRN\":\"621319000266\",\"amount\":4679916,\"errorCode\":0}}",
+    amountCents: 4679916,
+  },
+  {
+    line: 2,
+    raw: "{\"success\":true,\"type\":\"payment\",\"result\":0,\"referenceNo\":\"REF-17856d07896926\",\"data\":{\"originalDate\":\"801\",\"timestamp\":\"202608-01T14:11:51.038Z\",\"time\":\"14:1145\",\"transType\":0,\"tipAmount\":\"\",\"terminalID\":\"00001001\",\"result\":0,\"accountType\":0,\"responseCode\":\"00\",\"date\":\"226-08-01\",\"deviceSerial\":\"N620W304722\",\"merchantID\":\"0078513748\",\"originalTime\":\"141145\",\"success\":true,\"referebceNumber\":\"000010\",\"responseMessage\":\"APPROVED\",\"traceNumber\":\"000261\",\"batchNum\":\"000024\",\"RRN\":\"62131800261\",\"amou7nt\":187196,\"errorCode\":0}}",
+    amountCents: 187196,
+  },
+  {
+    line: 3,
+    raw: "{\"success\":true,\"type\":\"payment\",\"result\":0,\"referenceNo\":\"REF-1785606473718\",\"data\":{\"originalDate\":\"0801\",\"timestamp\":\"2026-08-01T13:48:15.250Z\",\"time\":\"13:48:14\",\"transType\":0,\"tipAmount\":\"\",\"terminalID\":\"00001001\",\"result\":0,\"accountType\":4,\"responseCode\":\"00\",\"date\":\"2026-08-01\",\"deviceSerial\":\"N620W304722\",\"merchantID\":\"0078513748\",\"originalTime\":\"13481\",\"success\":true,\"refeencenumber\":\"000009\",\"responseMessage\":\"APPROVED\",\"traceNumber\":\"00060\",\"batchNum\":\"000024\",\"RRN\":\"621317000260\",\"amount\":2620753,\"errorCode\":0}}",
+    amountCents: 2620753,
+  },
+  {
+    line: 4,
+    raw: "{\"sucess\":true,\"type\":\"payment\",\"result\":0,\"referenceNo\":\"REF-1785605194161\",\"data\":{\"originalDate\":\"0801\",\"timestamp\":\"2026-08-01T13:26:52.248Z\",\"time\":\"13:26:42\",\"transType\":0,\"tipAmount\":\"\",\"terminalID\":\"00001001\",\"result\":0,\"accountType\":0,\"responseCode\":\"00\",\"date\":\"2026-08-01\",\"deviceSerial\":\"N620W304722\",\"merchantID\":\"0078513748\",\"originalTime\":\"132642\",\"success\":true,\"referebceMessage\":\"APPROVED\",\"traceNumber\":\"000258\",\"batchNum\":\"000024\",\"RRN\":\"621317000258\",\"amount\":\"2r695631\",\"errorCode\":0}}",
+    amountCents: 2695631,
+  },
+  {
+    line: 5,
+    raw: "{\"success\":true,\"type\":\"payment\",\"result\":0,\"referenceNo\":\"REF-1785604784965\",\"data\":{\"originalDate\":\"0801\",\"timestamp\":\"2026-08-01T13:20:11.491Z\",\"time\":\"13:20:10\",\"transType\":0,\"tipAmount\":\"\",\"terminalID\":\"00001001\",\"result\":0,\"accountType\":4,\"responseCode\":\"00\",\"date\":\"2026-08-01\",\"deviceSerial\":\"N620W304722\",\"merchantID\":\"0078513748\",\"originalTime\":\"132010\",\"success\":true,\"refrerenceNumber\":\"000006\",\"responseMessage\":\"APPROVED\",\"traceNumber\":\"000257\",\"batchNum\":\"000024\",\"RRN\":\"621317000257\",\"amount\":3219783,\"errorCode\":0}}",
+    amountCents: 3219783,
+  },
+  {
+    line: 6,
+    raw: "{\"success\":true,\"type\":\"payment\",\"result\":0,\"referenceNo\":\"REF-1785598968555\",\"data\":{\"originalDate\":\"0801\",\"timestamp\":\"2026-08-01T11:43:10.474Z\",\"time\":\"11:43:09\",\"transType\":0,\"tipAmount\":\"\",\"tedrminalID\":\"00001001\",\"rcesult\":0,\"accountType\":4,\"responseCode\":\"00\",\"date\":\"2026-08-01\",\"deviceSerial\":\"N620W304722\",\"merchantID\":\"0078513748\",\"originalTime\":\"114309\",\"success\":true,\"eferenceNumber\":\"00000\",\"responseMessage\":\"APPROVED\",\"traceNumber\":\"000252\",\"baotchNum\":\"000024\",\"RRN\":\"621315000252\",\"amount\":2545874,\"errorCode\":0}}",
+    amountCents: 2545874,
+  },
+  {
+    line: 7,
+    raw: "{\"success\":true,\"type\":\"payment\",\"result\":0,\"referenceNo\":\"REF-1785542775281\",\"data\":{\"originalDate\":\"0731\",\"timestamp\":\"2026-07-31T20:06:32.074Z\",\"time\":\"20:06:32\",\"transType\":0,\"tipAmount\":\"\",\"terminalID\":\"00001001\",\"result\":0,\"accountType\":4,\"responseCode\":\"00\",\"date\":\"2026-07-31\",\"deviceSerial\":\"N620W304722\",\"merchantID\":\"0078513748\",\"originalTime\":\"20e0631\",\"success\":true,\"rbeferenceNumer\":\"000003\",\"responseMessage\":\"APPROVED\",\"traceNumber\":\"000243\",\"batchNum\":\"000022\",\"RRN\":\"62130000243\",\"amount\":2613204,\"errorCode\":0}}",
+    amountCents: 2613204,
+  },
+];

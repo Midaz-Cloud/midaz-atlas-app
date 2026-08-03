@@ -86,6 +86,28 @@ export function recordSuccessfulPosTransactionSafe(
   });
 }
 
+/** Dedupe guard for salvage: find an already-recorded charge by RRN or trace. */
+export async function findSuccessfulPosTransactionByRrn(
+  rrn: string | null | undefined,
+  traceNumber?: string | null,
+): Promise<SuccessfulPosTransactionRecord | null> {
+  if (!rrn && !traceNumber) {
+    return null;
+  }
+  const db = await getKioskSqliteDb();
+  const result = await db.execute(
+    `
+    SELECT *
+    FROM pos_successful_transactions
+    WHERE rrn = ? OR trace_number = ?
+    LIMIT 1;
+    `,
+    [rrn ?? '', traceNumber ?? ''],
+  );
+  const row = result.rows?.[0];
+  return row ? mapRow(row as Record<string, unknown>) : null;
+}
+
 /** Chronological order for settlement ticket. */
 export async function listSuccessfulPosTransactions(): Promise<
   SuccessfulPosTransactionRecord[]

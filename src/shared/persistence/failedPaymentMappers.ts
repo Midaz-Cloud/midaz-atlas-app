@@ -68,6 +68,11 @@ export function snapshotOrder(params: {
       quantity: line.quantity,
       unitPrice: line.unitPrice,
       ...(line.unitPriceVes != null ? { unitPriceVes: line.unitPriceVes } : {}),
+      ...(line.taxRate != null ? { taxRate: line.taxRate } : {}),
+      ...(line.isExempt != null ? { isExempt: line.isExempt } : {}),
+      ...(line.appliedModifiers?.length
+        ? { appliedModifiers: line.appliedModifiers }
+        : {}),
     })),
     totals: {
       totalVes: params.totals.totalVes,
@@ -100,6 +105,7 @@ export function snapshotPayment(params: {
     bankName: params.mobilePayment?.bankName,
     cedula: params.cardPayment?.cedula ?? params.mobilePayment?.cedula,
     phone: params.cardPayment?.phone ?? params.mobilePayment?.phone,
+    ...(params.cardPayment ? { cardPayment: params.cardPayment } : {}),
   };
 }
 

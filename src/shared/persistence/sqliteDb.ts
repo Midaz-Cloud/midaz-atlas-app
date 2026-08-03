@@ -28,6 +28,22 @@ export async function getKioskSqliteDb(): Promise<DB> {
   return dbPromise;
 }
 
+/** Additive migration: CREATE TABLE IF NOT EXISTS never alters existing installs. */
+async function ensureColumn(
+  db: DB,
+  table: string,
+  column: string,
+  ddl: string,
+): Promise<void> {
+  const info = await db.execute(`PRAGMA table_info(${table});`);
+  const exists = (info.rows ?? []).some(
+    (row) => (row as { name?: unknown }).name === column,
+  );
+  if (!exists) {
+    await db.execute(`ALTER TABLE ${table} ADD COLUMN ${ddl};`);
+  }
+}
+
 async function migrateKioskSqlite(db: DB): Promise<void> {
   await db.execute(`
     CREATE TABLE IF NOT EXISTS failed_payments (
@@ -48,6 +64,19 @@ async function migrateKioskSqlite(db: DB): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_failed_payments_created_at
     ON failed_payments (created_at DESC);
   `);
+  await ensureColumn(
+    db,
+    'failed_payments',
+    'status',
+    `status TEXT NOT NULL DEFAULT 'open'`,
+  );
+  await ensureColumn(
+    db,
+    'failed_payments',
+    'status_updated_at',
+    'status_updated_at TEXT',
+  );
+  await ensureColumn(db, 'failed_payments', 'salvage_json', 'salvage_json TEXT');
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS pos_successful_transactions (

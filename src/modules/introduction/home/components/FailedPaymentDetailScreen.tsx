@@ -1,20 +1,38 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import {
+  classifyRetryDuplicateRisk,
+  evaluateFailedPaymentSalvage,
+  retryFailedPaymentOrder,
+  salvageFailedPaymentById,
+} from '@modules/payment/recovery';
+import { parseDeclaresTaxes } from '@shared/api/kiosk/utils/declaresTaxes';
 import { KioskScreenLayout } from '@shared/components';
 import {
   getFailedPayment,
   type FailedPaymentRecord,
 } from '@shared/persistence';
+import { useKioskOrganization } from '@shared/session';
 import { bodyTextStyle, displayTextStyle, useKioskScreenColors } from '@shared/theme';
 import { kioskScale } from '@shared/utils';
+
+const STATUS_LABELS: Record<string, string> = {
+  open: 'Abierto',
+  salvaged: 'Recuperada (en lote de cierre)',
+  retry_pending: 'Reintento pendiente (verificar backend)',
+  retried_ok: 'Orden registrada en backend',
+  retry_failed: 'Reintento de orden falló',
+  dismissed: 'Descartada',
+};
 
 export type FailedPaymentDetailScreenProps = {
   paymentId: number;
@@ -118,6 +136,27 @@ function createStyles(colors: ReturnType<typeof useKioskScreenColors>) {
       color: colors.title,
       textAlign: 'center',
     },
+    recoveryButton: {
+      alignSelf: 'flex-start',
+      paddingHorizontal: kioskScale(24),
+      paddingVertical: kioskScale(12),
+      borderRadius: kioskScale(14),
+      borderWidth: kioskScale(2),
+      borderColor: colors.priceAccent,
+      marginTop: kioskScale(8),
+    },
+    recoveryButtonText: {
+      ...displayTextStyle({ fontWeight: '700' }),
+      fontSize: kioskScale(20),
+      color: colors.priceAccent,
+    },
+    recoveryWarning: {
+      ...bodyTextStyle(),
+      fontSize: kioskScale(20),
+      lineHeight: kioskScale(28),
+      color: colors.title,
+      marginTop: kioskScale(8),
+    },
   });
 }
 
@@ -131,6 +170,15 @@ export function FailedPaymentDetailScreen({
   const [loading, setLoading] = useState(true);
   const [record, setRecord] = useState<FailedPaymentRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
+  const [confirmingRetry, setConfirmingRetry] = useState(false);
+  const organization = useKioskOrganization();
+
+  const reload = useCallback(async () => {
+    const row = await getFailedPayment(paymentId);
+    setRecord(row);
+  }, [paymentId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -160,6 +208,57 @@ export function FailedPaymentDetailScreen({
     };
   }, [paymentId]);
 
+  const evaluation = useMemo(
+    () => (record ? evaluateFailedPaymentSalvage(record) : null),
+    [record],
+  );
+  const duplicateRisk = record ? classifyRetryDuplicateRisk(record) : 'low';
+  const canRetryOrder =
+    record != null &&
+    (record.status === 'salvaged' ||
+      record.status === 'retry_failed' ||
+      (record.status === 'open' && record.stage === 'order_register'));
+
+  const handleSalvage = useCallback(async () => {
+    setRecoveryBusy(true);
+    setRecoveryMessage(null);
+    try {
+      const outcome = await salvageFailedPaymentById(paymentId);
+      setRecoveryMessage(
+        outcome.salvaged
+          ? 'Pago reclasificado como aprobado y agregado al lote de cierre.'
+          : `No se pudo reclasificar (${outcome.reason}${outcome.message ? `: ${outcome.message}` : ''}).`,
+      );
+      await reload();
+    } catch (err) {
+      setRecoveryMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRecoveryBusy(false);
+    }
+  }, [paymentId, reload]);
+
+  const handleRetryOrder = useCallback(async () => {
+    setConfirmingRetry(false);
+    setRecoveryBusy(true);
+    setRecoveryMessage(null);
+    try {
+      const result = await retryFailedPaymentOrder({
+        id: paymentId,
+        declaresTaxes: parseDeclaresTaxes(organization?.declaresTaxes),
+      });
+      setRecoveryMessage(
+        result.ok
+          ? `Orden registrada en backend: ${result.displayOrderNumber}.`
+          : `Reintento no ejecutado (${result.reason}${result.message ? `: ${result.message}` : ''}).`,
+      );
+      await reload();
+    } catch (err) {
+      setRecoveryMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRecoveryBusy(false);
+    }
+  }, [organization, paymentId, reload]);
+
   const customerName = record?.customer
     ? `${record.customer.firstName ?? ''} ${record.customer.lastName ?? ''}`.trim()
     : '';
@@ -188,6 +287,90 @@ export function FailedPaymentDetailScreen({
             <Line label="Fecha" value={formatLocalDateTime(record.createdAt)} styles={styles} />
             <Line label="Etapa" value={record.stage} styles={styles} />
             <Line label="Método" value={record.paymentMethod} styles={styles} />
+            <Line
+              label="Estado"
+              value={STATUS_LABELS[record.status] ?? record.status}
+              styles={styles}
+            />
+          </DetailSection>
+
+          <DetailSection title="Recuperación" styles={styles}>
+            {evaluation?.eligible ? (
+              <>
+                <Text style={styles.line}>
+                  El terminal aprobó este pago. Payload reconstruido: monto{' '}
+                  {evaluation.payload.posResponse.amount} · RRN{' '}
+                  {evaluation.payload.posResponse.RRN} · trace{' '}
+                  {evaluation.payload.posResponse.traceNumber}.
+                </Text>
+                <TouchableOpacity
+                  style={styles.recoveryButton}
+                  onPress={handleSalvage}
+                  disabled={recoveryBusy}
+                  testID="failed-payment-salvage-button">
+                  <Text style={styles.recoveryButtonText}>
+                    {recoveryBusy ? 'Procesando…' : 'Reclasificar como aprobada'}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <Line
+                label="Reclasificación"
+                value={
+                  record.status === 'open'
+                    ? `No elegible (${evaluation?.reason ?? '—'})`
+                    : null
+                }
+                styles={styles}
+              />
+            )}
+            <Line
+              label="Orden backend"
+              value={record.salvage?.displayOrderNumber}
+              styles={styles}
+            />
+            <Line
+              label="Último error de reintento"
+              value={record.salvage?.retryError}
+              styles={styles}
+            />
+            {canRetryOrder ? (
+              confirmingRetry ? (
+                <>
+                  <Text style={styles.recoveryWarning}>
+                    {duplicateRisk === 'possible_duplicate'
+                      ? '⚠ El registro original murió sin respuesta del servidor: la orden PUDO haberse creado. Verifica en el panel del backend que no exista una orden con POS ref ' +
+                        (record.salvage?.payload?.posReference ??
+                          record.payment?.posReference ??
+                          '—') +
+                        ' antes de confirmar.'
+                      : 'El backend rechazó el registro original, no debería existir orden previa. ¿Confirmar el reintento?'}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.recoveryButton}
+                    onPress={handleRetryOrder}
+                    disabled={recoveryBusy}
+                    testID="failed-payment-retry-confirm-button">
+                    <Text style={styles.recoveryButtonText}>Confirmar reintento</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity
+                  style={styles.recoveryButton}
+                  onPress={() => setConfirmingRetry(true)}
+                  disabled={recoveryBusy}
+                  testID="failed-payment-retry-button">
+                  <Text style={styles.recoveryButtonText}>
+                    Reintentar registro de orden
+                  </Text>
+                </TouchableOpacity>
+              )
+            ) : null}
+            {recoveryMessage ? (
+              <Text style={styles.recoveryWarning} testID="failed-payment-recovery-message">
+                {recoveryMessage}
+              </Text>
+            ) : null}
           </DetailSection>
 
           <DetailSection title="Cliente" styles={styles}>

@@ -14,6 +14,13 @@ jest.mock('@op-engineering/op-sqlite', () => {
         if (sql.startsWith('CREATE')) {
           return { rows: [], rowsAffected: 0 };
         }
+        if (sql.startsWith('PRAGMA TABLE_INFO')) {
+          // Empty column list → migration always runs ALTER, which is a no-op here.
+          return { rows: [], rowsAffected: 0 };
+        }
+        if (sql.startsWith('ALTER TABLE')) {
+          return { rows: [], rowsAffected: 0 };
+        }
         if (sql.startsWith('INSERT INTO FAILED_PAYMENTS')) {
           const id = nextFailedId++;
           failedRows.push({
@@ -28,6 +35,9 @@ jest.mock('@op-engineering/op-sqlite', () => {
             order_json: params[7],
             payment_json: params[8],
             raw_json: params[9],
+            status: 'open',
+            status_updated_at: null,
+            salvage_json: null,
           });
           return { insertId: id, rows: [], rowsAffected: 1 };
         }
@@ -35,6 +45,27 @@ jest.mock('@op-engineering/op-sqlite', () => {
           const row = failedRows.find((r) => r.id === params[1]);
           if (row) {
             row.display_ref = params[0];
+          }
+          return { rows: [], rowsAffected: row ? 1 : 0 };
+        }
+        if (sql.startsWith('UPDATE FAILED_PAYMENTS SET STATUS')) {
+          // Shapes (see failedPaymentsRepo.updateFailedPaymentStatus):
+          //   status, status_updated_at [, salvage_json], id [, expectedStatus]
+          const hasSalvage = sql.includes('SALVAGE_JSON');
+          const hasGuard = sql.includes('AND STATUS = ?');
+          let i = 2;
+          const salvageJson = hasSalvage ? params[i++] : undefined;
+          const id = params[i++];
+          const expected = hasGuard ? params[i++] : undefined;
+          const row = failedRows.find(
+            (r) => r.id === id && (expected === undefined || r.status === expected),
+          );
+          if (row) {
+            row.status = params[0];
+            row.status_updated_at = params[1];
+            if (hasSalvage) {
+              row.salvage_json = salvageJson;
+            }
           }
           return { rows: [], rowsAffected: row ? 1 : 0 };
         }
@@ -47,6 +78,14 @@ jest.mock('@op-engineering/op-sqlite', () => {
         if (sql.includes('FROM FAILED_PAYMENTS WHERE ID')) {
           const row = failedRows.find((r) => r.id === params[0]);
           return { rows: row ? [row] : [], rowsAffected: 0 };
+        }
+        if (sql.includes('FROM FAILED_PAYMENTS WHERE STATUS')) {
+          return {
+            rows: failedRows
+              .filter((r) => r.status === params[0])
+              .sort((a, b) => b.id - a.id),
+            rowsAffected: 0,
+          };
         }
         if (sql.includes('FROM FAILED_PAYMENTS')) {
           return {
@@ -76,6 +115,14 @@ jest.mock('@op-engineering/op-sqlite', () => {
           const count = posSuccessRows.length;
           posSuccessRows.length = 0;
           return { rows: [], rowsAffected: count };
+        }
+        if (sql.includes('FROM POS_SUCCESSFUL_TRANSACTIONS WHERE RRN')) {
+          const row = posSuccessRows.find(
+            (r) =>
+              (params[0] !== '' && r.rrn === params[0]) ||
+              (params[1] !== '' && r.trace_number === params[1]),
+          );
+          return { rows: row ? [row] : [], rowsAffected: 0 };
         }
         if (sql.includes('FROM POS_SUCCESSFUL_TRANSACTIONS')) {
           return {

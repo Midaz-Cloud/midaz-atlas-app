@@ -4,7 +4,9 @@ export type {
   FailedPaymentMethodSnapshot,
   FailedPaymentOrderSnapshot,
   FailedPaymentRecord,
+  FailedPaymentSalvageInfo,
   FailedPaymentStage,
+  FailedPaymentStatus,
   FailedPaymentSummary,
   SuccessfulPosTransactionInput,
   SuccessfulPosTransactionRecord,
@@ -22,9 +24,11 @@ export {
 } from './failedPaymentMappers';
 export {
   getFailedPayment,
+  listFailedPaymentRecordsByStatus,
   listFailedPaymentSummaries,
   recordFailedPayment,
   recordFailedPaymentSafe,
+  updateFailedPaymentStatus,
 } from './failedPaymentsRepo';
 export {
   buildSuccessfulPosTransactionInput,
@@ -33,6 +37,7 @@ export {
 } from './posSuccessfulTransactionMappers';
 export {
   clearSuccessfulPosTransactions,
+  findSuccessfulPosTransactionByRrn,
   listSuccessfulPosTransactions,
   recordSuccessfulPosTransaction,
   recordSuccessfulPosTransactionSafe,

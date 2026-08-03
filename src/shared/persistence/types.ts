@@ -1,5 +1,8 @@
 /** Failed-payment persistence types (SQLite registry for admin). */
 
+import type { CardPaymentPayload } from '@shared/kiosk-order/types';
+import type { KioskOrderModifierSelection } from '@shared/api/kiosk/types';
+
 export type FailedPaymentStage =
   | 'pos_charge'
   | 'pos_parse'
@@ -23,6 +26,10 @@ export type FailedPaymentOrderLineSnapshot = {
   quantity: number;
   unitPrice: number;
   unitPriceVes?: number;
+  taxRate?: number;
+  isExempt?: boolean;
+  /** Needed so an order retry rebuilds the same total the POS charged. */
+  appliedModifiers?: KioskOrderModifierSelection[];
 };
 
 export type FailedPaymentOrderSnapshot = {
@@ -46,6 +53,8 @@ export type FailedPaymentMethodSnapshot = {
   bankName?: string;
   cedula?: string;
   phone?: string;
+  /** Full POS payload when available — lets an order retry re-POST as charged. */
+  cardPayment?: CardPaymentPayload;
 };
 
 export type FailedPaymentInput = {
@@ -59,10 +68,36 @@ export type FailedPaymentInput = {
   rawJson?: string | null;
 };
 
+/**
+ * Recovery lifecycle of a failed_payments row.
+ * `retry_pending` marks a row taken for order retry before the POST fires
+ * (at-most-once); a crash leaves it stuck there for manual re-arm.
+ */
+export type FailedPaymentStatus =
+  | 'open'
+  | 'salvaged'
+  | 'retry_pending'
+  | 'retried_ok'
+  | 'retry_failed'
+  | 'dismissed';
+
+/** Recovery artifacts stored in failed_payments.salvage_json. */
+export type FailedPaymentSalvageInfo = {
+  /** POS payload reconstructed from raw_json by the current parser. */
+  payload?: CardPaymentPayload;
+  /** Row inserted into pos_successful_transactions during salvage. */
+  posTransactionId?: number;
+  /** Backend order number when the retry POST succeeded. */
+  displayOrderNumber?: string;
+  retryError?: string;
+  note?: string;
+};
+
 export type FailedPaymentSummary = {
   id: number;
   displayRef: string;
   createdAt: string;
+  status: FailedPaymentStatus;
 };
 
 export type FailedPaymentRecord = FailedPaymentSummary & {
@@ -74,9 +109,12 @@ export type FailedPaymentRecord = FailedPaymentSummary & {
   orderJson: string | null;
   paymentJson: string | null;
   rawJson: string | null;
+  statusUpdatedAt: string | null;
+  salvageJson: string | null;
   customer: FailedPaymentCustomerSnapshot | null;
   order: FailedPaymentOrderSnapshot | null;
   payment: FailedPaymentMethodSnapshot | null;
+  salvage: FailedPaymentSalvageInfo | null;
 };
 
 export const FAILED_PAYMENTS_MAX_ROWS = 200;

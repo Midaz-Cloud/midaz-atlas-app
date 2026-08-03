@@ -10,7 +10,9 @@ import type {
   FailedPaymentMethodSnapshot,
   FailedPaymentOrderSnapshot,
   FailedPaymentRecord,
+  FailedPaymentSalvageInfo,
   FailedPaymentStage,
+  FailedPaymentStatus,
   FailedPaymentSummary,
 } from './types';
 import { FAILED_PAYMENTS_MAX_ROWS } from './types';
@@ -36,12 +38,27 @@ function asNumber(value: unknown): number | null {
   return null;
 }
 
+function asStatus(value: unknown): FailedPaymentStatus {
+  const raw = asString(value);
+  switch (raw) {
+    case 'salvaged':
+    case 'retry_pending':
+    case 'retried_ok':
+    case 'retry_failed':
+    case 'dismissed':
+      return raw;
+    default:
+      return 'open';
+  }
+}
+
 function mapRow(row: Record<string, unknown>): FailedPaymentRecord {
   const id = asNumber(row.id) ?? 0;
   const customerJson = asString(row.customer_json);
   const orderJson = asString(row.order_json);
   const paymentJson = asString(row.payment_json);
   const rawJson = asString(row.raw_json);
+  const salvageJson = asString(row.salvage_json);
   const displayRef =
     asString(row.display_ref) ?? formatFailedPaymentDisplayRef(id);
   return {
@@ -49,6 +66,7 @@ function mapRow(row: Record<string, unknown>): FailedPaymentRecord {
     displayRef,
     createdAt: asString(row.created_at) ?? '',
     stage: (asString(row.stage) as FailedPaymentStage) ?? 'unknown',
+    status: asStatus(row.status),
     paymentMethod: asString(row.payment_method),
     errorReason: asString(row.error_reason) ?? '',
     errorMessage: asString(row.error_message) ?? '',
@@ -56,9 +74,12 @@ function mapRow(row: Record<string, unknown>): FailedPaymentRecord {
     orderJson,
     paymentJson,
     rawJson,
+    statusUpdatedAt: asString(row.status_updated_at),
+    salvageJson,
     customer: safeJsonParse<FailedPaymentCustomerSnapshot>(customerJson),
     order: safeJsonParse<FailedPaymentOrderSnapshot>(orderJson),
     payment: safeJsonParse<FailedPaymentMethodSnapshot>(paymentJson),
+    salvage: safeJsonParse<FailedPaymentSalvageInfo>(salvageJson),
   };
 }
 
@@ -135,7 +156,7 @@ export async function listFailedPaymentSummaries(): Promise<
   const db = await getKioskSqliteDb();
   const result = await db.execute(
     `
-    SELECT id, display_ref, created_at
+    SELECT id, display_ref, created_at, status
     FROM failed_payments
     ORDER BY id DESC;
     `,
@@ -146,8 +167,53 @@ export async function listFailedPaymentSummaries(): Promise<
       id,
       displayRef: asString(row.display_ref) ?? formatFailedPaymentDisplayRef(id),
       createdAt: asString(row.created_at) ?? '',
+      status: asStatus(row.status),
     };
   });
+}
+
+export async function listFailedPaymentRecordsByStatus(
+  status: FailedPaymentStatus,
+): Promise<FailedPaymentRecord[]> {
+  const db = await getKioskSqliteDb();
+  const result = await db.execute(
+    `SELECT * FROM failed_payments WHERE status = ? ORDER BY id DESC;`,
+    [status],
+  );
+  return (result.rows ?? []).map((row) => mapRow(row as Record<string, unknown>));
+}
+
+/**
+ * Status transition. When `expectedStatus` is given the UPDATE is guarded with
+ * `AND status = ?` so a concurrent/duplicate transition loses (returns false) —
+ * this is what makes the order retry at-most-once.
+ */
+export async function updateFailedPaymentStatus(
+  id: number,
+  status: FailedPaymentStatus,
+  options?: {
+    expectedStatus?: FailedPaymentStatus;
+    salvage?: FailedPaymentSalvageInfo;
+  },
+): Promise<boolean> {
+  const db = await getKioskSqliteDb();
+  const now = new Date().toISOString();
+  const guard = options?.expectedStatus != null ? ' AND status = ?' : '';
+  const params: (string | number)[] = [status, now];
+  let setSalvage = '';
+  if (options?.salvage != null) {
+    setSalvage = ', salvage_json = ?';
+    params.push(safeJsonStringify(options.salvage) ?? 'null');
+  }
+  params.push(id);
+  if (options?.expectedStatus != null) {
+    params.push(options.expectedStatus);
+  }
+  const result = await db.execute(
+    `UPDATE failed_payments SET status = ?, status_updated_at = ?${setSalvage} WHERE id = ?${guard};`,
+    params,
+  );
+  return (result.rowsAffected ?? 0) > 0;
 }
 
 export async function getFailedPayment(

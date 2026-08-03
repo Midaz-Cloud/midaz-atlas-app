@@ -80,6 +80,8 @@ export type BuildPosPaymentFromEcrParams = {
   paymentMethodId?: 'pos' | 'credito';
   /** Céntimos enviados al POS — Conviase: preferir sobre amount corrupto del USB. */
   amountSentCents?: number;
+  /** Salvage/replay of stored payloads: do not persist POS serial nor log as live checkout. */
+  skipSideEffects?: boolean;
 };
 
 export type BuildPosPaymentFromEcrResult =
@@ -111,7 +113,8 @@ function buildKioskPosResponse(
   let traceNumber = readString(flat, 'traceNumber');
   let referenceNumber = readString(flat, 'referenceNumber');
   let RRN = readString(flat, 'RRN', 'rrn');
-  const amount = readString(flat, 'amount', 'amout');
+  // USB junk defense: the order payload always carries a digits-only amount.
+  const amount = readString(flat, 'amount', 'amout')?.replace(/\D/g, '') || undefined;
   const responseMessage =
     readString(flat, 'responseMessage', 'responseMesages', 'ensMessge', 'respnseMoessage') ??
     'APPROVED';
@@ -178,23 +181,24 @@ export function buildPosPaymentFromEcr(
     return { ok: false, message: 'Respuesta del terminal no válida' };
   }
 
-  // Prefer client-sent amount when USB value is clearly truncated/corrupt vs what we charged.
-  if (
-    params.amountSentCents != null &&
-    params.amountSentCents > 0 &&
-    (flat.amount == null ||
-      String(flat.amount).replace(/\D/g, '') !== String(params.amountSentCents))
-  ) {
-    const usbDigits = String(flat.amount ?? '').replace(/\D/g, '');
+  // Prefer client-sent amount when USB value is missing, junk, or truncated vs what we charged.
+  const usbAmountRaw = flat.amount == null ? '' : String(flat.amount);
+  const usbDigits = usbAmountRaw.replace(/\D/g, '');
+  if (params.amountSentCents != null && params.amountSentCents > 0) {
     const sent = String(params.amountSentCents);
-    // Only override when USB amount is missing, non-numeric junk, or a truncated subset.
+    // Override on missing/junk/truncated USB amount — including junk whose digits
+    // happen to equal what we sent (e.g. "2r695631" vs 2695631).
     if (
       !usbDigits ||
+      usbDigits === sent ||
       sent.startsWith(usbDigits) ||
       usbDigits.length < sent.length
     ) {
       flat.amount = sent;
     }
+  } else if (usbDigits !== usbAmountRaw) {
+    // No client amount to trust — never let non-digit junk reach the backend.
+    flat.amount = usbDigits || undefined;
   }
 
   const paymentMethodId = params.paymentMethodId ?? 'pos';
@@ -226,9 +230,10 @@ export function buildPosPaymentFromEcr(
     phone: params.customer.phone?.trim() || undefined,
     posReference,
   };
-  logKioskCheckoutPayload('POS → order payment payload', payload);
-
-  void saveLastPosSerial(posResponse.deviceSerial);
+  if (!params.skipSideEffects) {
+    logKioskCheckoutPayload('POS → order payment payload', payload);
+    void saveLastPosSerial(posResponse.deviceSerial);
+  }
 
   return { ok: true, payload };
 }

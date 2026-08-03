@@ -9,13 +9,24 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { salvageFailedPayments } from '@modules/payment/recovery';
 import { KioskScreenLayout } from '@shared/components';
 import {
   listFailedPaymentSummaries,
+  type FailedPaymentStatus,
   type FailedPaymentSummary,
 } from '@shared/persistence';
 import { bodyTextStyle, displayTextStyle, useKioskScreenColors } from '@shared/theme';
 import { kioskScale } from '@shared/utils';
+
+const STATUS_LABELS: Record<FailedPaymentStatus, string> = {
+  open: 'Abierto',
+  salvaged: 'Recuperada',
+  retry_pending: 'Reintento pendiente',
+  retried_ok: 'Orden registrada',
+  retry_failed: 'Reintento falló',
+  dismissed: 'Descartada',
+};
 
 export type FailedPaymentsListScreenProps = {
   onBack: () => void;
@@ -39,6 +50,8 @@ export function FailedPaymentsListScreen({
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<FailedPaymentSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [salvaging, setSalvaging] = useState(false);
+  const [salvageSummary, setSalvageSummary] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,6 +68,26 @@ export function FailedPaymentsListScreen({
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  const handleSalvage = useCallback(async () => {
+    setSalvaging(true);
+    setSalvageSummary(null);
+    try {
+      const result = await salvageFailedPayments();
+      setSalvageSummary(
+        result.salvaged.length > 0
+          ? `${result.salvaged.length} pago(s) recuperados al lote de cierre · ${result.skipped.length} sin cambios`
+          : 'Ninguna fila abierta corresponde a un pago aprobado.',
+      );
+      await load();
+    } catch (err) {
+      setSalvageSummary(
+        `Error al recuperar: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    } finally {
+      setSalvaging(false);
+    }
   }, [load]);
 
   const styles = useMemo(
@@ -95,6 +128,51 @@ export function FailedPaymentsListScreen({
           ...displayTextStyle({ fontWeight: '700' }),
           fontSize: kioskScale(28),
           color: colors.title,
+        },
+        rowLeft: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: kioskScale(12),
+          flexShrink: 1,
+        },
+        badge: {
+          paddingHorizontal: kioskScale(12),
+          paddingVertical: kioskScale(4),
+          borderRadius: kioskScale(12),
+          borderWidth: kioskScale(2),
+          borderColor: colors.productDetailBorder,
+        },
+        badgeSalvaged: {
+          borderColor: colors.priceAccent,
+        },
+        badgeText: {
+          ...bodyTextStyle(),
+          fontSize: kioskScale(16),
+          color: colors.menuSectionMuted,
+        },
+        badgeTextSalvaged: {
+          color: colors.priceAccent,
+        },
+        salvageButton: {
+          alignSelf: 'center',
+          paddingHorizontal: kioskScale(28),
+          paddingVertical: kioskScale(14),
+          borderRadius: kioskScale(16),
+          borderWidth: kioskScale(2),
+          borderColor: colors.priceAccent,
+          marginBottom: kioskScale(16),
+        },
+        salvageButtonText: {
+          ...displayTextStyle({ fontWeight: '700' }),
+          fontSize: kioskScale(22),
+          color: colors.priceAccent,
+        },
+        salvageSummary: {
+          ...bodyTextStyle(),
+          fontSize: kioskScale(20),
+          color: colors.menuSectionMuted,
+          textAlign: 'center',
+          marginBottom: kioskScale(16),
         },
         rowDate: {
           ...bodyTextStyle(),
@@ -140,6 +218,21 @@ export function FailedPaymentsListScreen({
           Selecciona un registro para ver el detalle.
         </Text>
 
+        <TouchableOpacity
+          style={styles.salvageButton}
+          onPress={handleSalvage}
+          disabled={salvaging}
+          testID="failed-payments-salvage-button">
+          <Text style={styles.salvageButtonText}>
+            {salvaging ? 'Recuperando…' : 'Recuperar aprobadas'}
+          </Text>
+        </TouchableOpacity>
+        {salvageSummary ? (
+          <Text style={styles.salvageSummary} testID="failed-payments-salvage-summary">
+            {salvageSummary}
+          </Text>
+        ) : null}
+
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator size="large" color={colors.priceAccent} />
@@ -157,7 +250,22 @@ export function FailedPaymentsListScreen({
                 style={styles.row}
                 onPress={() => onSelect(item.id)}
                 testID={`failed-payment-row-${item.id}`}>
-                <Text style={styles.rowRef}>{item.displayRef}</Text>
+                <View style={styles.rowLeft}>
+                  <Text style={styles.rowRef}>{item.displayRef}</Text>
+                  <View
+                    style={[
+                      styles.badge,
+                      item.status !== 'open' ? styles.badgeSalvaged : null,
+                    ]}>
+                    <Text
+                      style={[
+                        styles.badgeText,
+                        item.status !== 'open' ? styles.badgeTextSalvaged : null,
+                      ]}>
+                      {STATUS_LABELS[item.status]}
+                    </Text>
+                  </View>
+                </View>
                 <Text style={styles.rowDate}>{formatLocalDateTime(item.createdAt)}</Text>
               </TouchableOpacity>
             )}
