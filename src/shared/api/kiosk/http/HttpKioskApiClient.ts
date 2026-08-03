@@ -224,15 +224,18 @@ export class HttpKioskApiClient implements KioskApiClient {
   }
 
   async submitSettlement(request: KioskSettlementRequest): Promise<KioskSettlementResponse> {
-    logKioskCheckoutPayload('POST /kiosk/settlement request', request);
-    const response = await fetch(this.apiUrl('/kiosk/settlement'), {
+    // Base QA: https://midazqa.dis-global.com/apis + /api/pos/settlements
+    // (un solo /api; evitar /api/api/pos/settlements)
+    const settlementPath = '/api/pos/settlements';
+    logKioskCheckoutPayload(`POST ${settlementPath} request`, request);
+    const response = await fetch(this.apiUrl(settlementPath), {
       method: 'POST',
       headers: this.headers(),
       body: JSON.stringify(request),
     });
-    await throwIfNotOk(response, '/kiosk/settlement');
+    await throwIfNotOk(response, settlementPath);
     const body = (await response.json()) as KioskSettlementResponse;
-    logKioskCheckoutPayload('POST /kiosk/settlement response', body);
+    logKioskCheckoutPayload(`POST ${settlementPath} response`, body);
     return body;
   }
 }

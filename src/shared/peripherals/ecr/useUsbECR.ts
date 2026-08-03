@@ -5,7 +5,9 @@ import { shouldUseMockApi } from '@shared/config';
 
 import { createEcrClient } from './createEcrClient';
 import { ecrErrorFromPaymentResponse } from './ecrTransactionError';
+import { extractLastBalancedJson } from './extractLastBalancedJson';
 import { formatEcrDocumentNumber } from './formatEcrDocumentNumber';
+import { isTransientEcrResponse } from './isTransientEcrResponse';
 import { getUsbSerialModule } from './usbSerialModule';
 import { toEcrTerminalAmount } from './toEcrTerminalAmount';
 
@@ -74,10 +76,17 @@ export function useUsbECR(): UseUsbECRReturn {
         return;
       }
 
-      setReceivedMessages((prev) => [...prev, payload]);
-      setLastTransactionResponse(payload);
+      if (isTransientEcrResponse(payload)) {
+        return;
+      }
 
-      const paymentError = ecrErrorFromPaymentResponse(payload);
+      const balanced = extractLastBalancedJson(payload);
+      const settledPayload = balanced ?? payload;
+
+      setReceivedMessages((prev) => [...prev, settledPayload]);
+      setLastTransactionResponse(settledPayload);
+
+      const paymentError = ecrErrorFromPaymentResponse(settledPayload);
       if (pending.timeoutId) {
         clearTimeout(pending.timeoutId);
       }
@@ -91,7 +100,7 @@ export function useUsbECR(): UseUsbECRReturn {
       }
 
       setError(null);
-      pending.resolve(payload);
+      pending.resolve(settledPayload);
     },
     [],
   );
@@ -132,6 +141,9 @@ export function useUsbECR(): UseUsbECRReturn {
     subscriptions.current.commandReceived = eventEmitter.current.addListener(
       'onUsbCommandReceived',
       (event: { type: string; payload: string }) => {
+        if (isTransientEcrResponse(event.payload)) {
+          return;
+        }
         settlePendingTransaction(event.payload);
       },
     );
@@ -146,8 +158,23 @@ export function useUsbECR(): UseUsbECRReturn {
         if (!line) {
           return;
         }
-        // Native strict JSON parse may fail on corrupted USB payloads; still settle here.
-        settlePendingTransaction(line);
+        if (isTransientEcrResponse(line)) {
+          return;
+        }
+        // Fallback when native could not emit command: extract last balanced JSON.
+        const balanced = extractLastBalancedJson(line);
+        const candidate = balanced ?? line;
+        if (balanced != null) {
+          const looksLikePayment =
+            candidate.includes('"success"') ||
+            candidate.includes('"type"') ||
+            candidate.includes('responseCode') ||
+            candidate.includes('errorCode');
+          if (!looksLikePayment) {
+            return;
+          }
+        }
+        settlePendingTransaction(candidate);
       },
     );
 

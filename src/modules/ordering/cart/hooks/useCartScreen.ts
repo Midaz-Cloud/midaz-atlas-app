@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ImageSourcePropType } from 'react-native';
 
+import { KIOSK_CART_MAX_UNITS } from '@shared/kiosk-order';
+
 import { findMenuProduct } from '../../menu/data/findMenuProduct';
 import {
   getModifierGroup,
@@ -109,10 +111,11 @@ function formatModifiersLabel(
   return t('cart.modifiersList', { names: modifierNames.join(', ') });
 }
 
-export function useCartScreen(lines: CartLine[]) {
+export function useCartScreen(lines: CartLine[], itemCount = 0) {
   const { t } = useTranslation('ordering');
 
   const cartLines = useMemo((): CartLineViewModel[] => {
+    const canIncrementSession = itemCount < KIOSK_CART_MAX_UNITS;
     return lines
       .map((line, index) => {
         const product = findMenuProduct(line.productId);
@@ -134,8 +137,9 @@ export function useCartScreen(lines: CartLine[]) {
             ? Math.round(line.unitPriceVes * line.quantity * 100) / 100
             : undefined;
         const maxQuantity = product.available;
-        const canIncrement =
+        const canIncrementStock =
           maxQuantity == null ? true : line.quantity < maxQuantity;
+        const canIncrement = canIncrementStock && canIncrementSession;
 
         return {
           lineId: line.lineId,
@@ -152,7 +156,7 @@ export function useCartScreen(lines: CartLine[]) {
         };
       })
       .filter((line): line is CartLineViewModel => line !== null);
-  }, [lines, t]);
+  }, [lines, itemCount, t]);
 
   return { cartLines };
 }

@@ -283,7 +283,7 @@ export type KioskConfigFetchResult = {
   etag: string | null;
 };
 
-/** POS settlement payload from N620 SDK (POST /kiosk/settlement settlementData). */
+/** POS settlement payload from N620 SDK (POST /api/pos/settlements settlementData). */
 export type KioskSettlementData = {
   CreditBatchNo?: string;
   DebitBatchNo?: string;

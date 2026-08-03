@@ -76,7 +76,7 @@ export function CartScreen({
   const insets = useSafeAreaInsets();
   const { t } = useTranslation('ordering');
   const [checkoutOpen, setCheckoutOpen] = useState(initialCheckoutOpen);
-  const { cartLines } = useCartScreen(lines);
+  const { cartLines } = useCartScreen(lines, itemCount);
   const { totals: orderTotals } = useKioskOrder();
 
   const handleBack = useCallback(() => {

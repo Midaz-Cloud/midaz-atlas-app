@@ -1,5 +1,15 @@
 import { logKioskCheckoutPayload } from '@shared/api/kiosk/logKioskCheckoutPayload';
 
+import { extractLastBalancedJson } from './extractLastBalancedJson';
+import {
+  fuzzyExtractAmount,
+  fuzzyExtractReferenceNumber,
+  fuzzyExtractResponseCode,
+  fuzzyExtractRrn,
+  fuzzyExtractTraceNumber,
+  resolvePosIdentityFields,
+} from './fuzzyEcrFieldExtract';
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (value != null && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, unknown>;
@@ -51,6 +61,12 @@ function extractEcrResponseCode(text: string): string | undefined {
     /responseCod"e:\s*"(\d{2})/i,
     /responseCod"e"\s*:\s*"(\d{2})/i,
     /responseCode"\s*:\s*"(\d{2})/i,
+    // USB: "respons,eCode":"00""date"
+    /respon[a-z]*[,][a-z]*eCode"\s*:\s*"(\d{2})/i,
+    /respons,eCode"\s*:\s*"(\d{2})/i,
+    // USB: d"responseCoe":"00"
+    /d?"responseCoe"\s*:\s*"(\d{2})/i,
+    /responseCoe"\s*:\s*"(\d{2})/i,
     /date?seCode"\s*:\s*"?[a-z:]*(\d{2})/i,
     /r[n]?[e]?n?ssp[o0]eCode"\s*:\s*"?[a-z:]*(\d{2})/i,
     /eresponseCoe"\s*:\s*"[a-z:]*(\d{2,})/i,
@@ -61,6 +77,9 @@ function extractEcrResponseCode(text: string): string | undefined {
     /responseC[o0]d[e]?\s*"\s*:\s*"?[a-z:]*(\d{2})/i,
     /"responseCode"\s*:\s*"?[a-z:]*(\d{2})/i,
     /response[a-z0-9"._-]{0,16}:\s*"(\d{2})"/i,
+    // Fallback: any *eCode / *Code near "00" before date/device
+    /[a-z,]{0,8}eCode"\s*:\s*"(\d{2})"/i,
+    /[a-z,]{0,8}Coe"\s*:\s*"(\d{2})"/i,
   ]);
   if (!raw) {
     return undefined;
@@ -71,6 +90,26 @@ function extractEcrResponseCode(text: string): string | undefined {
 /** @internal Used by approval heuristics — responseCode `00` means terminal approved. */
 export function extractEcrResponseCodeFromText(text: string): string | undefined {
   return extractEcrResponseCode(text);
+}
+
+/**
+ * Plain-text scan for ECR `errorCode` when USB corrupts JSON.
+ * Prefers negative matches (failure) over zero.
+ */
+export function extractEcrErrorCodeFromText(text: string): number | undefined {
+  const negative = text.match(
+    /(?:er"rorCode|erorrCode|erro[r]?Corde|errorCode)"?\s*:?\s*(-\d+)\b/i,
+  );
+  if (negative?.[1] != null) {
+    return Number(negative[1]);
+  }
+  const zeroOrPositive = text.match(
+    /(?:er"rorCode|erorrCode|erro[r]?Corde|errorCode)"?\s*:?\s*(\d+)\b/i,
+  );
+  if (zeroOrPositive?.[1] != null) {
+    return Number(zeroOrPositive[1]);
+  }
+  return undefined;
 }
 
 function concatEcrDigitTokens(...parts: Array<string | undefined>): string {
@@ -89,6 +128,18 @@ function extractEcrRrnRaw(text: string): string | undefined {
   const structured = text.match(/RRN"\s*:\s*"(\d{8,14})"(\d{1,2})?/i);
   if (structured?.[1]) {
     return repairBrokenQuoteRrn(structured[1], structured[2]);
+  }
+
+  // USB: "RRN":"6"20219000077 → 620219000077
+  const splitQuote = text.match(/RRN"\s*:\s*"(\d{1,4})"(\d{8,14})/i);
+  if (splitQuote?.[1] && splitQuote[2]) {
+    return `${splitQuote[1]}${splitQuote[2]}`;
+  }
+
+  // USB missing opening quote: RRN":620219000075"
+  const missingOpenQuote = text.match(/RRN"\s*:\s*(\d{8,14})"/i);
+  if (missingOpenQuote?.[1]) {
+    return missingOpenQuote[1];
   }
 
   const quoted = text.match(/RRN"\s*:\s*"([^",]+)/i);
@@ -111,57 +162,84 @@ function extractEcrRrnRaw(text: string): string | undefined {
 
 /**
  * Extracts POS payment fields from corrupted USB JSON when strict parse fails.
- * Handles typos seen on AF910: responseCdode, amount""100, time"":, etc.
+ * Plain-text identity first (Conviase); JSON.parse is optional.
+ *
+ * @param amountSentCents Céntimos enviados al POS (Conviase: no confiar solo en amount USB).
  */
-export function parseEcrPaymentJsonHeuristic(raw: string): Record<string, unknown> | null {
+export function parseEcrPaymentJsonHeuristic(
+  raw: string,
+  amountSentCents?: number,
+): Record<string, unknown> | null {
   const text = normalizeEcrJsonEnvelope(raw);
   if (!text.includes('{')) {
     return null;
   }
 
-  const responseCode = extractEcrResponseCode(text);
+  const errorCode = extractEcrErrorCodeFromText(text);
+  if (errorCode != null && errorCode < 0) {
+    return null;
+  }
+
+  // Plain-text identity first — tolerate broken keys like t:raceNumber / RRN"2:
+  const identity = resolvePosIdentityFields(text, amountSentCents);
+  if (identity != null) {
+    return buildHeuristicFlat(text, {
+      responseCode: identity.responseCode,
+      errorCode,
+      traceNumber: identity.traceNumber,
+      referenceNumber: identity.referenceNumber,
+      RRN: identity.RRN,
+      amount: identity.amount,
+      referenceNo: identity.referenceNo,
+    });
+  }
+
+  // Legacy typo-list path when identity resolver cannot fill all required refs.
+  let responseCode =
+    fuzzyExtractResponseCode(text) ?? extractEcrResponseCode(text);
+  if (!responseCode && errorCode === 0) {
+    responseCode = '00';
+  }
   if (!responseCode) {
     return null;
   }
 
-  const traceNumberRaw = firstMatch(text, [
-    /traceNmberu"\s*:\s*"([^"]+)/i,
-    /trace0?Number"\s*:\s*"([^"]+)"/i,
-    /trac[a-z]*Num[b]*eer[a-z0-9]*"\s*:\s*"([^",]+)/i,
-    /traceNu[m]?er[a-z0-9]*"\s*:\s*"([^"]+)"/i,
-    /traceNumber"\s*:\s*"([^"]+)"/i,
-    /traceNumber"\s*:\s*(\d+)/i,
-    /traeNumber"\s*:\s*"([^"]+)"/i,
-    /traeNumber"\s*:\s*(\d+)/i,
-  ]);
+  const traceNumberRaw =
+    fuzzyExtractTraceNumber(text) ??
+    firstMatch(text, [
+      /traceNmberu"\s*:\s*"([^"]+)/i,
+      /trace0?Number"\s*:\s*"([^"]+)"/i,
+      /trac[a-z]*Num[b]*eer[a-z0-9]*"\s*:\s*"([^",]+)/i,
+      /traceNu[m]?er[a-z0-9]*"\s*:\s*"([^"]+)"/i,
+      /traceNumber"\s*:\s*"([^"]+)"/i,
+      /traceNumber"\s*:\s*(\d+)/i,
+      /traeNumber"\s*:\s*"([^"]+)"/i,
+      /traeNumber"\s*:\s*(\d+)/i,
+      /traceNmber"\s*:\s*"([^"]+)"/i,
+      /traceumber"\s*:\s*"([^"]+)"/i,
+      /"raceNumber"\s*:\s*"([^"]+)"/i,
+      /trceNumber"\s*:\s*"([^"]+)"/i,
+    ]);
   const traceNumber = traceNumberRaw
     ? sanitizeEcrNumericToken(traceNumberRaw)
     : undefined;
-  const referenceNumberRaw = firstMatch(text, [
-    /erfreenceNumber"\s*:\s*"([^"]+)/i,
-    /referenceNu[a-z":]*"?([^",}\]]+)/i,
-    /reernecefNumber\s*:\s*"?([^",}\]]+)/i,
-    /refe?renceNumber"+\s*:\s*"?([^",}\]]+)/i,
-    /referenceNumber"\s*:\s*"([^"]+)"/i,
-    /referenceNumber"\s*:\s*(\d+)/i,
-    /reeferenceNumbr"\s*:\s*"([^"]+)"/i,
-    /reeferenceNumbr"\s*:\s*(\d+)/i,
-  ]);
+
+  const referenceNumberRaw =
+    fuzzyExtractReferenceNumber(text) ??
+    firstMatch(text, [
+      /erfreenceNumber"\s*:\s*"([^"]+)/i,
+      /referenceNu[a-z":]*"?([^",}\]]+)/i,
+      /refe?renceNumber"+\s*:\s*"?([^",}\]]+)/i,
+      /refe"renceNumber\s*:\s*"?([^",}\]]+)/i,
+      /referenceNumber"\s*:\s*"([^"]+)"/i,
+      /referenceNumber"\s*:\s*(\d+)/i,
+    ]);
   const referenceNumber = referenceNumberRaw
     ? sanitizeEcrNumericToken(referenceNumberRaw)
     : undefined;
-  const rrnRaw = extractEcrRrnRaw(text);
-  const amount = firstMatch(text, [
-    /maount"\s*:\s*"(\d+)/i,
-    /maoutn"\s*:\s*"(\d+)/i,
-    /amo"unt"\s*:\s*"?(\d+)/i,
-    /amo"unt":(\d+)/i,
-    /amout"\s*:\s*"?(\d+)/i,
-    /"?amount"*\s*:\s*"?(\d+)/i,
-    /amount"+\s*:\s*"?(\d+)/i,
-    /amount"+\s*"?(\d+)/i,
-    /"amount"\s*:\s*"?(\d+)/i,
-  ]);
+
+  const rrnRaw = fuzzyExtractRrn(text) ?? extractEcrRrnRaw(text);
+  const amount = fuzzyExtractAmount(text, amountSentCents);
 
   if (!traceNumber || !rrnRaw || !amount) {
     return null;
@@ -172,6 +250,28 @@ export function parseEcrPaymentJsonHeuristic(raw: string): Record<string, unknow
     return null;
   }
 
+  return buildHeuristicFlat(text, {
+    responseCode,
+    errorCode,
+    traceNumber,
+    referenceNumber: referenceNumber ?? traceNumber,
+    RRN,
+    amount,
+  });
+}
+
+function buildHeuristicFlat(
+  text: string,
+  core: {
+    responseCode: string;
+    errorCode?: number;
+    traceNumber: string;
+    referenceNumber: string;
+    RRN: string;
+    amount: string;
+    referenceNo?: string;
+  },
+): Record<string, unknown> {
   const responseMessage =
     firstMatch(text, [
       /responseMesasge"\s*:\s*"([A-Z]+)/i,
@@ -182,6 +282,7 @@ export function parseEcrPaymentJsonHeuristic(raw: string): Record<string, unknow
       /respo[a-z0-9]*Me[a-z]*essage"+\s*"?([A-Z:PRVOED]+)/i,
       /respnseMo[a-z]*essage"\s*:\s*"([^"]+)"/i,
       /ensMessge\s*:\s*"?([A-Za-z]+)/i,
+      /responeMessage"\s*:\s*"([^"]+)"/i,
     ]) ?? 'APPROVED';
 
   const accountTypeRaw = firstMatch(text, [
@@ -190,15 +291,35 @@ export function parseEcrPaymentJsonHeuristic(raw: string): Record<string, unknow
     /accoultuntTeyp"\s*:\s*(\d+)/i,
     /accountTyp:e"(\d+)/i,
     /a,ccountType"\s*:\s*(\d+)/i,
+    /"?accountType:(\d+)/i,
   ]);
   const accountType = accountTypeRaw ? Number.parseInt(accountTypeRaw, 10) : undefined;
 
+  const batchSplit = text.match(/batchNum"\s*:\s*"(\d{1,6})"(\d{1,6})"/i);
+  const batchNum =
+    (batchSplit?.[1] && batchSplit[2]
+      ? `${batchSplit[1]}${batchSplit[2]}`
+      : undefined) ??
+    firstMatch(text, [
+      /Nbatchum"\s*:\s*"(\d+)/i,
+      /bachNum"t(\d+)/i,
+      /batchNum:\s*"+(\d+)/i,
+      /batchNum"\s*:\s*"([^"]+)"/i,
+      /batchNum"\s*:\s*(\d+)/i,
+      /0abtchuNm"+\s*"?([^",:]+)/i,
+      /batc0hNum"\s*:\s*"([^"]+)"/i,
+      /batc\d*hNum"\s*:\s*"([^"]+)"/i,
+      /b0atchNum"\s*:\s*"([^"]+)"/i,
+    ]) ??
+    '000001';
+
   return {
-    responseCode,
-    responseMessage,
-    referenceNumber: referenceNumber ?? traceNumber,
-    traceNumber,
-    RRN,
+    responseCode: core.responseCode,
+    ...(core.errorCode != null ? { errorCode: core.errorCode } : {}),
+    responseMessage: responseMessage.replace(/^t(?=APPROVED)/i, ''),
+    referenceNumber: core.referenceNumber,
+    traceNumber: core.traceNumber,
+    RRN: core.RRN,
     terminalID:
       firstMatch(text, [
         /e"trminaIlD"\s*:\s*"(\d{6,})/i,
@@ -212,6 +333,9 @@ export function parseEcrPaymentJsonHeuristic(raw: string): Record<string, unknow
         /minaDlI"\s*:\s*"(\d{6,})/i,
         /ermtilnaID"\s*:\s*"([^"]+)"/i,
         /ermtilnaID"\s*:\s*(\d+)/i,
+        /t"erminalID"\s*:\s*"?(\d+)/i,
+        /term0inalID"\s*:\s*"([^"]+)"/i,
+        /term\d*inalID"\s*:\s*"([^"]+)"/i,
       ])?.replace(/[^0-9]/g, '') ??
       '00000000',
     deviceSerial:
@@ -234,30 +358,27 @@ export function parseEcrPaymentJsonHeuristic(raw: string): Record<string, unknow
         /me"rchantID"\s*:\s*"([^"]+)/i,
         /merantchID"\s*:\s*"([^"]+)/i,
       ]) ?? '0000000000').replace(/[^0-9]/g, '') || '0000000000',
-    batchNum:
-      firstMatch(text, [
-        /Nbatchum"\s*:\s*"(\d+)/i,
-        /bachNum"t(\d+)/i,
-        /batchNum:\s*"+(\d+)/i,
-        /batchNum"\s*:\s*"([^"]+)"/i,
-        /batchNum"\s*:\s*(\d+)/i,
-        /0abtchuNm"+\s*"?([^",:]+)/i,
-      ]) ?? '000001',
-    amount,
+    batchNum,
+    amount: core.amount,
     ...(accountType != null && Number.isFinite(accountType) ? { accountType } : {}),
-    referenceNo: firstMatch(text, [
-      /referenceNo"+\s*"?([A-Z0-9-]+)/i,
-      /referenceNo"\s*:\s*"([^"]+)"/i,
-      /reference"No:"\s*([A-Z0-9-]+)/i,
-      /refecreneNo"\s*:\s*"([^"]+)/i,
-      /referenceNo[a-z"A-Z:]*"?([A-Z0-9-]+)/i,
-      /refencereNo"\s*:\s*"?([A-Z0-9-]+)/i,
-    ]),
+    referenceNo:
+      core.referenceNo ??
+      firstMatch(text, [
+        /referenceNo"+\s*"?([A-Z0-9-]+)/i,
+        /referenceNo"\s*:\s*"([^"]+)"/i,
+        /reference"No:"\s*([A-Z0-9-]+)/i,
+        /refecreneNo"\s*:\s*"([^"]+)/i,
+        /referenceNo[a-z"A-Z:]*"?([A-Z0-9-]+)/i,
+        /refencereNo"\s*:\s*"?([A-Z0-9-]+)/i,
+        /referFenceNo"\s*:\s*"([^"]+)"/i,
+        /(REF-\d{10,})/i,
+      ]),
   };
 }
 
 function normalizeEcrJsonEnvelope(raw: string): string {
-  let trimmed = raw.trim();
+  const balanced = extractLastBalancedJson(raw);
+  let trimmed = (balanced ?? raw).trim();
   if (trimmed.startsWith('[')) {
     const objectStart = trimmed.indexOf('{');
     if (objectStart > 0) {
@@ -319,6 +440,13 @@ function repairCorruptedJsonQuotes(raw: string): string {
   // Fix "traeNumber"
   cleaned = cleaned.replace(/"traeNumber"/g, '"traceNumber"');
 
+  // Fix "traceumber" (dropped N) — logcat 2026-07-23
+  cleaned = cleaned.replace(/"traceumber"/g, '"traceNumber"');
+  // Fix "traceNmber" (dropped u)
+  cleaned = cleaned.replace(/"traceNmber"/g, '"traceNumber"');
+  // Fix "8amount" / digit-prefixed amount keys
+  cleaned = cleaned.replace(/"\d+amount"/g, '"amount"');
+
   return cleaned;
 }
 
@@ -364,14 +492,53 @@ function parseEcrPaymentJsonStrict(raw: string): Record<string, unknown> | null 
   }
 }
 
+function flatHasRequiredPosFields(flat: Record<string, unknown>): boolean {
+  const responseCodeRaw =
+    typeof flat.responseCode === 'string' ? flat.responseCode : undefined;
+  const normalized =
+    responseCodeRaw != null ? normalizeEcrResponseCode(responseCodeRaw) : undefined;
+  // Strict path needs canonical responseCode "00". errorCode-only cases go through heuristic.
+  return Boolean(
+    normalized === '00' && flat.traceNumber && (flat.RRN ?? flat.rrn) && flat.amount,
+  );
+}
+
+export type ParseEcrPaymentJsonOptions = {
+  /** Céntimos enviados al POS — fallback si el amount USB viene corrupto (Conviase). */
+  amountSentCents?: number;
+};
+
 /** Parses POS JSON (strict), then heuristic fallback for corrupted USB payloads. */
-export function parseEcrPaymentJson(raw: string): Record<string, unknown> | null {
-  const strict = parseEcrPaymentJsonStrict(raw);
-  const flat = strict ?? parseEcrPaymentJsonHeuristic(raw);
+export function parseEcrPaymentJson(
+  raw: string,
+  options?: ParseEcrPaymentJsonOptions,
+): Record<string, unknown> | null {
+  const focused = extractLastBalancedJson(raw) ?? raw;
+  const strict = parseEcrPaymentJsonStrict(focused);
+  // Valid JSON with renamed keys (e.g. raceNumber, respons,eCode) must still use heuristic.
+  const heuristic =
+    strict == null || !flatHasRequiredPosFields(strict)
+      ? parseEcrPaymentJsonHeuristic(focused, options?.amountSentCents)
+      : null;
+  let flat =
+    strict != null && flatHasRequiredPosFields(strict)
+      ? strict
+      : (heuristic ?? strict);
+
+  // Conviase: if USB amount missing/corrupt but we know what we charged, fill it.
+  if (
+    flat != null &&
+    (flat.amount == null || flat.amount === '') &&
+    options?.amountSentCents != null &&
+    options.amountSentCents > 0
+  ) {
+    flat = { ...flat, amount: String(options.amountSentCents) };
+  }
+
   logKioskCheckoutPayload('POS JSON parse', {
     strictJsonValid: strict != null,
     flat,
-    raw,
+    raw: focused,
   });
   return flat;
 }

@@ -5,3 +5,7 @@ export { CartItemsList, type CartItemsListProps } from './CartItemsList';
 export { CartLineItem, type CartLineItemProps } from './CartLineItem';
 export { CartLineQuantityControls, type CartLineQuantityControlsProps } from './CartLineQuantityControls';
 export { CartScreenHeader, type CartScreenHeaderProps } from './CartScreenHeader';
+export {
+  CartSessionLimitModal,
+  type CartSessionLimitModalProps,
+} from './CartSessionLimitModal';

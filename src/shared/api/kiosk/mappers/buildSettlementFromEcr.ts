@@ -88,7 +88,7 @@ export type BuildSettlementFromEcrResult =
   | { ok: false; message: string; request?: KioskSettlementRequest };
 
 /**
- * Maps POS settlement USB payload to POST /kiosk/settlement (UPDATE-11).
+ * Maps POS settlement USB payload to POST /api/pos/settlements (QA: base /apis + /api/pos/settlements).
  */
 export function buildSettlementFromEcr(
   rawEcrResponse: string,

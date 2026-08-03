@@ -12,6 +12,10 @@ import { resolveAppliedModifiersFromSelections } from '@shared/modifiers/resolve
 import { getCatalogEntryByLineProductId } from '@shared/catalog/catalogStore';
 import { resolveProductAvailable } from '@shared/catalog/productAvailability';
 
+import {
+  type CartMutationResult,
+  wouldExceedCartLimit,
+} from './cartSessionLimit';
 import { computeOrderTotals } from './computeOrderTotals';
 import { cartLineModifierKey } from './modifierKey';
 import { defaultOrderFiscalConfig } from './mockOrderFiscalConfig';
@@ -26,6 +30,10 @@ import type {
   OrderFiscalConfig,
   OrderTotals,
 } from './types';
+
+function cartUnitCount(lines: CartLine[]): number {
+  return lines.reduce((sum, line) => sum + line.quantity, 0);
+}
 
 function createCartLineId(): string {
   return `cart-line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -79,8 +87,8 @@ export type KioskOrderContextValue = {
     quantity?: number,
     modifierSelections?: ModifierSelection[],
     options?: AddProductOptions,
-  ) => void;
-  incrementLine: (lineId: string) => void;
+  ) => CartMutationResult;
+  incrementLine: (lineId: string) => CartMutationResult;
   decrementLine: (lineId: string) => void;
   removeLine: (lineId: string) => void;
   resetOrder: () => void;
@@ -149,7 +157,7 @@ export function KioskOrderProvider({
       quantity = 1,
       modifierSelections?: ModifierSelection[],
       options?: AddProductOptions,
-    ) => {
+    ): CartMutationResult => {
       const amount = Math.max(1, quantity);
       const selections =
         modifierSelections?.length &&
@@ -175,9 +183,15 @@ export function KioskOrderProvider({
       });
 
       const maxQuantity = resolveLineMaxQuantity(productId);
+      let result: CartMutationResult = { ok: true };
 
       clearReservationId();
       setLines((current) => {
+        if (wouldExceedCartLimit(cartUnitCount(current), amount)) {
+          result = { ok: false, reason: 'session-limit' };
+          return current;
+        }
+
         const existing = current.find(
           (line) =>
             line.productId === productId && cartLineModifierKey(line) === key,
@@ -219,14 +233,20 @@ export function KioskOrderProvider({
         };
         return options?.recentFirst ? [newLine, ...current] : [...current, newLine];
       });
+      return result;
     },
     [clearReservationId],
   );
 
-  const incrementLine = useCallback((lineId: string) => {
+  const incrementLine = useCallback((lineId: string): CartMutationResult => {
+    let result: CartMutationResult = { ok: true };
     clearReservationId();
-    setLines((current) =>
-      current.map((line) => {
+    setLines((current) => {
+      if (wouldExceedCartLimit(cartUnitCount(current), 1)) {
+        result = { ok: false, reason: 'session-limit' };
+        return current;
+      }
+      return current.map((line) => {
         if (line.lineId !== lineId) {
           return line;
         }
@@ -242,8 +262,9 @@ export function KioskOrderProvider({
           return line;
         }
         return { ...line, quantity: line.quantity + 1 };
-      }),
-    );
+      });
+    });
+    return result;
   }, [clearReservationId]);
 
   const decrementLine = useCallback((lineId: string) => {

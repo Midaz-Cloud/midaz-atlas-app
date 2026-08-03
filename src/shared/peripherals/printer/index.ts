@@ -9,6 +9,7 @@ export {
   formatSettlementTicketText,
   formatSettlementAmount,
   type FormatSettlementTicketParams,
+  type SettlementTicketTransactionLine,
 } from './formatSettlementTicketText';
 export { printOrderTicket, OrderPrintError } from './printOrderTicket';
 export { getPrinterTestOrderParams } from './printerTestOrderFixture';

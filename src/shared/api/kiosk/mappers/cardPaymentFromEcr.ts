@@ -78,6 +78,8 @@ export type BuildPosPaymentFromEcrParams = {
   /** Documento enviado al terminal y en `cedula` de la orden (puede diferir de facturación). */
   payerDocumentId: string;
   paymentMethodId?: 'pos' | 'credito';
+  /** Céntimos enviados al POS — Conviase: preferir sobre amount corrupto del USB. */
+  amountSentCents?: number;
 };
 
 export type BuildPosPaymentFromEcrResult =
@@ -106,14 +108,34 @@ function buildKioskPosResponse(
     return null;
   }
 
-  const traceNumber = readString(flat, 'traceNumber');
-  const referenceNumber =
-    readString(flat, 'referenceNumber') ?? traceNumber;
-  const RRN = readString(flat, 'RRN', 'rrn');
+  let traceNumber = readString(flat, 'traceNumber');
+  let referenceNumber = readString(flat, 'referenceNumber');
+  let RRN = readString(flat, 'RRN', 'rrn');
   const amount = readString(flat, 'amount', 'amout');
   const responseMessage =
     readString(flat, 'responseMessage', 'responseMesages', 'ensMessge', 'respnseMoessage') ??
     'APPROVED';
+  const referenceNo = readString(flat, 'referenceNo');
+
+  // Cross-fill identity when USB dropped one of the sibling refs (Conviase minimal contract).
+  if (!traceNumber && referenceNumber) {
+    traceNumber = referenceNumber;
+  }
+  if (!referenceNumber && traceNumber) {
+    referenceNumber = traceNumber;
+  }
+  if (!RRN && referenceNo) {
+    const digits = referenceNo.replace(/\D/g, '');
+    if (digits.length >= 8) {
+      RRN = digits.slice(-12).padStart(12, '0');
+    }
+  }
+  if (!traceNumber && RRN) {
+    traceNumber = RRN.replace(/\D/g, '').slice(-6).padStart(6, '0');
+  }
+  if (!referenceNumber && traceNumber) {
+    referenceNumber = traceNumber;
+  }
 
   if (!traceNumber || !referenceNumber || !RRN || !amount) {
     return null;
@@ -126,7 +148,6 @@ function buildKioskPosResponse(
     '00000000';
   const merchantID = readString(flat, 'merchantID') ?? '0000000000';
   const batchNum = readString(flat, 'batchNum') ?? '000001';
-  const referenceNo = readString(flat, 'referenceNo');
 
   return {
     responseCode: normalizedCode,
@@ -150,9 +171,30 @@ function buildKioskPosResponse(
 export function buildPosPaymentFromEcr(
   params: BuildPosPaymentFromEcrParams,
 ): BuildPosPaymentFromEcrResult {
-  const flat = parseEcrPaymentJson(params.rawEcrResponse);
+  const flat = parseEcrPaymentJson(params.rawEcrResponse, {
+    amountSentCents: params.amountSentCents,
+  });
   if (!flat) {
     return { ok: false, message: 'Respuesta del terminal no válida' };
+  }
+
+  // Prefer client-sent amount when USB value is clearly truncated/corrupt vs what we charged.
+  if (
+    params.amountSentCents != null &&
+    params.amountSentCents > 0 &&
+    (flat.amount == null ||
+      String(flat.amount).replace(/\D/g, '') !== String(params.amountSentCents))
+  ) {
+    const usbDigits = String(flat.amount ?? '').replace(/\D/g, '');
+    const sent = String(params.amountSentCents);
+    // Only override when USB amount is missing, non-numeric junk, or a truncated subset.
+    if (
+      !usbDigits ||
+      sent.startsWith(usbDigits) ||
+      usbDigits.length < sent.length
+    ) {
+      flat.amount = sent;
+    }
   }
 
   const paymentMethodId = params.paymentMethodId ?? 'pos';

@@ -47,6 +47,12 @@ export { mapCartToCreateOrderRequest } from './mappers/order';
 export { buildPosPaymentFromEcr } from './mappers/cardPaymentFromEcr';
 export { buildSettlementFromEcr } from './mappers/buildSettlementFromEcr';
 export {
+  isSettlementApprovedPlainText,
+  salvageSettlementDataForPrint,
+  extractSettlementReferenceFromRaw,
+  extractDeviceSerialFromRaw,
+} from './mappers/settlementApprovalPlainText';
+export {
   parseEcrPaymentJson,
   parseEcrPaymentJsonHeuristic,
   sanitizeEcrRrn,

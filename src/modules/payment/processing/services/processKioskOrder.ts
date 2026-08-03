@@ -133,6 +133,7 @@ export async function processKioskOrder(
             status: 'fiscal_error',
             orderId: displayOrderNumber,
             fiscalInvoiceNumber,
+            message,
           };
         }
       }
@@ -186,6 +187,10 @@ export async function processKioskOrder(
         }
         const errorMessage =
           error instanceof Error ? error.message : String(error);
+        const rawJson =
+          error instanceof KioskApiError && error.body != null
+            ? JSON.stringify(error.body)
+            : undefined;
         if (__DEV__) {
           console.warn('[processKioskOrder] createOrder failed', errorMessage);
         }
@@ -195,6 +200,8 @@ export async function processKioskOrder(
               status: 'order_registration_failed',
               posReference: params.cardPayment.posReference,
               fiscalInvoiceNumber,
+              message: errorMessage,
+              rawJson,
             };
           }
           if (params.mobilePayment?.reference) {
@@ -202,9 +209,11 @@ export async function processKioskOrder(
               status: 'order_registration_failed',
               mobileReference: params.mobilePayment.reference,
               fiscalInvoiceNumber,
+              message: errorMessage,
+              rawJson,
             };
           }
-          return { status: 'failed' };
+          return { status: 'failed', message: errorMessage, rawJson };
         }
       }
       if (phaseDelayMs > 0) {

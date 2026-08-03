@@ -7,12 +7,15 @@ export type ProcessKioskOrderResult =
       status: 'fiscal_error';
       orderId: string;
       fiscalInvoiceNumber?: number;
+      message?: string;
     }
-  | { status: 'failed' }
+  | { status: 'failed'; message?: string; rawJson?: string }
   | { status: 'reservation_expired' }
   | {
       status: 'order_registration_failed';
       posReference?: string;
       mobileReference?: string;
       fiscalInvoiceNumber?: number;
+      message?: string;
+      rawJson?: string;
     };

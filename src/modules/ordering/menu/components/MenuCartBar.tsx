@@ -75,22 +75,24 @@ export function MenuCartBar({
           position: 'absolute',
           top: -kioskScreenLayout.badgePaddingVertical * 2.5,
           right: -kioskScreenLayout.badgePaddingHorizontal * 1.5,
-          minWidth: kioskScreenLayout.cartCountSize * 1.6,
-          height: kioskScreenLayout.cartCountSize * 1.7,
+          minWidth: kioskScreenLayout.cartCountSize * 1.35,
+          minHeight: kioskScreenLayout.cartCountSize * 1.35,
           borderRadius: 9999,
           backgroundColor: colors.cartBadge,
           borderWidth: kioskScreenLayout.categoryTabBorderWidth,
           borderColor: colors.cartBar,
           alignItems: 'center',
           justifyContent: 'center',
-          paddingHorizontal: kioskScreenLayout.badgePaddingVertical,
+          paddingHorizontal: kioskScreenLayout.cartCountSize * 0.28,
+          paddingVertical: kioskScreenLayout.cartCountSize * 0.12,
         },
         countText: {
           ...displayTextStyle(),
-          fontSize: kioskScreenLayout.cartCountSize,
-          lineHeight: kioskScreenLayout.cartCountSize * 1.35,
+          fontSize: kioskScreenLayout.cartCountSize * 0.72,
+          lineHeight: kioskScreenLayout.cartCountSize * 0.78,
           color: colors.cardBackground,
           textAlign: 'center',
+          includeFontPadding: false,
         },
         cartLabel: {
           ...displayTextStyle(),
@@ -143,7 +145,9 @@ export function MenuCartBar({
               color={colors.cartIcon}
             />
             <View style={styles.countBadge}>
-              <Text style={styles.countText}>{itemCount}</Text>
+              <Text style={styles.countText} numberOfLines={1}>
+                {itemCount}
+              </Text>
             </View>
           </View>
           <View>

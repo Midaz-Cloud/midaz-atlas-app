@@ -116,6 +116,11 @@
     "modifiersList": "Modificadores: {{names}}",
     "modifiersSummary": "{{summary}}",
     "addMore": "Agregar más productos",
+    "sessionLimit": {
+      "title": "Límite del carrito",
+      "message": "Has alcanzado el máximo de {{max}} productos en esta sesión. No puedes agregar más al carrito.",
+      "acknowledge": "Entendido"
+    },
     "checkout": {
       "bcvRateLabel": "Tasa BCV",
       "subtotal": "Subtotal",

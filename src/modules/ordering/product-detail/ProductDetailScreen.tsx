@@ -21,6 +21,8 @@ export type ProductDetailScreenProps = {
   totalUsd: number;
   /** Units of this product already in the cart (for stock cap). */
   cartQuantityForProduct?: number;
+  /** Remaining session cart units before the 99-unit limit. */
+  sessionUnitsRemaining?: number;
   onBack: () => void;
   onCartPress: () => void;
   onPrimaryAction: (product: MenuProduct, quantity: number) => void;
@@ -31,6 +33,7 @@ export function ProductDetailScreen({
   itemCount,
   totalUsd,
   cartQuantityForProduct = 0,
+  sessionUnitsRemaining,
   onBack,
   onCartPress,
   onPrimaryAction,
@@ -91,7 +94,7 @@ export function ProductDetailScreen({
     lineTotalUsd,
     decrement,
     increment,
-  } = useProductDetailScreen(product, cartQuantityForProduct);
+  } = useProductDetailScreen(product, cartQuantityForProduct, sessionUnitsRemaining);
 
   const projectedItemCount = itemCount + quantity;
   const projectedTotalUsd = totalUsd + lineTotalUsd;

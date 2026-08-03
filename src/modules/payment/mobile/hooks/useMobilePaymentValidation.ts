@@ -5,15 +5,28 @@ import {
   KioskApiError,
   validateMobilePaymentWithApi,
 } from '@shared/api/kiosk';
+import { useKioskCustomer } from '@shared/customer';
 import { useKioskOrder } from '@shared/kiosk-order';
 import type { MobilePaymentPayload } from '@shared/kiosk-order';
+import {
+  buildFailedPaymentInput,
+  recordFailedPaymentSafe,
+} from '@shared/persistence';
+import { useKioskSession } from '@shared/session';
 
 export type MobilePaymentValidationResult =
   | { ok: true; payload: MobilePaymentPayload }
   | { ok: false; message: string };
 
 export function useMobilePaymentValidation() {
-  const { totals, setMobilePaymentPayload } = useKioskOrder();
+  const { customer } = useKioskCustomer();
+  const {
+    totals,
+    setMobilePaymentPayload,
+    lines,
+    reservationId,
+  } = useKioskOrder();
+  const { orderType, tableNumber } = useKioskSession();
   const [validating, setValidating] = useState(false);
 
   const validate = useCallback(
@@ -35,9 +48,31 @@ export function useMobilePaymentValidation() {
         });
 
         if (!isValidateMobilePaymentSuccess(response)) {
+          const message = response.message || 'Pago móvil rechazado';
+          recordFailedPaymentSafe(
+            buildFailedPaymentInput(
+              {
+                customer,
+                lines,
+                totals,
+                reservationId,
+                paymentMethod: 'mobile',
+                mobilePayment: base,
+                orderType,
+                tableNumber: tableNumber ?? null,
+              },
+              {
+                stage: 'mobile_validate',
+                errorReason: 'mobile_rejected',
+                errorMessage: message,
+                rawJson: safeStringify(response),
+                mobileReference: base.reference,
+              },
+            ),
+          );
           return {
             ok: false,
-            message: response.message || 'Pago móvil rechazado',
+            message,
           };
         }
 
@@ -54,13 +89,53 @@ export function useMobilePaymentValidation() {
             : error instanceof Error
               ? error.message
               : 'Error al validar pago móvil';
+        recordFailedPaymentSafe(
+          buildFailedPaymentInput(
+            {
+              customer,
+              lines,
+              totals,
+              reservationId,
+              paymentMethod: 'mobile',
+              mobilePayment: base,
+              orderType,
+              tableNumber: tableNumber ?? null,
+            },
+            {
+              stage: 'mobile_validate',
+              errorReason: 'mobile_validate_error',
+              errorMessage: message,
+              rawJson:
+                error instanceof KioskApiError && error.body != null
+                  ? JSON.stringify(error.body)
+                  : null,
+              mobileReference: base.reference,
+            },
+          ),
+        );
         return { ok: false, message };
       } finally {
         setValidating(false);
       }
     },
-    [setMobilePaymentPayload, totals.totalVes],
+    [
+      customer,
+      lines,
+      orderType,
+      reservationId,
+      setMobilePaymentPayload,
+      tableNumber,
+      totals,
+    ],
   );
 
   return { validate, validating };
+}
+
+function safeStringify(value: unknown): string | null {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return null;
+  }
 }

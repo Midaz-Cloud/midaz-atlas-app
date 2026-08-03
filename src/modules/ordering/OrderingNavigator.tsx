@@ -3,12 +3,18 @@ import { StyleSheet, View } from 'react-native';
 
 import { kioskConfig } from '@shared/config/kiosk';
 import { shouldUseMockApi } from '@shared/config/api';
-import { useKioskOrder } from '@shared/kiosk-order';
+import {
+  remainingCartUnits,
+  useKioskOrder,
+  wouldExceedCartLimit,
+  type CartMutationResult,
+} from '@shared/kiosk-order';
 import type { UnitModifierSelections } from '@shared/modifiers/modifierSelectionTypes';
 import { useKioskScreenColors } from '@shared/theme';
 import { menuProductAddOptions } from './menu/menuProductCart';
 import { productHasApiModifiers } from './menu/modifierTypes';
 import { CartScreen } from './cart/CartScreen';
+import { CartSessionLimitModal } from './cart/components/CartSessionLimitModal';
 import { findMenuProduct } from './menu/data/findMenuProduct';
 import { isProductUnavailable } from './menu/productAvailability';
 import { MenuScreen } from './menu/MenuScreen';
@@ -147,6 +153,38 @@ export function OrderingNavigator({
     decrementLine,
     removeLine,
   } = useKioskOrder();
+  const [sessionLimitVisible, setSessionLimitVisible] = useState(false);
+
+  const showSessionLimit = useCallback(() => {
+    setSessionLimitVisible(true);
+  }, []);
+
+  const dismissSessionLimit = useCallback(() => {
+    setSessionLimitVisible(false);
+  }, []);
+
+  const tryAddProduct = useCallback(
+    (
+      ...args: Parameters<typeof addProduct>
+    ): CartMutationResult => {
+      const result = addProduct(...args);
+      if (!result.ok && result.reason === 'session-limit') {
+        showSessionLimit();
+      }
+      return result;
+    },
+    [addProduct, showSessionLimit],
+  );
+
+  const tryIncrementLine = useCallback(
+    (lineId: string) => {
+      const result = incrementLine(lineId);
+      if (!result.ok && result.reason === 'session-limit') {
+        showSessionLimit();
+      }
+    },
+    [incrementLine, showSessionLimit],
+  );
 
   useEffect(() => {
     if (initialCartCheckoutOpen && itemCount > 0) {
@@ -259,6 +297,10 @@ export function OrderingNavigator({
   }, [goToMenu]);
 
   const startModifierWizard = useCallback((product: MenuProduct, quantity: number) => {
+    if (wouldExceedCartLimit(itemCount, quantity)) {
+      showSessionLimit();
+      return;
+    }
     const session: ModifiersSession = {
       name: 'modifiers',
       productId: product.id,
@@ -272,7 +314,7 @@ export function OrderingNavigator({
     setDetailProduct(product);
     setModifiersSession(session);
     setRoute(session);
-  }, []);
+  }, [itemCount, showSessionLimit]);
 
   const handleAddProduct = useCallback(
     (product: MenuProduct) => {
@@ -280,11 +322,15 @@ export function OrderingNavigator({
         openOutOfStock(product);
         return;
       }
+      if (wouldExceedCartLimit(itemCount, 1)) {
+        showSessionLimit();
+        return;
+      }
       if (productOpensModifierWizard(product)) {
         startModifierWizard(product, 1);
         return;
       }
-      addProduct(
+      tryAddProduct(
         product.id,
         product.unitPrice,
         1,
@@ -292,7 +338,7 @@ export function OrderingNavigator({
         menuProductAddOptions(product),
       );
     },
-    [addProduct, openOutOfStock, startModifierWizard],
+    [tryAddProduct, openOutOfStock, startModifierWizard, itemCount, showSessionLimit],
   );
 
   const handleProductDetailPrimary = useCallback(
@@ -301,11 +347,15 @@ export function OrderingNavigator({
         openOutOfStock(product);
         return;
       }
+      if (wouldExceedCartLimit(itemCount, quantity)) {
+        showSessionLimit();
+        return;
+      }
       if (productOpensModifierWizard(product)) {
         startModifierWizard(product, quantity);
         return;
       }
-      addProduct(
+      tryAddProduct(
         product.id,
         product.unitPrice,
         quantity,
@@ -314,7 +364,7 @@ export function OrderingNavigator({
       );
       goToMenu();
     },
-    [addProduct, openOutOfStock, startModifierWizard, goToMenu],
+    [tryAddProduct, openOutOfStock, startModifierWizard, goToMenu, itemCount, showSessionLimit],
   );
 
   const finishModifiersWizard = useCallback(
@@ -323,19 +373,27 @@ export function OrderingNavigator({
       quantity: number,
       selectionsByUnit: Record<number, UnitModifierSelections>,
     ) => {
+      if (wouldExceedCartLimit(itemCount, quantity)) {
+        showSessionLimit();
+        goToMenu();
+        return;
+      }
       const perUnit = finishUnitSelectionsFromWizard(selectionsByUnit, quantity);
       for (const modifierSelections of perUnit) {
-        addProduct(
+        const result = tryAddProduct(
           product.id,
           product.unitPrice,
           1,
           modifierSelections.length > 0 ? modifierSelections : undefined,
           menuProductAddOptions(product),
         );
+        if (!result.ok) {
+          break;
+        }
       }
       goToMenu();
     },
-    [addProduct, goToMenu],
+    [tryAddProduct, goToMenu, itemCount, showSessionLimit],
   );
 
   const advanceWizard = useCallback(
@@ -521,6 +579,7 @@ export function OrderingNavigator({
             itemCount={itemCount}
             totalUsd={totalUsd}
             cartQuantityForProduct={cartQuantityForDetail}
+            sessionUnitsRemaining={remainingCartUnits(itemCount)}
             onBack={handleBackFromDetail}
             onCartPress={goToCart}
             onPrimaryAction={handleProductDetailPrimary}
@@ -547,7 +606,7 @@ export function OrderingNavigator({
           totalUsd={totalUsd}
           onBack={handleBackFromCart}
           onAddMore={handleAddMore}
-          onIncrementLine={incrementLine}
+          onIncrementLine={tryIncrementLine}
           onDecrementLine={decrementLine}
           onRemoveLine={removeLine}
           onPressNext={() => {}}
@@ -565,6 +624,11 @@ export function OrderingNavigator({
           onViewSimilar={handleViewSimilar}
         />
       </Layer>
+
+      <CartSessionLimitModal
+        visible={sessionLimitVisible}
+        onClose={dismissSessionLimit}
+      />
     </View>
   );
 }

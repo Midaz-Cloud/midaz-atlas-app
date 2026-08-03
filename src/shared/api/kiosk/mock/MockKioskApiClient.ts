@@ -194,7 +194,7 @@ export class MockKioskApiClient implements KioskApiClient {
   }
 
   async submitSettlement(request: KioskSettlementRequest): Promise<KioskSettlementResponse> {
-    logKioskCheckoutPayload('POST /kiosk/settlement request (mock)', request);
+    logKioskCheckoutPayload('POST /api/pos/settlements request (mock)', request);
     await delay(200);
     const settlementId = request.settlementId ?? `SETTLEMENT-${Date.now()}`;
     const posSerial =
@@ -207,7 +207,7 @@ export class MockKioskApiClient implements KioskApiClient {
       processedBy: 'kiosk:mock-device',
       createdAt: new Date().toISOString(),
     };
-    logKioskCheckoutPayload('POST /kiosk/settlement response (mock)', response);
+    logKioskCheckoutPayload('POST /api/pos/settlements response (mock)', response);
     return response;
   }
 }

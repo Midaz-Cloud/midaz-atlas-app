@@ -1,9 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 
 
 import { useKioskCustomer } from '@shared/customer';
 import { useKioskOrder } from '@shared/kiosk-order';
+import {
+  buildFailedPaymentInput,
+  buildSuccessfulPosTransactionInput,
+  recordFailedPaymentSafe,
+  recordSuccessfulPosTransactionSafe,
+} from '@shared/persistence';
 
 import type { CashierAssistanceReason } from './assistance/services/requestCashierAssistance';
 
@@ -15,6 +21,7 @@ import { useKioskSession } from '@shared/session';
 import { useEcrConnection } from '@shared/peripherals/ecr';
 import { buildPosPaymentFromEcr } from '@shared/api/kiosk/mappers/cardPaymentFromEcr';
 import { shouldSimulatePosFailure } from '@shared/config';
+import { toEcrTerminalAmount, resolvePosChargeAmountVes } from '@shared/peripherals/ecr';
 
 import { PaymentFlowPlaceholder } from './components/PaymentFlowPlaceholder';
 
@@ -45,6 +52,7 @@ import type { CartReserveItemResult } from '@shared/api/kiosk';
 import { CartStockShortageScreen } from '@modules/ordering/stock/CartStockShortageScreen';
 import { adjustCartForStockShortages } from '@modules/ordering/stock/adjustCartForStockShortages';
 import { reserveCartBeforePayment } from './services/reserveCartBeforePayment';
+import { isPaymentRouteLockedAfterCheckoutStart } from './paymentRouteGuards';
 
 import type { PaymentMethodId, TransferPaymentMethodId } from './types';
 
@@ -103,10 +111,24 @@ export function PaymentNavigator({
 
 }: PaymentNavigatorProps) {
 
-  const { itemCount, lines, setOrderId, setPaymentMethodId, setCardPaymentPayload, totals, paymentPayerDocumentId, setReservationId, decrementLine, removeLine } =
-    useKioskOrder();
+  const {
+    itemCount,
+    lines,
+    setOrderId,
+    setPaymentMethodId,
+    setCardPaymentPayload,
+    totals,
+    paymentPayerDocumentId,
+    setReservationId,
+    decrementLine,
+    removeLine,
+    reservationId,
+    cardPaymentPayload,
+    mobilePaymentPayload,
+  } = useKioskOrder();
   const { customer } = useKioskCustomer();
-  const { runtimeConfig, refreshCatalogAfterPurchase } = useKioskSession();
+  const { runtimeConfig, refreshCatalogAfterPurchase, orderType, tableNumber } =
+    useKioskSession();
   const ecr = useEcrConnection();
   const [posPaymentBusy, setPosPaymentBusy] = useState(false);
   const [reserveBusy, setReserveBusy] = useState(false);
@@ -122,6 +144,35 @@ export function PaymentNavigator({
   const [route, setRoute] = useState<PaymentRoute>({ name: 'method-select' });
   const [lastPaymentMethodId, setLastPaymentMethodId] = useState<PaymentMethodId>('pos');
   const [orderRetryCount, setOrderRetryCount] = useState(0);
+  const routeRef = useRef(route);
+  routeRef.current = route;
+  /** Once order+print succeeded, ignore late processKioskOrder failures (e.g. reservation_expired). */
+  const orderSucceededRef = useRef(false);
+
+  const failedPaymentContext = useCallback(
+    (methodId?: PaymentMethodId) => ({
+      customer,
+      lines,
+      totals,
+      reservationId,
+      paymentMethod: methodId ?? lastPaymentMethodId,
+      cardPayment: cardPaymentPayload,
+      mobilePayment: mobilePaymentPayload,
+      orderType,
+      tableNumber: tableNumber ?? null,
+    }),
+    [
+      cardPaymentPayload,
+      customer,
+      lastPaymentMethodId,
+      lines,
+      mobilePaymentPayload,
+      orderType,
+      reservationId,
+      tableNumber,
+      totals,
+    ],
+  );
 
   /** Sync route + order payment method when enabled methods resolve (avoids stale single-method POS skip). */
   useEffect(() => {
@@ -133,11 +184,26 @@ export function PaymentNavigator({
       const methodId = enabledMethods[0]!.id;
       setPaymentMethodId(methodId);
       setLastPaymentMethodId(methodId);
+
+      const current = routeRef.current;
+      if (isPaymentRouteLockedAfterCheckoutStart(current.name)) {
+        return;
+      }
+      if (current.name === 'flow' && current.methodId === methodId) {
+        return;
+      }
+
       if (methodId === 'cash') {
         void (async () => {
+          if (isPaymentRouteLockedAfterCheckoutStart(routeRef.current.name)) {
+            return;
+          }
           setReserveBusy(true);
           try {
             const result = await reserveCartBeforePayment(lines);
+            if (isPaymentRouteLockedAfterCheckoutStart(routeRef.current.name)) {
+              return;
+            }
             if (result.ok) {
               setReservationId(result.reservationId);
               setRoute({ name: 'processing' });
@@ -145,26 +211,29 @@ export function PaymentNavigator({
             }
             setRoute({ name: 'stock-shortage', shortages: result.shortages });
           } catch {
-            setRoute({ name: 'payment-error', methodId });
+            if (!isPaymentRouteLockedAfterCheckoutStart(routeRef.current.name)) {
+              recordFailedPaymentSafe(
+                buildFailedPaymentInput(failedPaymentContext(methodId), {
+                  stage: 'reserve',
+                  errorReason: 'reserve_failed',
+                  errorMessage: 'Error al reservar stock antes del cobro',
+                }),
+              );
+              setRoute({ name: 'payment-error', methodId });
+            }
           } finally {
             setReserveBusy(false);
           }
         })();
         return;
       }
+
       setRoute({ name: 'flow', methodId });
       return;
     }
 
     setRoute((prev) => {
-      if (
-        prev.name === 'processing' ||
-        prev.name === 'outcome' ||
-        prev.name === 'assistance' ||
-        prev.name === 'payment-error' ||
-        prev.name === 'reference' ||
-        prev.name === 'cash'
-      ) {
+      if (isPaymentRouteLockedAfterCheckoutStart(prev.name)) {
         return prev;
       }
       if (prev.name === 'flow' && enabledMethods.some((m) => m.id === prev.methodId)) {
@@ -172,7 +241,7 @@ export function PaymentNavigator({
       }
       return { name: 'method-select' };
     });
-  }, [enabledMethods, lines, setPaymentMethodId, setReservationId]);
+  }, [enabledMethods, failedPaymentContext, lines, setPaymentMethodId, setReservationId]);
 
   useEffect(() => {
     if (route.name === 'flow') {
@@ -205,12 +274,19 @@ export function PaymentNavigator({
         }
         setRoute({ name: 'stock-shortage', shortages: result.shortages });
       } catch {
+        recordFailedPaymentSafe(
+          buildFailedPaymentInput(failedPaymentContext(methodId), {
+            stage: 'reserve',
+            errorReason: 'reserve_failed',
+            errorMessage: 'Error al reservar stock antes del cobro',
+          }),
+        );
         setRoute({ name: 'payment-error', methodId });
       } finally {
         setReserveBusy(false);
       }
     },
-    [lastPaymentMethodId, lines, setReservationId],
+    [failedPaymentContext, lastPaymentMethodId, lines, setReservationId],
   );
 
   const handleSelectMethod = useCallback((methodId: PaymentMethodId) => {
@@ -270,11 +346,15 @@ export function PaymentNavigator({
 
 
       if (methodId === 'pos' && shouldSimulatePosFailure()) {
-
+        recordFailedPaymentSafe(
+          buildFailedPaymentInput(failedPaymentContext(methodId), {
+            stage: 'pos_charge',
+            errorReason: 'simulated_failure',
+            errorMessage: 'Fallo de POS simulado (demo)',
+          }),
+        );
         setRoute({ name: 'payment-error', methodId });
-
         return;
-
       }
 
 
@@ -286,6 +366,13 @@ export function PaymentNavigator({
             customer?.documentId,
           );
           if (!payerDocumentId) {
+            recordFailedPaymentSafe(
+              buildFailedPaymentInput(failedPaymentContext(methodId), {
+                stage: 'pos_charge',
+                errorReason: 'missing_document',
+                errorMessage: 'Documento del pagador no disponible',
+              }),
+            );
             setRoute({ name: 'payment-error', methodId });
             return;
           }
@@ -305,6 +392,14 @@ export function PaymentNavigator({
               cartTotalVes: totals.totalVes,
             });
             if (!result.ok) {
+              recordFailedPaymentSafe(
+                buildFailedPaymentInput(failedPaymentContext(methodId), {
+                  stage: 'pos_charge',
+                  errorReason: result.reason,
+                  errorMessage: result.message,
+                  rawJson: result.rawResponse ?? null,
+                }),
+              );
               setRoute({ name: 'payment-error', methodId });
               return;
             }
@@ -318,14 +413,39 @@ export function PaymentNavigator({
               },
               payerDocumentId,
               paymentMethodId: 'pos',
+              amountSentCents: toEcrTerminalAmount(
+                resolvePosChargeAmountVes(totals.totalVes),
+              ),
             });
             if (!posPayment.ok) {
+              recordFailedPaymentSafe(
+                buildFailedPaymentInput(failedPaymentContext(methodId), {
+                  stage: 'pos_parse',
+                  errorReason: 'pos_parse_failed',
+                  errorMessage: posPayment.message,
+                  rawJson: result.rawResponse,
+                }),
+              );
               setRoute({ name: 'payment-error', methodId });
               return;
             }
+            recordSuccessfulPosTransactionSafe(
+              buildSuccessfulPosTransactionInput({
+                payload: posPayment.payload,
+                rawJson: result.rawResponse,
+              }),
+            );
             setCardPaymentPayload(posPayment.payload);
             goToProcessing();
-          } catch {
+          } catch (err) {
+            recordFailedPaymentSafe(
+              buildFailedPaymentInput(failedPaymentContext(methodId), {
+                stage: 'pos_charge',
+                errorReason: 'error',
+                errorMessage: err instanceof Error ? err.message : String(err),
+                rawJson: ecr.lastTransactionResponse,
+              }),
+            );
             setRoute({ name: 'payment-error', methodId });
           } finally {
             setPosPaymentBusy(false);
@@ -336,7 +456,7 @@ export function PaymentNavigator({
 
     },
 
-    [customer, ecr, goToProcessing, lines, paymentPayerDocumentId, setCardPaymentPayload, setReservationId, totals.totalVes],
+    [customer, ecr, failedPaymentContext, goToProcessing, lines, paymentPayerDocumentId, setCardPaymentPayload, setReservationId, totals.totalVes],
 
   );
 
@@ -401,8 +521,13 @@ export function PaymentNavigator({
   const handleProcessingComplete = useCallback(
 
     (result: ProcessKioskOrderResult) => {
+      // Late duplicate processKioskOrder (catalog refresh) must not yank success → cart.
+      if (orderSucceededRef.current) {
+        return;
+      }
 
       if (result.status === 'ok') {
+        orderSucceededRef.current = true;
         setOrderId(result.orderId);
         void refreshCatalogAfterPurchase();
 
@@ -415,21 +540,32 @@ export function PaymentNavigator({
         return;
       }
 
-
-
       if (result.status === 'fiscal_error') {
-
+        orderSucceededRef.current = true;
         setOrderId(result.orderId);
-
+        recordFailedPaymentSafe(
+          buildFailedPaymentInput(failedPaymentContext(), {
+            stage: 'fiscal',
+            errorReason: 'fiscal_error',
+            errorMessage: result.message ?? 'Error al emitir factura fiscal',
+          }),
+        );
         setRoute({ name: 'outcome', variant: 'fiscal_error' });
-
         return;
-
       }
 
-
-
       if (result.status === 'order_registration_failed') {
+        recordFailedPaymentSafe(
+          buildFailedPaymentInput(failedPaymentContext(), {
+            stage: 'order_register',
+            errorReason: 'order_registration_failed',
+            errorMessage:
+              result.message ?? 'Fallo al registrar la orden en el servidor',
+            posReference: result.posReference,
+            mobileReference: result.mobileReference,
+            rawJson: result.rawJson ?? null,
+          }),
+        );
         setOrderRetryCount((prev) => {
           const next = prev + 1;
           setRoute({
@@ -444,17 +580,29 @@ export function PaymentNavigator({
       }
 
       if (result.status === 'reservation_expired') {
+        // If we already left processing for outcome, never send user back to cart.
+        if (routeRef.current.name === 'outcome' || routeRef.current.name === 'cash') {
+          return;
+        }
         onBackToCart();
         return;
       }
 
       if (result.status === 'failed') {
+        recordFailedPaymentSafe(
+          buildFailedPaymentInput(failedPaymentContext(), {
+            stage: 'order_register',
+            errorReason: 'failed',
+            errorMessage: result.message ?? 'Error al procesar la orden',
+            rawJson: result.rawJson ?? null,
+          }),
+        );
         setRoute({ name: 'payment-error', methodId: lastPaymentMethodId });
       }
 
     },
 
-    [lastPaymentMethodId, onBackToCart, refreshCatalogAfterPurchase, setOrderId],
+    [failedPaymentContext, lastPaymentMethodId, onBackToCart, refreshCatalogAfterPurchase, setOrderId],
 
   );
 

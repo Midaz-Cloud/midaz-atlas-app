@@ -16,7 +16,12 @@ export type ScanCartErrorKey = 'notFound' | 'unavailable' | 'hasModifiers';
 
 const ERROR_DISMISS_MS = 3500;
 
-export function useScanCartScreen() {
+export type UseScanCartScreenOptions = {
+  onSessionLimit?: () => void;
+};
+
+export function useScanCartScreen(options: UseScanCartScreenOptions = {}) {
+  const { onSessionLimit } = options;
   const { t } = useTranslation('ordering');
   const { addProduct } = useKioskOrder();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -105,15 +110,18 @@ export function useScanCartScreen() {
       });
 
       setErrorMessage(null);
-      addProduct(
+      const result = addProduct(
         product.id,
         product.unitPrice,
         1,
         undefined,
         { ...menuProductAddOptions(product), recentFirst: true },
       );
+      if (!result.ok && result.reason === 'session-limit') {
+        onSessionLimit?.();
+      }
     },
-    [addProduct, showError],
+    [addProduct, onSessionLimit, showError],
   );
 
   return { handleScan, errorMessage };

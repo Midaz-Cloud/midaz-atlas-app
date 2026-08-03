@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { CartSessionLimitModal } from '@modules/ordering/cart/components/CartSessionLimitModal';
 import { useCartScreen } from '@modules/ordering/cart/hooks/useCartScreen';
 import { getScanIndexDebugInfo } from '@shared/catalog/catalogStore';
 import { kioskScreenLayout, useKioskScreenColors } from '@shared/theme';
@@ -36,9 +37,22 @@ export function ScanCartScreen({ onBack, onProceedToPayment }: ScanCartScreenPro
     resetOrder,
     totals,
   } = useKioskOrder();
-  const { cartLines } = useCartScreen(lines);
-  const { handleScan, errorMessage } = useScanCartScreen();
+  const [sessionLimitVisible, setSessionLimitVisible] = useState(false);
+  const { cartLines } = useCartScreen(lines, itemCount);
+  const { handleScan, errorMessage } = useScanCartScreen({
+    onSessionLimit: () => setSessionLimitVisible(true),
+  });
   const { inputRef, hiddenInputProps } = useBarcodeScanner({ onScan: handleScan });
+
+  const handleIncrement = useCallback(
+    (lineId: string) => {
+      const result = incrementLine(lineId);
+      if (!result.ok && result.reason === 'session-limit') {
+        setSessionLimitVisible(true);
+      }
+    },
+    [incrementLine],
+  );
 
   useEffect(() => {
     logRetailScan('ScanCartScreen mounted — scan index snapshot', getScanIndexDebugInfo());
@@ -143,7 +157,7 @@ export function ScanCartScreen({ onBack, onProceedToPayment }: ScanCartScreenPro
             {cartLines.length > 0 ? (
               <ScanCartItemsList
                 lines={cartLines}
-                onIncrement={incrementLine}
+                onIncrement={handleIncrement}
                 onDecrement={decrementLine}
                 onRemove={removeLine}
               />
@@ -161,6 +175,11 @@ export function ScanCartScreen({ onBack, onProceedToPayment }: ScanCartScreenPro
           />
         </View>
       ) : null}
+
+      <CartSessionLimitModal
+        visible={sessionLimitVisible}
+        onClose={() => setSessionLimitVisible(false)}
+      />
     </View>
   );
 }

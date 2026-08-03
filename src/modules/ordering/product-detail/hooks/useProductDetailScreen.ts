@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { KIOSK_CART_MAX_UNITS } from '@shared/kiosk-order';
+
 import { productHasApiModifiers } from '../../menu/modifierTypes';
 import { resolveMaxAddQuantity } from '../../menu/productAvailability';
 import type { MenuProduct } from '../../menu/types';
 
-const FALLBACK_MAX_QUANTITY = 99;
+const FALLBACK_MAX_QUANTITY = KIOSK_CART_MAX_UNITS;
 
-export function useProductDetailScreen(product: MenuProduct, cartQuantity = 0) {
+export function useProductDetailScreen(
+  product: MenuProduct,
+  cartQuantity = 0,
+  sessionUnitsRemaining?: number,
+) {
   const { t } = useTranslation('ordering');
   const [quantity, setQuantity] = useState(1);
 
@@ -16,12 +22,19 @@ export function useProductDetailScreen(product: MenuProduct, cartQuantity = 0) {
     [product, cartQuantity],
   );
 
-  const maxQuantity = maxAddQuantity ?? FALLBACK_MAX_QUANTITY;
-  const canAddToCart = maxAddQuantity == null || maxAddQuantity > 0;
+  const maxQuantity = useMemo(() => {
+    const stockOrFallback = maxAddQuantity ?? FALLBACK_MAX_QUANTITY;
+    if (sessionUnitsRemaining == null) {
+      return stockOrFallback;
+    }
+    return Math.max(0, Math.min(stockOrFallback, sessionUnitsRemaining));
+  }, [maxAddQuantity, sessionUnitsRemaining]);
+
+  const canAddToCart = maxQuantity > 0;
 
   useEffect(() => {
     setQuantity((current) => {
-      const capped = Math.min(current, maxQuantity);
+      const capped = Math.min(current, Math.max(1, maxQuantity));
       return Math.max(1, capped);
     });
   }, [maxQuantity, product.id]);

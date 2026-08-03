@@ -22,7 +22,13 @@ export type ExecutePosCardPaymentFailureReason =
 
 export type ExecutePosCardPaymentResult =
   | { ok: true; rawResponse: string }
-  | { ok: false; reason: ExecutePosCardPaymentFailureReason; message: string };
+  | {
+      ok: false;
+      reason: ExecutePosCardPaymentFailureReason;
+      message: string;
+      /** Present when the terminal replied (e.g. decline) so callers can persist it. */
+      rawResponse?: string;
+    };
 
 export async function executePosCardPayment(
   params: ExecutePosCardPaymentParams,
@@ -72,12 +78,20 @@ export async function executePosCardPayment(
         ok: false,
         reason: 'declined',
         message: message ?? 'Pago rechazado en el terminal',
+        rawResponse,
       };
     }
 
     return { ok: true, rawResponse };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, reason: 'error', message };
+    return {
+      ok: false,
+      reason: 'error',
+      message,
+      ...(ecr.lastTransactionResponse
+        ? { rawResponse: ecr.lastTransactionResponse }
+        : {}),
+    };
   }
 }

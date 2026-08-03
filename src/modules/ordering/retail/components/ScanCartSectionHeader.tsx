@@ -53,18 +53,21 @@ export function ScanCartSectionHeader({
         },
         badge: {
           minWidth: retailScanLayout.sectionBadgeSize,
-          height: retailScanLayout.sectionBadgeSize,
-          borderRadius: retailScanLayout.sectionBadgeSize / 2,
-          paddingHorizontal: kioskScale(8),
+          minHeight: retailScanLayout.sectionBadgeSize,
+          borderRadius: 9999,
+          paddingHorizontal: kioskScale(6),
+          paddingVertical: kioskScale(2),
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: colors.priceAccent,
         },
         badgeText: {
           ...displayTextStyle(),
-          fontSize: retailScanLayout.sectionBadgeFontSize,
-          lineHeight: retailScanLayout.sectionBadgeFontSize + 4,
+          fontSize: retailScanLayout.sectionBadgeFontSize * 0.85,
+          lineHeight: retailScanLayout.sectionBadgeFontSize * 0.9,
           color: colors.cartIcon,
+          includeFontPadding: false,
+          textAlign: 'center',
         },
         clearButton: {
           flexDirection: 'row',
@@ -97,7 +100,9 @@ export function ScanCartSectionHeader({
         <Text style={styles.title}>{t('scanCart.cart.title')}</Text>
         {itemCount > 0 ? (
           <View style={styles.badge} testID="scan-cart-item-badge">
-            <Text style={styles.badgeText}>{itemCount}</Text>
+            <Text style={styles.badgeText} numberOfLines={1}>
+              {itemCount}
+            </Text>
           </View>
         ) : null}
       </View>

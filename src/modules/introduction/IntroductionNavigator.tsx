@@ -8,7 +8,11 @@ import {
 import { useSessionLocale } from '@shared/i18n';
 import { useKioskSession } from '@shared/session';
 import { HomeScreen } from './home/HomeScreen';
-import { AdminDashboardScreen } from './home/components';
+import {
+  AdminDashboardScreen,
+  FailedPaymentDetailScreen,
+  FailedPaymentsListScreen,
+} from './home/components';
 import { LanguageSelectionScreen } from './language-selection/LanguageSelectionScreen';
 import { OrderTypeScreen } from './order-type/OrderTypeScreen';
 import type { IntroductionStep, OrderType } from './types';
@@ -24,6 +28,9 @@ export function IntroductionNavigator({ onComplete }: IntroductionNavigatorProps
     runtimeConfig?.orderTypeSelectionEnabled,
   );
   const [step, setStep] = useState<IntroductionStep>(getInitialIntroductionStep);
+  const [selectedFailedPaymentId, setSelectedFailedPaymentId] = useState<
+    number | null
+  >(null);
 
   const advanceFromHome = useCallback(() => {
     const next = getStepAfterHome(flowFlags);
@@ -58,6 +65,20 @@ export function IntroductionNavigator({ onComplete }: IntroductionNavigatorProps
     setStep('admin');
   }, []);
 
+  const openFailedPayments = useCallback(() => {
+    setStep('failedPayments');
+  }, []);
+
+  const openFailedPaymentDetail = useCallback((id: number) => {
+    setSelectedFailedPaymentId(id);
+    setStep('failedPaymentDetail');
+  }, []);
+
+  const backFromFailedPaymentDetail = useCallback(() => {
+    setSelectedFailedPaymentId(null);
+    setStep('failedPayments');
+  }, []);
+
   if (step === 'home') {
     return (
       <HomeScreen
@@ -83,6 +104,25 @@ export function IntroductionNavigator({ onComplete }: IntroductionNavigatorProps
     return (
       <AdminDashboardScreen
         onBack={goBackToHome}
+        onOpenFailedPayments={openFailedPayments}
+      />
+    );
+  }
+
+  if (step === 'failedPayments') {
+    return (
+      <FailedPaymentsListScreen
+        onBack={() => setStep('admin')}
+        onSelect={openFailedPaymentDetail}
+      />
+    );
+  }
+
+  if (step === 'failedPaymentDetail' && selectedFailedPaymentId != null) {
+    return (
+      <FailedPaymentDetailScreen
+        paymentId={selectedFailedPaymentId}
+        onBack={backFromFailedPaymentDetail}
       />
     );
   }

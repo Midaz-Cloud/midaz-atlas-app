@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useKioskCustomer } from '@shared/customer';
 import { parseDeclaresTaxes } from '@shared/api/kiosk/utils/declaresTaxes';
@@ -12,6 +12,7 @@ import {
   type ProcessKioskOrderParams,
 } from '../services/processKioskOrder';
 import type { OrderProcessingPhase, ProcessKioskOrderResult } from '../types';
+import type { PaymentMethodId } from '../../types';
 
 function initialProcessingPhase(declaresTaxes: boolean): OrderProcessingPhase {
   return shouldEmitFiscalInvoice(declaresTaxes) ? 'fiscal' : 'registering';
@@ -22,6 +23,11 @@ export type UseOrderProcessingParams = {
   onComplete: (result: ProcessKioskOrderResult) => void;
 };
 
+/**
+ * Runs processKioskOrder exactly once per `enabled` session.
+ * Does NOT re-run when `totals` / catalog identity churns (that previously
+ * started a second createOrder → reservation_expired → back to cart after print).
+ */
 export function useOrderProcessing({ enabled, onComplete }: UseOrderProcessingParams) {
   const {
     lines,
@@ -47,75 +53,69 @@ export function useOrderProcessing({ enabled, onComplete }: UseOrderProcessingPa
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
-  const run = useCallback(async () => {
-    setPhase(initialProcessingPhase(declaresTaxes));
-    const params: ProcessKioskOrderParams = {
-      lines,
-      totals,
-      usdToVesRate: fiscalConfig.usdToVesRate,
-      primaryCurrency,
-      paymentMethodId,
-      orderType,
-      tableNumber,
-      organizationName:
-        organization?.name ?? runtimeConfig?.raw.organization.name,
-      organizationLegalName:
-        organization?.legalName ?? runtimeConfig?.raw.organization.legalName,
-      declaresTaxes,
-      customerId: customer?.id,
-      customerDocumentId: customer?.documentId,
-      customerName: customer
-        ? `${customer.firstName} ${customer.lastName}`.trim()
-        : undefined,
-      mobilePayment:
-        paymentMethodId === 'mobile' ? mobilePaymentPayload : undefined,
-      cardPayment: paymentMethodId === 'pos' ? cardPaymentPayload : undefined,
-      // Tracking QR on ticket when shortCode exists (UPDATE-14). Cash never gets QR.
-      // Config `printQrEnabled` still controls P15 success screen.
-      printQrEnabled: paymentMethodId !== 'cash',
-      reservationId,
-      onReservationExpired: clearReservationId,
-      onOrderRegistered: (displayOrderNumber, grandTotalVES, grandTotalCurrency, currencyCode) => {
-        setConfirmedOrder({
-          displayOrderNumber,
-          grandTotalVES,
-          grandTotalCurrency,
-          currencyCode,
-        });
-      },
-    };
-    const result = await processKioskOrder(params, setPhase);
-    onCompleteRef.current(result);
-  }, [
+  const paramsRef = useRef<ProcessKioskOrderParams | null>(null);
+  paramsRef.current = {
     lines,
     totals,
-    fiscalConfig.usdToVesRate,
+    usdToVesRate: fiscalConfig.usdToVesRate,
     primaryCurrency,
-    paymentMethodId,
+    paymentMethodId: paymentMethodId as PaymentMethodId | undefined,
     orderType,
     tableNumber,
-    organization?.name,
-    organization?.legalName,
+    organizationName: organization?.name ?? runtimeConfig?.raw.organization.name,
+    organizationLegalName:
+      organization?.legalName ?? runtimeConfig?.raw.organization.legalName,
     declaresTaxes,
-    runtimeConfig?.raw.organization.name,
-    runtimeConfig?.raw.organization.legalName,
-    customer?.id,
-    customer?.documentId,
-    customer?.firstName,
-    customer?.lastName,
-    mobilePaymentPayload,
-    cardPaymentPayload,
+    customerId: customer?.id,
+    customerDocumentId: customer?.documentId,
+    customerName: customer
+      ? `${customer.firstName} ${customer.lastName}`.trim()
+      : undefined,
+    mobilePayment: paymentMethodId === 'mobile' ? mobilePaymentPayload : undefined,
+    cardPayment: paymentMethodId === 'pos' ? cardPaymentPayload : undefined,
+    printQrEnabled: paymentMethodId !== 'cash',
     reservationId,
-    clearReservationId,
-    setConfirmedOrder,
-  ]);
+    onReservationExpired: clearReservationId,
+    onOrderRegistered: (displayOrderNumber, grandTotalVES, grandTotalCurrency, currencyCode) => {
+      setConfirmedOrder({
+        displayOrderNumber,
+        grandTotalVES,
+        grandTotalCurrency,
+        currencyCode,
+      });
+    },
+  };
 
   useEffect(() => {
     if (!enabled) {
       return;
     }
-    void run();
-  }, [enabled, run]);
+
+    let cancelled = false;
+    setPhase(initialProcessingPhase(declaresTaxes));
+
+    void (async () => {
+      const params = paramsRef.current;
+      if (!params) {
+        return;
+      }
+      const result = await processKioskOrder(params, (nextPhase) => {
+        if (!cancelled) {
+          setPhase(nextPhase);
+        }
+      });
+      if (cancelled) {
+        return;
+      }
+      onCompleteRef.current(result);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally only `enabled`: catalog/config sync must not restart payment processing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see comment above
+  }, [enabled]);
 
   return { phase };
 }

@@ -293,6 +293,40 @@ class UsbSerialModule(private val reactContext: ReactApplicationContext) :
         messageAssemblyStartedAt = 0L
     }
 
+    private fun extractLastBalancedJson(line: String): String? {
+        val text = line.trim()
+        if (!text.contains('{') || !text.contains('}')) {
+            return null
+        }
+
+        var best: String? = null
+        var end = text.length - 1
+        while (end >= 0) {
+            if (text[end] == '}') {
+                var depth = 0
+                var start = end
+                while (start >= 0) {
+                    when (text[start]) {
+                        '}' -> depth++
+                        '{' -> {
+                            depth--
+                            if (depth == 0) {
+                                val candidate = text.substring(start, end + 1)
+                                if (best == null || candidate.length > best.length) {
+                                    best = candidate
+                                }
+                                break
+                            }
+                        }
+                    }
+                    start--
+                }
+            }
+            end--
+        }
+        return best
+    }
+
     private fun processBuffer() {
         var changed = true
         while (changed && rxByteBuffer.size() > 0) {
@@ -327,6 +361,17 @@ class UsbSerialModule(private val reactContext: ReactApplicationContext) :
                     consumeFromBuffer(offset + matchIdx + 1)
                     processLine(json)
                     changed = true
+                } else {
+                    // Corrupted array prefix with a complete object inside — extract it.
+                    val balanced = extractLastBalancedJson(trimmed)
+                    if (balanced != null) {
+                        val idx = trimmed.lastIndexOf(balanced)
+                        if (idx >= 0) {
+                            consumeFromBuffer(offset + idx + balanced.length)
+                            processLine(balanced)
+                            changed = true
+                        }
+                    }
                 }
             } else if (trimmed.startsWith("{")) {
                 var braces = 0
@@ -348,6 +393,19 @@ class UsbSerialModule(private val reactContext: ReactApplicationContext) :
                     changed = true
                 }
             } else {
+                // Leading noise before JSON (e.g. garbage then `{...}`).
+                val balanced = extractLastBalancedJson(trimmed)
+                if (balanced != null) {
+                    val idx = trimmed.lastIndexOf(balanced)
+                    if (idx >= 0) {
+                        consumeFromBuffer(offset + idx + balanced.length)
+                        processLine(
+                            if (idx > 0) trimmed.substring(0, idx) + balanced else balanced,
+                        )
+                        changed = true
+                        continue
+                    }
+                }
                 val nl = current.indexOf("\n")
                 if (nl >= 0) {
                     val line = current.substring(0, nl).trim()
@@ -385,13 +443,19 @@ class UsbSerialModule(private val reactContext: ReactApplicationContext) :
         addLog("MENSAJE: [$trimmed]")
         sendEvent("onUsbLineReceived", Arguments.createMap().apply { putString("line", trimmed) })
 
-        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+        // Prefer the last balanced {...} inside noisy USB lines (Conviase strategy).
+        val balanced = extractLastBalancedJson(trimmed)
+        val commandPayload =
+            balanced
+                ?: if (trimmed.startsWith("{") || trimmed.startsWith("[")) trimmed else null
+
+        if (commandPayload != null) {
             var type = "payment"
             var strictJsonValid = false
             try {
                 type = when {
-                    trimmed.startsWith("[") -> {
-                        val arr = org.json.JSONArray(trimmed)
+                    commandPayload.startsWith("[") -> {
+                        val arr = org.json.JSONArray(commandPayload)
                         strictJsonValid = true
                         if (arr.length() > 0) {
                             arr.getJSONObject(0).optString("type", "payment")
@@ -401,7 +465,7 @@ class UsbSerialModule(private val reactContext: ReactApplicationContext) :
                     }
                     else -> {
                         strictJsonValid = true
-                        org.json.JSONObject(trimmed).optString("type", "payment")
+                        org.json.JSONObject(commandPayload).optString("type", "payment")
                     }
                 }
             } catch (e: Exception) {
@@ -409,12 +473,16 @@ class UsbSerialModule(private val reactContext: ReactApplicationContext) :
                 if (diagnosticEnabled) {
                     addLog("DIAG JSON inválido — usar parser heurístico JS si responseCode=00")
                 }
+                // Still emit extracted object for JS heuristic even when native JSONObject fails.
+                if (balanced != null) {
+                    type = if (balanced.contains("\"type\"")) "command" else "unknown"
+                }
             }
             sendEvent(
                 "onUsbCommandReceived",
                 Arguments.createMap().apply {
                     putString("type", type)
-                    putString("payload", trimmed)
+                    putString("payload", commandPayload)
                     putBoolean("strictJsonValid", strictJsonValid)
                 },
             )

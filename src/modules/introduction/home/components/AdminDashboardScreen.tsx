@@ -5,11 +5,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   buildSettlementFromEcr,
   createKioskApiClient,
+  isSettlementApprovedPlainText,
   loadAccessToken,
   loadLastPosSerial,
+  salvageSettlementDataForPrint,
   saveLastPosSerial,
 } from '@shared/api/kiosk';
+import {
+  formatUserFacingError,
+  friendlySettlementErrorMessage,
+} from '@shared/api/kiosk/friendlySettlementError';
+import type { KioskSettlementData } from '@shared/api/kiosk/types';
 import { KioskScreenLayout } from '@shared/components';
+import {
+  clearSuccessfulPosTransactions,
+  listSuccessfulPosTransactions,
+} from '@shared/persistence';
 import { useEcrConnection } from '@shared/peripherals/ecr';
 import {
   createPrinterClient,
@@ -21,13 +32,25 @@ import { kioskScale } from '@shared/utils';
 
 export type AdminDashboardScreenProps = {
   onBack: () => void;
+  onOpenFailedPayments?: () => void;
 };
 
-export function AdminDashboardScreen({ onBack }: AdminDashboardScreenProps) {
+type StatusTone = 'neutral' | 'success' | 'error';
+
+export function AdminDashboardScreen({
+  onBack,
+  onOpenFailedPayments,
+}: AdminDashboardScreenProps) {
   const colors = useKioskScreenColors();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<StatusTone>('neutral');
+
+  const showStatus = (text: string, tone: StatusTone) => {
+    setMessage(text);
+    setMessageTone(tone);
+  };
 
   const styles = useMemo(
     () =>
@@ -86,9 +109,18 @@ export function AdminDashboardScreen({ onBack }: AdminDashboardScreenProps) {
         statusMessage: {
           ...bodyTextStyle(),
           fontSize: kioskScale(24),
-          color: colors.title,
+          lineHeight: kioskScale(32),
           textAlign: 'center',
           marginTop: kioskScale(16),
+        },
+        statusNeutral: {
+          color: colors.title,
+        },
+        statusSuccess: {
+          color: colors.priceAccent,
+        },
+        statusError: {
+          color: '#B42318',
         },
       }),
     [colors],
@@ -99,6 +131,7 @@ export function AdminDashboardScreen({ onBack }: AdminDashboardScreenProps) {
   const handleClosePos = async () => {
     setLoading(true);
     setMessage(null);
+    setMessageTone('neutral');
     try {
       let connected = ecr.isConnected;
       if (!connected) {
@@ -112,8 +145,11 @@ export function AdminDashboardScreen({ onBack }: AdminDashboardScreenProps) {
       }
 
       if (!connected) {
-        setMessage(
-          'El punto de venta (POS) no esta conectado. Por favor, verifique la conexion USB.',
+        showStatus(
+          formatUserFacingError(
+            'El punto de venta no está conectado. Verifica el cable USB e intenta de nuevo.',
+          ),
+          'error',
         );
         setLoading(false);
         return;
@@ -126,12 +162,33 @@ export function AdminDashboardScreen({ onBack }: AdminDashboardScreenProps) {
       const settlementResult = buildSettlementFromEcr(response, { posSerialFallback });
       const settlementRequest = settlementResult.request;
 
-      if (settlementRequest?.settlementData?.deviceSerial) {
-        void saveLastPosSerial(settlementRequest.settlementData.deviceSerial);
+      // Settlement-only: if structured parse fails but POS shows approval in plain text,
+      // salvage whatever fields we can and still print the cierre ticket.
+      const plainApproved =
+        !settlementResult.ok && isSettlementApprovedPlainText(response);
+      const salvaged = plainApproved
+        ? salvageSettlementDataForPrint(response, { posSerialFallback })
+        : null;
+
+      if (salvaged) {
+        console.warn(
+          '[AdminDashboard] JSON de cierre corrupto; imprimiendo con campos recuperados del texto POS',
+        );
+      }
+
+      const printSettlementData: KioskSettlementData | undefined =
+        settlementRequest?.settlementData ?? salvaged?.settlementData;
+      const printReferenceNo =
+        settlementRequest?.settlementId ?? salvaged?.referenceNo;
+
+      if (printSettlementData?.deviceSerial) {
+        void saveLastPosSerial(printSettlementData.deviceSerial);
+      } else if (settlementRequest?.posSerial) {
+        void saveLastPosSerial(settlementRequest.posSerial);
       }
 
       let backendRegistered = false;
-      let backendError: string | null = null;
+      let backendFriendlyError: string | null = null;
       if (settlementRequest) {
         try {
           const token = await loadAccessToken();
@@ -140,18 +197,38 @@ export function AdminDashboardScreen({ onBack }: AdminDashboardScreenProps) {
           backendRegistered = true;
           console.log('[AdminDashboard] Cierre registrado en backend:', backendResponse);
         } catch (backendErr) {
-          backendError =
-            backendErr instanceof Error ? backendErr.message : String(backendErr);
+          backendFriendlyError = friendlySettlementErrorMessage(backendErr);
           console.warn('[AdminDashboard] Error al registrar cierre en backend:', backendErr);
         }
       }
 
       let printSuccess = false;
-      if (settlementResult.ok && settlementRequest?.settlementData) {
+      const shouldPrint =
+        (settlementResult.ok && Boolean(printSettlementData)) || Boolean(salvaged);
+
+      if (shouldPrint && printSettlementData) {
+        let localTransactions: Awaited<
+          ReturnType<typeof listSuccessfulPosTransactions>
+        > = [];
+        try {
+          localTransactions = await listSuccessfulPosTransactions();
+        } catch (listErr) {
+          console.warn(
+            '[AdminDashboard] Error al listar transacciones POS locales:',
+            listErr,
+          );
+        }
+
         const ticketText = formatSettlementTicketText({
-          settlementData: settlementRequest.settlementData,
-          referenceNo: settlementRequest.settlementId,
+          settlementData: printSettlementData,
+          referenceNo: printReferenceNo,
           approved: true,
+          transactions: localTransactions.map((tx) => ({
+            posReference: tx.posReference,
+            createdAt: tx.createdAt,
+            amountDisplay: tx.amountDisplay,
+            posDateTime: tx.posDateTime,
+          })),
         });
         const sanitizedTicketText = sanitizePrinterText(ticketText);
         const printer = createPrinterClient();
@@ -166,36 +243,72 @@ export function AdminDashboardScreen({ onBack }: AdminDashboardScreenProps) {
             await printer.disconnect();
           } catch {}
         }
+
+        try {
+          await clearSuccessfulPosTransactions();
+        } catch (clearErr) {
+          console.warn(
+            '[AdminDashboard] Error al limpiar transacciones POS locales:',
+            clearErr,
+          );
+        }
       }
 
-      if (!settlementResult.ok) {
-        const detail = settlementResult.message ?? 'El cierre del POS fallo.';
+      if (!settlementResult.ok && !salvaged) {
         if (backendRegistered) {
-          setMessage(`${detail} El intento fue registrado en el servidor.`);
-        } else if (backendError) {
-          setMessage(`${detail} No se pudo registrar en el servidor: ${backendError}`);
+          showStatus(
+            formatUserFacingError(
+              'El cierre en el datáfono no se completó, pero el intento quedó registrado en el servidor.',
+            ),
+            'error',
+          );
+        } else if (backendFriendlyError) {
+          showStatus(formatUserFacingError(backendFriendlyError), 'error');
         } else {
-          setMessage(detail);
+          showStatus(
+            formatUserFacingError(
+              'El datáfono no pudo completar el cierre de lote. Verifica el equipo e intenta de nuevo.',
+            ),
+            'error',
+          );
         }
         return;
       }
 
       if (backendRegistered && printSuccess) {
-        setMessage('Cierre de lote realizado, registrado e impreso con exito.');
+        showStatus('Cierre de lote realizado, registrado e impreso con éxito.', 'success');
       } else if (backendRegistered) {
-        setMessage('Cierre de lote realizado y registrado, pero fallo la impresion del ticket.');
+        showStatus(
+          formatUserFacingError(
+            'El cierre se registró, pero no se pudo imprimir el ticket. Revisa la impresora.',
+          ),
+          'error',
+        );
       } else if (printSuccess) {
-        setMessage(
-          `Cierre de lote realizado e impreso, pero no se pudo registrar en el servidor${backendError ? `: ${backendError}` : '.'}`,
+        showStatus(
+          formatUserFacingError(
+            backendFriendlyError ??
+              'El ticket se imprimió, pero no se pudo registrar el cierre en el servidor.',
+          ),
+          'error',
         );
       } else {
-        setMessage(
-          `Cierre de lote realizado en el POS, pero fallo la impresion y el registro en el servidor${backendError ? `: ${backendError}` : '.'}`,
+        showStatus(
+          formatUserFacingError(
+            backendFriendlyError ??
+              'El cierre se hizo en el datáfono, pero falló la impresión y el registro en el servidor.',
+          ),
+          'error',
         );
       }
     } catch (err) {
       console.error('[AdminDashboard] Error durante el proceso de cierre:', err);
-      setMessage(`Error al realizar el cierre: ${err instanceof Error ? err.message : String(err)}`);
+      showStatus(
+        formatUserFacingError(
+          'No se pudo completar el cierre de lote. Verifica el datáfono e intenta de nuevo.',
+        ),
+        'error',
+      );
     } finally {
       setLoading(false);
     }
@@ -226,7 +339,28 @@ export function AdminDashboardScreen({ onBack }: AdminDashboardScreenProps) {
             </Text>
           </TouchableOpacity>
 
-          {message ? <Text style={styles.statusMessage}>{message}</Text> : null}
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={onOpenFailedPayments}
+            disabled={loading || !onOpenFailedPayments}
+            testID="admin-failed-payments-button">
+            <Text style={styles.buttonText}>Ver pagos fallidos</Text>
+          </TouchableOpacity>
+
+          {message ? (
+            <Text
+              style={[
+                styles.statusMessage,
+                messageTone === 'success'
+                  ? styles.statusSuccess
+                  : messageTone === 'error'
+                    ? styles.statusError
+                    : styles.statusNeutral,
+              ]}
+              testID="admin-dashboard-status">
+              {message}
+            </Text>
+          ) : null}
         </View>
       </View>
     </KioskScreenLayout>

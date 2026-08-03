@@ -5,16 +5,26 @@ export {
   documentIdToEcrDocumentNumber,
   EcrDocumentNumberError,
 } from './documentIdToEcrDocumentNumber';
+export { extractLastBalancedJson } from './extractLastBalancedJson';
 export { formatEcrDocumentNumber } from './formatEcrDocumentNumber';
+export { isTransientEcrResponse } from './isTransientEcrResponse';
+export {
+  evaluateEcrApprovalFromPickedFields,
+  pickEcrPaymentFields,
+} from './pickEcrPaymentFields';
+export type { EcrPickedFields } from './pickEcrPaymentFields';
 export {
   isPosTestChargeActive,
   resolvePosChargeAmountVes,
 } from './resolvePosChargeAmountVes';
 export { formatEcrTerminalAmountHint, toEcrTerminalAmount } from './toEcrTerminalAmount';
 export {
+  extractEcrErrorCodeFromText,
+  hasEcrPlainTextCompletionSignal,
   parseEcrPaymentResponse,
   parseEcrPaymentResponseHeuristic,
 } from './parseEcrPaymentResponse';
+export type { EcrPaymentParseResult } from './parseEcrPaymentResponse';
 export { getUsbSerialModule, isUsbSerialModuleAvailable } from './usbSerialModule';
 export { useEcrUsbDiagnostic } from './useEcrUsbDiagnostic';
 export type { UsbEcrDiagnosticSnapshot, UseEcrUsbDiagnosticReturn } from './useEcrUsbDiagnostic';

@@ -1,4 +1,12 @@
-import { extractEcrResponseCodeFromText } from './parseEcrPaymentJson';
+import {
+  extractEcrErrorCodeFromText,
+  extractEcrResponseCodeFromText,
+} from './parseEcrPaymentJson';
+import { extractLastBalancedJson } from './extractLastBalancedJson';
+import {
+  evaluateEcrApprovalFromPickedFields,
+  pickEcrPaymentFields,
+} from './pickEcrPaymentFields';
 
 export type EcrPaymentParseResult = {
   approved: boolean;
@@ -38,6 +46,7 @@ function readHeuristicMessage(text: string): string | undefined {
     /responseMessage"\s*:\s*"([^"]+)"/i,
     /respo[a-z0-9]*Me[a-z]*essage"+\s*"?([A-Z:PRVOED]+)/i,
     /ensMessge\s*:\s*"?([A-Za-z]+)/i,
+    /responeMessage"\s*:\s*"([^"]+)"/i,
     /er"rorCode"?\s*:?\s*(-\d+)/i,
     /erro[r]?Corde"\s*:\s*(-\d+)/i,
     /errorCode"\s*:\s*(-\d+)/i,
@@ -51,8 +60,20 @@ function readHeuristicMessage(text: string): string | undefined {
   return undefined;
 }
 
+export { extractEcrErrorCodeFromText } from './parseEcrPaymentJson';
+
+/** Primary completion signals in corrupted payloads: responseCode 00 and/or errorCode 0. */
+export function hasEcrPlainTextCompletionSignal(text: string): boolean {
+  if (extractEcrResponseCodeFromText(text) === '00') {
+    return true;
+  }
+  return extractEcrErrorCodeFromText(text) === 0;
+}
+
 /**
  * Parses corrupted / non-standard JSON from USB serial (bit errors, nested `data`).
+ * When strict JSON fails, completion is decided by plain-text:
+ * `responseCode === "00"` and/or `errorCode === 0`.
  */
 export function parseEcrPaymentResponseHeuristic(raw: string): EcrPaymentParseResult | null {
   const text = raw.trim();
@@ -65,10 +86,19 @@ export function parseEcrPaymentResponseHeuristic(raw: string): EcrPaymentParseRe
     /(?:ssucces|scucess)["\s:f.]*false/i,
     /responseMesages?"\s*:\s*"Failed"/i,
     /errorCode"\s*:\s*-\d+/i,
+    /(?:er"rorCode|erorrCode|erro[r]?Corde)"?\s*:?\s*-\d+/i,
     /resu0?1lt"\s*:\s*-1/i,
     /"result"\s*:\s*-1/,
     /responseCode""(?!00)\d{2}"\s*:\s*,/,
   ];
+
+  const errorCode = extractEcrErrorCodeFromText(text);
+  if (errorCode != null && errorCode < 0) {
+    return {
+      approved: false,
+      message: readHeuristicMessage(text) ?? 'Transacción rechazada en terminal',
+    };
+  }
 
   if (failureSignals.some((re) => re.test(text))) {
     return {
@@ -77,8 +107,19 @@ export function parseEcrPaymentResponseHeuristic(raw: string): EcrPaymentParseRe
     };
   }
 
-  if (extractEcrResponseCodeFromText(text) === '00') {
-    return { approved: true, status: '00', message: readHeuristicMessage(text) };
+  // Same-level primary signals: responseCode 00 and/or errorCode 0.
+  if (hasEcrPlainTextCompletionSignal(text)) {
+    const status =
+      extractEcrResponseCodeFromText(text) === '00'
+        ? '00'
+        : errorCode === 0
+          ? 'errorCode:0'
+          : undefined;
+    return {
+      approved: true,
+      status,
+      message: readHeuristicMessage(text),
+    };
   }
 
   const approvedSignals: RegExp[] = [
@@ -87,7 +128,6 @@ export function parseEcrPaymentResponseHeuristic(raw: string): EcrPaymentParseRe
     /successr["\s:f.]*tue/i,
     /success":\s*ture/i,
     /(?:ssucces|scucess|successtrue|usccess)/i,
-    /(?:er"rorCode|erorrCode|erro[r]?Corde|errorCode)"?\s*:?\s*0\b/i,
     /resopnseCod"e:\s*"00/i,
     /(?:responseCode|rnsspoeCode|rnnsspoeCode|dateseCode|responCseode|eresponseCoe)[^0-9]{0,12}"?[a-z:]*0{2}"?/i,
     /respon[a-z]*[Cc][a-z]*ode"\s*:\s*"?[a-z:]*0{2}"?/i,
@@ -147,7 +187,17 @@ function unwrapEcrPayload(raw: string): string {
 
 /** Interprets JSON payload from UsbSerialModule / mock ECR. */
 export function parseEcrPaymentResponse(raw: string): EcrPaymentParseResult {
-  const candidate = unwrapEcrPayload(raw);
+  const focused = extractLastBalancedJson(raw) ?? raw;
+  const candidate = unwrapEcrPayload(focused);
+
+  // Conviase-style multi-field approval when structured fields are readable.
+  const picked = evaluateEcrApprovalFromPickedFields(
+    pickEcrPaymentFields(focused),
+    focused,
+  );
+  if (picked) {
+    return picked;
+  }
 
   try {
     const json = JSON.parse(candidate) as Record<string, unknown>;
@@ -161,14 +211,33 @@ export function parseEcrPaymentResponse(raw: string): EcrPaymentParseResult {
 
     const nestedSuccess = nestedRecord?.success;
     const topSuccess = json.success;
+    const nestedErrorCode = nestedRecord?.errorCode;
+    const topErrorCode = json.errorCode;
+    const errorCodeZero =
+      nestedErrorCode === 0 ||
+      topErrorCode === 0 ||
+      nestedErrorCode === '0' ||
+      topErrorCode === '0';
 
     if (
       status === '00' ||
       status === 'approved' ||
       topSuccess === true ||
-      nestedSuccess === true
+      nestedSuccess === true ||
+      errorCodeZero
     ) {
       return { approved: true, status, message };
+    }
+
+    if (
+      (typeof nestedErrorCode === 'number' && nestedErrorCode < 0) ||
+      (typeof topErrorCode === 'number' && topErrorCode < 0)
+    ) {
+      return {
+        approved: false,
+        status,
+        message: message ?? 'Transacción rechazada en terminal',
+      };
     }
 
     if (
@@ -199,12 +268,12 @@ export function parseEcrPaymentResponse(raw: string): EcrPaymentParseResult {
       }
     }
   } catch {
-    const heuristic = parseEcrPaymentResponseHeuristic(raw);
+    const heuristic = parseEcrPaymentResponseHeuristic(focused);
     if (heuristic) {
       return heuristic;
     }
 
-    const trimmed = raw.trim();
+    const trimmed = focused.trim();
     if (/^ERROR:/i.test(trimmed)) {
       return { approved: false, message: trimmed };
     }
@@ -217,13 +286,22 @@ export function parseEcrPaymentResponse(raw: string): EcrPaymentParseResult {
     }
   }
 
-  const heuristic = parseEcrPaymentResponseHeuristic(raw);
+  const heuristic = parseEcrPaymentResponseHeuristic(focused);
   if (heuristic) {
     return heuristic;
   }
 
-  if (extractEcrResponseCodeFromText(raw) === '00') {
-    return { approved: true, status: '00', message: readHeuristicMessage(raw.trim()) };
+  if (hasEcrPlainTextCompletionSignal(focused)) {
+    return {
+      approved: true,
+      status:
+        extractEcrResponseCodeFromText(focused) === '00'
+          ? '00'
+          : extractEcrErrorCodeFromText(focused) === 0
+            ? 'errorCode:0'
+            : undefined,
+      message: readHeuristicMessage(focused.trim()),
+    };
   }
 
   return { approved: true };
