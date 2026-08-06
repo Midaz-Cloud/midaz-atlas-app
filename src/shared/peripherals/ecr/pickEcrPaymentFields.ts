@@ -3,6 +3,11 @@
  * Tolerates partial / corrupted JSON without requiring a full JSON.parse.
  */
 
+import {
+  evaluatePosPaymentSuccessCascade,
+  type PosPaymentCascadeResult,
+} from './posPaymentSuccessCascade';
+
 export type EcrPickedFields = {
   success: string | null;
   result: number | null;
@@ -71,72 +76,44 @@ export function pickEcrPaymentFields(raw: string): EcrPickedFields {
   };
 }
 
-const FAIL_MSG = /FAIL|RECHAZ|CANCEL|DECLINED|ERROR/i;
+function cascadeFromPicked(fields: EcrPickedFields): PosPaymentCascadeResult {
+  return evaluatePosPaymentSuccessCascade({
+    errorCode: fields.errorCode,
+    result: fields.innerResult ?? fields.result,
+    rrn: fields.rrn,
+    responseMessage: fields.responseMessage,
+  });
+}
 
 /**
- * Conviase multi-field approval when enough structured fields are present.
- * Returns null when fields are too sparse/corrupt — caller should use heuristics.
+ * Approval via success cascade when any of the 4 signals is readable.
+ * Returns null when none of the cascade fields are present — caller may try other extractors.
  */
 export function evaluateEcrApprovalFromPickedFields(
   fields: EcrPickedFields,
-  raw: string,
+  _raw: string,
 ): { approved: boolean; status?: string; message?: string } | null {
-  const hasStructured =
+  const hasCascadeInput =
     fields.errorCode != null ||
-    fields.responseCode != null ||
-    fields.success != null ||
     fields.result != null ||
-    fields.innerResult != null;
+    fields.innerResult != null ||
+    Boolean(fields.rrn?.trim()) ||
+    Boolean(fields.responseMessage?.trim());
 
-  if (!hasStructured) {
+  if (!hasCascadeInput) {
     return null;
   }
 
-  const msgUpper = (fields.responseMessage ?? '').toUpperCase();
-  const hasErrorMsg = FAIL_MSG.test(msgUpper);
-  const codeField = fields.responseCode;
-  const hasInvalidResponseCode =
-    codeField != null && codeField !== '00' && codeField.toUpperCase() !== 'CANCELLED';
-
-  const hasNonZeroResult = /"result"\s*:\s*(?!0\b)-?\d+/i.test(raw);
-  const resultOk =
-    fields.innerResult != null
-      ? fields.innerResult === 0
-      : fields.result != null
-        ? fields.result === 0
-        : !hasNonZeroResult;
-
-  const positiveSignal =
-    fields.success === 'true' ||
-    codeField === '00' ||
-    msgUpper.includes('APPROV');
-
-  const isApproved =
-    fields.errorCode === 0 &&
-    resultOk &&
-    !hasErrorMsg &&
-    !hasInvalidResponseCode &&
-    positiveSignal;
-
-  if (isApproved) {
+  const cascade = cascadeFromPicked(fields);
+  if (cascade.approved) {
     return {
       approved: true,
-      status: codeField === '00' ? '00' : undefined,
+      status: fields.responseCode === '00' ? '00' : undefined,
       message: fields.responseMessage ?? undefined,
     };
   }
 
-  // Clear decline when structured fields disagree with approval.
-  if (
-    fields.errorCode != null &&
-    fields.errorCode < 0
-  ) {
-    return {
-      approved: false,
-      message: fields.responseMessage ?? 'Transacción rechazada en terminal',
-    };
-  }
-
+  const codeField = fields.responseCode;
   if (codeField != null && codeField.toUpperCase() === 'CANCELLED') {
     return {
       approved: false,
@@ -145,14 +122,12 @@ export function evaluateEcrApprovalFromPickedFields(
     };
   }
 
-  if (hasInvalidResponseCode || hasErrorMsg || fields.success === 'false') {
-    return {
-      approved: false,
-      status: codeField ?? undefined,
-      message: fields.responseMessage ?? 'Transacción rechazada en terminal',
-    };
-  }
-
-  // Structured but inconclusive (e.g. missing errorCode on corrupt USB) → heuristic path.
-  return null;
+  return {
+    approved: false,
+    status: codeField ?? undefined,
+    message:
+      ('reason' in cascade ? cascade.reason : undefined) ??
+      fields.responseMessage ??
+      'Transacción rechazada en terminal',
+  };
 }

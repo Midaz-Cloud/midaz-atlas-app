@@ -37,3 +37,5 @@ export {
   shouldUseMockFiscal,
   getFiscalServiceBaseUrl,
 } from './fiscal';
+export { getKioskMailConfig } from './mail';
+export type { KioskMailConfig } from './mail';

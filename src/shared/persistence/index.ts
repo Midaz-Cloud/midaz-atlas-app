@@ -23,6 +23,8 @@ export {
   type FailedPaymentKioskContext,
 } from './failedPaymentMappers';
 export {
+  clearFailedPayments,
+  deleteFailedPayment,
   getFailedPayment,
   listFailedPaymentRecordsByStatus,
   listFailedPaymentSummaries,

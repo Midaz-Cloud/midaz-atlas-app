@@ -26,6 +26,7 @@ import {
   PrinterTestButton,
   FiscalHealthTestButton,
   FiscalEmitTestButton,
+  SettlementMailTestButton,
   TouchToStartCta,
   AdminPasscodeModal,
 } from './components';
@@ -191,6 +192,7 @@ export function HomeScreen({
                   <PrinterTestButton />
                   <FiscalHealthTestButton />
                   <FiscalEmitTestButton />
+                  <SettlementMailTestButton />
                 </View>
               </View>
             ) : null}

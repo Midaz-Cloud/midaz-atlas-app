@@ -11,6 +11,7 @@ export { EcrPaymentTestButton } from './EcrPaymentTestButton';
 export { PrinterTestButton } from './PrinterTestButton';
 export { FiscalHealthTestButton } from './FiscalHealthTestButton';
 export { FiscalEmitTestButton } from './FiscalEmitTestButton';
+export { SettlementMailTestButton } from './SettlementMailTestButton';
 export { AdminPasscodeModal } from './AdminPasscodeModal';
 export { AdminDashboardScreen } from './AdminDashboardScreen';
 export { FailedPaymentsListScreen } from './FailedPaymentsListScreen';

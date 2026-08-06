@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "payload": {
+    "posResponse": {
+      "responseCode": "00",
+      "responseMessage": "APPROVED",
+      "referenceNumber": "712269",
+      "traceNumber": "712269",
+      "RRN": "985864312269",
+      "terminalID": "00001001",
+      "deviceSerial": "N620W30h4722",
+      "merchantID": "0078513748",
+      "accountType": 4,
+      "batchNum": "000024",
+      "amount": "100",
+      "referenceNo": "REF-LIVE-1785864312269-312269"
+    },
+    "cardType": "debito",
+    "cedula": "V26728807",
+    "cardHolder": "ALEXANDER SALAZAR",
+    "phone": "04241966976",
+    "posReference": "985864312269"
+  }
+}

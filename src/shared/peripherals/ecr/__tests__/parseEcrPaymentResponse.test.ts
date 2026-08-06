@@ -26,14 +26,11 @@ const USER_REPORT_CORRUPTED_2026_07_21 = String.raw`{"success":truae,"type":"pym
 const CORRUPTED_ERROR_CODE_ZERO_ONLY = String.raw`{"success":truae,"type":"pyment","data":{"amout":"100","errorCode":0}}`;
 
 describe('parseEcrPaymentResponse', () => {
-  it('approves status approved', () => {
+  it('does not approve status alone without cascade signals', () => {
     expect(parseEcrPaymentResponse(JSON.stringify({ status: 'approved' })).approved).toBe(
-      true,
+      false,
     );
-  });
-
-  it('approves status 00', () => {
-    expect(parseEcrPaymentResponse(JSON.stringify({ status: '00' })).approved).toBe(true);
+    expect(parseEcrPaymentResponse(JSON.stringify({ status: '00' })).approved).toBe(false);
   });
 
   it('rejects non-00 status codes', () => {
@@ -54,8 +51,8 @@ describe('parseEcrPaymentResponse', () => {
     expect(parseEcrPaymentResponse('ERROR: invalid document').approved).toBe(false);
   });
 
-  it('treats benign non-json as approved', () => {
-    expect(parseEcrPaymentResponse('OK').approved).toBe(true);
+  it('rejects benign non-json without cascade signals', () => {
+    expect(parseEcrPaymentResponse('OK').approved).toBe(false);
   });
 
   it('rejects corrupted terminal failure payload from logcat', () => {

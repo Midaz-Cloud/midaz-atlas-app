@@ -3,10 +3,15 @@ import {
   extractEcrResponseCodeFromText,
 } from './parseEcrPaymentJson';
 import { extractLastBalancedJson } from './extractLastBalancedJson';
+import { fuzzyExtractRrn } from './fuzzyEcrFieldExtract';
 import {
   evaluateEcrApprovalFromPickedFields,
   pickEcrPaymentFields,
 } from './pickEcrPaymentFields';
+import {
+  evaluatePosPaymentSuccessCascade,
+  type PosPaymentSuccessFields,
+} from './posPaymentSuccessCascade';
 
 export type EcrPaymentParseResult = {
   approved: boolean;
@@ -60,9 +65,57 @@ function readHeuristicMessage(text: string): string | undefined {
   return undefined;
 }
 
+function readNumberish(value: unknown): number | string | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+  return null;
+}
+
+function cascadeFieldsFromJson(json: Record<string, unknown>): PosPaymentSuccessFields {
+  const nested =
+    json.data != null && typeof json.data === 'object'
+      ? (json.data as Record<string, unknown>)
+      : undefined;
+
+  const errorCode =
+    readNumberish(nested?.errorCode) ?? readNumberish(json.errorCode);
+  const result =
+    readNumberish(nested?.result) ??
+    readNumberish(nested?.resu1lt) ??
+    readNumberish(json.result);
+  const rrn =
+    (typeof nested?.RRN === 'string' && nested.RRN.trim()) ||
+    (typeof nested?.rrn === 'string' && nested.rrn.trim()) ||
+    (typeof json.RRN === 'string' && json.RRN.trim()) ||
+    (typeof json.rrn === 'string' && json.rrn.trim()) ||
+    null;
+  const responseMessage =
+    (typeof nested?.responseMessage === 'string' && nested.responseMessage.trim()) ||
+    (typeof nested?.responseMesages === 'string' && nested.responseMesages.trim()) ||
+    (typeof json.responseMessage === 'string' && json.responseMessage.trim()) ||
+    null;
+
+  return { errorCode, result, rrn, responseMessage };
+}
+
+/** Extract the 4 cascade signals from raw USB text (strict pick + fuzzy fallbacks). */
+export function extractPosPaymentSuccessFieldsFromRaw(raw: string): PosPaymentSuccessFields {
+  const picked = pickEcrPaymentFields(raw);
+  return {
+    errorCode: picked.errorCode ?? extractEcrErrorCodeFromText(raw),
+    result: picked.innerResult ?? picked.result,
+    rrn: picked.rrn?.trim() || fuzzyExtractRrn(raw) || null,
+    responseMessage: picked.responseMessage ?? readHeuristicMessage(raw) ?? null,
+  };
+}
+
 export { extractEcrErrorCodeFromText } from './parseEcrPaymentJson';
 
-/** Primary completion signals in corrupted payloads: responseCode 00 and/or errorCode 0. */
+/** @deprecated Prefer success cascade; kept for tests / logging of legacy signals. */
 export function hasEcrPlainTextCompletionSignal(text: string): boolean {
   if (extractEcrResponseCodeFromText(text) === '00') {
     return true;
@@ -70,10 +123,33 @@ export function hasEcrPlainTextCompletionSignal(text: string): boolean {
   return extractEcrErrorCodeFromText(text) === 0;
 }
 
+function resultFromCascade(
+  fields: PosPaymentSuccessFields,
+  statusHint?: string,
+  messageHint?: string,
+): EcrPaymentParseResult {
+  const cascade = evaluatePosPaymentSuccessCascade(fields);
+  if (cascade.approved) {
+    return {
+      approved: true,
+      status: statusHint,
+      message: messageHint ?? (typeof fields.responseMessage === 'string'
+        ? fields.responseMessage
+        : undefined),
+    };
+  }
+  return {
+    approved: false,
+    status: statusHint,
+    message:
+      ('reason' in cascade ? cascade.reason : undefined) ??
+      messageHint ??
+      'Transacción rechazada en terminal',
+  };
+}
+
 /**
- * Parses corrupted / non-standard JSON from USB serial (bit errors, nested `data`).
- * When strict JSON fails, completion is decided by plain-text:
- * `responseCode === "00"` and/or `errorCode === 0`.
+ * Parses corrupted / non-standard JSON from USB serial via the success cascade.
  */
 export function parseEcrPaymentResponseHeuristic(raw: string): EcrPaymentParseResult | null {
   const text = raw.trim();
@@ -81,66 +157,19 @@ export function parseEcrPaymentResponseHeuristic(raw: string): EcrPaymentParseRe
     return null;
   }
 
-  const failureSignals: RegExp[] = [
-    /success["\s:f.]*false/i,
-    /(?:ssucces|scucess)["\s:f.]*false/i,
-    /responseMesages?"\s*:\s*"Failed"/i,
-    /errorCode"\s*:\s*-\d+/i,
-    /(?:er"rorCode|erorrCode|erro[r]?Corde)"?\s*:?\s*-\d+/i,
-    /resu0?1lt"\s*:\s*-1/i,
-    /"result"\s*:\s*-1/,
-    /responseCode""(?!00)\d{2}"\s*:\s*,/,
-  ];
-
-  const errorCode = extractEcrErrorCodeFromText(text);
-  if (errorCode != null && errorCode < 0) {
-    return {
-      approved: false,
-      message: readHeuristicMessage(text) ?? 'Transacción rechazada en terminal',
-    };
+  const fields = extractPosPaymentSuccessFieldsFromRaw(text);
+  const hasInput =
+    fields.errorCode != null ||
+    fields.result != null ||
+    Boolean(fields.rrn?.trim()) ||
+    Boolean(fields.responseMessage?.trim());
+  if (!hasInput) {
+    return null;
   }
 
-  if (failureSignals.some((re) => re.test(text))) {
-    return {
-      approved: false,
-      message: readHeuristicMessage(text) ?? 'Transacción rechazada en terminal',
-    };
-  }
-
-  // Same-level primary signals: responseCode 00 and/or errorCode 0.
-  if (hasEcrPlainTextCompletionSignal(text)) {
-    const status =
-      extractEcrResponseCodeFromText(text) === '00'
-        ? '00'
-        : errorCode === 0
-          ? 'errorCode:0'
-          : undefined;
-    return {
-      approved: true,
-      status,
-      message: readHeuristicMessage(text),
-    };
-  }
-
-  const approvedSignals: RegExp[] = [
-    /success["\s:f.]*true/i,
-    /success:\s*tru/i,
-    /successr["\s:f.]*tue/i,
-    /success":\s*ture/i,
-    /(?:ssucces|scucess|successtrue|usccess)/i,
-    /resopnseCod"e:\s*"00/i,
-    /(?:responseCode|rnsspoeCode|rnnsspoeCode|dateseCode|responCseode|eresponseCoe)[^0-9]{0,12}"?[a-z:]*0{2}"?/i,
-    /respon[a-z]*[Cc][a-z]*ode"\s*:\s*"?[a-z:]*0{2}"?/i,
-    /APPROVED/i,
-    /APROV[ED]+/i,
-    /PRVOED/i,
-  ];
-
-  if (approvedSignals.some((re) => re.test(text)) && !failureSignals.some((re) => re.test(text))) {
-    return { approved: true, message: readHeuristicMessage(text) };
-  }
-
-  return null;
+  const status =
+    extractEcrResponseCodeFromText(text) === '00' ? '00' : undefined;
+  return resultFromCascade(fields, status, readHeuristicMessage(text));
 }
 
 function stripCorruptedArrayPrefix(raw: string): string {
@@ -156,10 +185,9 @@ function stripCorruptedArrayPrefix(raw: string): string {
   if (inner.endsWith(']')) {
     inner = inner.replace(/\]\s*$/, '');
   }
-  // If we have a trailing bracket but it's preceded by non-JSON noise or brackets, clean it up
   inner = inner.trim();
   if (inner.endsWith('}')) {
-    // Perfectly fine, nothing to strip
+    // ok
   } else if (inner.endsWith('}]')) {
     inner = inner.slice(0, -2);
   } else if (inner.endsWith('}]}') || inner.endsWith('}]}]')) {
@@ -190,7 +218,6 @@ export function parseEcrPaymentResponse(raw: string): EcrPaymentParseResult {
   const focused = extractLastBalancedJson(raw) ?? raw;
   const candidate = unwrapEcrPayload(focused);
 
-  // Conviase-style multi-field approval when structured fields are readable.
   const picked = evaluateEcrApprovalFromPickedFields(
     pickEcrPaymentFields(focused),
     focused,
@@ -203,69 +230,31 @@ export function parseEcrPaymentResponse(raw: string): EcrPaymentParseResult {
     const json = JSON.parse(candidate) as Record<string, unknown>;
     const status = typeof json.status === 'string' ? json.status : undefined;
     const message = readEcrMessage(json);
-    const nested = json.data;
-    const nestedRecord =
-      nested != null && typeof nested === 'object'
-        ? (nested as Record<string, unknown>)
-        : undefined;
+    const fields = cascadeFieldsFromJson(json);
+    const hasCascadeInput =
+      fields.errorCode != null ||
+      fields.result != null ||
+      Boolean(fields.rrn?.trim()) ||
+      Boolean(fields.responseMessage?.trim());
 
-    const nestedSuccess = nestedRecord?.success;
-    const topSuccess = json.success;
-    const nestedErrorCode = nestedRecord?.errorCode;
-    const topErrorCode = json.errorCode;
-    const errorCodeZero =
-      nestedErrorCode === 0 ||
-      topErrorCode === 0 ||
-      nestedErrorCode === '0' ||
-      topErrorCode === '0';
-
-    if (
-      status === '00' ||
-      status === 'approved' ||
-      topSuccess === true ||
-      nestedSuccess === true ||
-      errorCodeZero
-    ) {
-      return { approved: true, status, message };
+    if (hasCascadeInput) {
+      const cascadeResult = resultFromCascade(
+        fields,
+        status === '00' ? '00' : status,
+        message,
+      );
+      return cascadeResult;
     }
 
-    if (
-      (typeof nestedErrorCode === 'number' && nestedErrorCode < 0) ||
-      (typeof topErrorCode === 'number' && topErrorCode < 0)
-    ) {
-      return {
-        approved: false,
-        status,
-        message: message ?? 'Transacción rechazada en terminal',
-      };
-    }
-
-    if (
-      (status != null && status !== '00') ||
-      topSuccess === false ||
-      nestedSuccess === false ||
-      json.success === false
-    ) {
+    // No cascade fields: reject non-success status / explicit decline flags.
+    if (status != null && status !== '00' && status !== 'approved') {
       return { approved: false, status, message };
     }
-
+    if (json.success === false) {
+      return { approved: false, status, message };
+    }
     if (typeof json.approved === 'boolean') {
       return { approved: json.approved, status, message };
-    }
-
-    if (typeof json.result === 'number' && json.result < 0) {
-      return { approved: false, status, message: message ?? `result ${json.result}` };
-    }
-
-    if (nestedRecord != null) {
-      const nestedResult = nestedRecord.result ?? nestedRecord.resu1lt;
-      if (typeof nestedResult === 'number' && nestedResult < 0) {
-        return {
-          approved: false,
-          status,
-          message: readEcrMessage(nestedRecord) ?? `result ${nestedResult}`,
-        };
-      }
     }
   } catch {
     const heuristic = parseEcrPaymentResponseHeuristic(focused);
@@ -277,13 +266,6 @@ export function parseEcrPaymentResponse(raw: string): EcrPaymentParseResult {
     if (/^ERROR:/i.test(trimmed)) {
       return { approved: false, message: trimmed };
     }
-    if (
-      /errorCode"\s*:\s*-\d+/i.test(trimmed) ||
-      /\berrorMessage"\s*:\s*"/i.test(trimmed) ||
-      /rechaz|deneg|\bfail(ed)?\b/i.test(trimmed)
-    ) {
-      return { approved: false, message: trimmed };
-    }
   }
 
   const heuristic = parseEcrPaymentResponseHeuristic(focused);
@@ -291,18 +273,18 @@ export function parseEcrPaymentResponse(raw: string): EcrPaymentParseResult {
     return heuristic;
   }
 
-  if (hasEcrPlainTextCompletionSignal(focused)) {
-    return {
-      approved: true,
-      status:
-        extractEcrResponseCodeFromText(focused) === '00'
-          ? '00'
-          : extractEcrErrorCodeFromText(focused) === 0
-            ? 'errorCode:0'
-            : undefined,
-      message: readHeuristicMessage(focused.trim()),
-    };
+  // Fuzzy cascade on full raw (handles typo keys not caught by strict pick).
+  const fuzzyFields = extractPosPaymentSuccessFieldsFromRaw(focused);
+  const fuzzyHasInput =
+    fuzzyFields.errorCode != null ||
+    fuzzyFields.result != null ||
+    Boolean(fuzzyFields.rrn?.trim()) ||
+    Boolean(fuzzyFields.responseMessage?.trim());
+  if (fuzzyHasInput) {
+    const status =
+      extractEcrResponseCodeFromText(focused) === '00' ? '00' : undefined;
+    return resultFromCascade(fuzzyFields, status, readHeuristicMessage(focused.trim()));
   }
 
-  return { approved: true };
+  return { approved: false, message: 'Respuesta del terminal no válida' };
 }

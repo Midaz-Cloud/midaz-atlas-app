@@ -33,9 +33,10 @@ describe('buildPosPaymentFromEcr', () => {
     expect(result.payload.posReference).toBe('614623000027');
   });
 
-  it('rejects non-approved responseCode', () => {
+  it('rejects hard-fail errorCode even with RRN present', () => {
     const result = buildPosPaymentFromEcr({
       rawEcrResponse: JSON.stringify({
+        errorCode: -1,
         responseCode: '03',
         responseMessage: 'DECLINED',
         traceNumber: '000001',
@@ -48,11 +49,22 @@ describe('buildPosPaymentFromEcr', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('rejects payload missing required trace/RRN fields', () => {
+  it('approves via cascade when only APPROVED message is present', () => {
+    const result = buildPosPaymentFromEcr({
+      rawEcrResponse: JSON.stringify({
+        responseMessage: 'APPROVED',
+      }),
+      customer,
+      payerDocumentId: customer.documentId,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects payload with no cascade success signals', () => {
     const result = buildPosPaymentFromEcr({
       rawEcrResponse: JSON.stringify({
         responseCode: '00',
-        responseMessage: 'APPROVED',
+        responseMessage: 'PENDING',
       }),
       customer,
       payerDocumentId: customer.documentId,

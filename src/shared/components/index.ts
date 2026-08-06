@@ -14,3 +14,7 @@ export {
 } from './KioskQuantityStepper';
 export { KioskDevJsonPanel, type KioskDevJsonPanelProps } from './KioskDevJsonPanel';
 export { KioskCachedImage, type KioskCachedImageProps } from './KioskCachedImage';
+export {
+  KioskConfirmModal,
+  type KioskConfirmModalProps,
+} from './KioskConfirmModal';

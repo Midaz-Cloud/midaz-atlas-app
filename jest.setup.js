@@ -69,6 +69,19 @@ jest.mock('@op-engineering/op-sqlite', () => {
           }
           return { rows: [], rowsAffected: row ? 1 : 0 };
         }
+        if (sql.startsWith('DELETE FROM FAILED_PAYMENTS WHERE ID')) {
+          const id = params[0];
+          const before = failedRows.length;
+          const next = failedRows.filter((r) => r.id !== id);
+          failedRows.length = 0;
+          failedRows.push(...next);
+          return { rows: [], rowsAffected: before - failedRows.length };
+        }
+        if (sql === 'DELETE FROM FAILED_PAYMENTS;') {
+          const count = failedRows.length;
+          failedRows.length = 0;
+          return { rows: [], rowsAffected: count };
+        }
         if (sql.startsWith('DELETE FROM FAILED_PAYMENTS')) {
           const keep = Number(params[0] ?? 200);
           failedRows.sort((a, b) => b.id - a.id);

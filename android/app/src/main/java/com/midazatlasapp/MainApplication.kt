@@ -9,6 +9,7 @@ import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 
 import com.midazatlasapp.device.MidazAtlasDevicePackage
 import com.midazatlasapp.ecr.MidazAtlasEcrPackage
+import com.midazatlasapp.mail.MidazAtlasMailPackage
 import com.midazatlasapp.printer.MidazAtlasPrinterPackage
 
 class MainApplication : Application(), ReactApplication {
@@ -21,6 +22,7 @@ class MainApplication : Application(), ReactApplication {
           add(MidazAtlasDevicePackage())
           add(MidazAtlasPrinterPackage())
           add(MidazAtlasEcrPackage())
+          add(MidazAtlasMailPackage())
         },
     )
   }

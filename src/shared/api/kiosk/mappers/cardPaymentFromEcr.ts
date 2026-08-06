@@ -4,6 +4,7 @@ import {
   normalizeEcrResponseCode,
   parseEcrPaymentJson,
 } from '@shared/peripherals/ecr/parseEcrPaymentJson';
+import { evaluatePosPaymentSuccessCascade } from '@shared/peripherals/ecr/posPaymentSuccessCascade';
 
 import type { KioskPosResponse } from '../types';
 import { logKioskCheckoutPayload } from '../logKioskCheckoutPayload';
@@ -92,6 +93,28 @@ function buildKioskPosResponse(
   flat: Record<string, unknown>,
   paymentMethodId: 'pos' | 'credito',
 ): KioskPosResponse | null {
+  const realRrn = readString(flat, 'RRN', 'rrn');
+  const responseMessage = readString(
+    flat,
+    'responseMessage',
+    'responseMesages',
+    'ensMessge',
+    'respnseMoessage',
+  );
+  const errorCode = flat.errorCode;
+  const result = flat.result;
+
+  const cascade = evaluatePosPaymentSuccessCascade({
+    errorCode:
+      typeof errorCode === 'number' || typeof errorCode === 'string' ? errorCode : null,
+    result: typeof result === 'number' || typeof result === 'string' ? result : null,
+    rrn: realRrn,
+    responseMessage,
+  });
+  if (!cascade.approved) {
+    return null;
+  }
+
   const responseCode = readString(
     flat,
     'responseCode',
@@ -106,21 +129,15 @@ function buildKioskPosResponse(
   );
   const normalizedCode =
     responseCode != null ? normalizeEcrResponseCode(responseCode) : undefined;
-  if (normalizedCode !== '00') {
-    return null;
-  }
 
   let traceNumber = readString(flat, 'traceNumber');
   let referenceNumber = readString(flat, 'referenceNumber');
-  let RRN = readString(flat, 'RRN', 'rrn');
+  let RRN = realRrn;
   // USB junk defense: the order payload always carries a digits-only amount.
-  const amount = readString(flat, 'amount', 'amout')?.replace(/\D/g, '') || undefined;
-  const responseMessage =
-    readString(flat, 'responseMessage', 'responseMesages', 'ensMessge', 'respnseMoessage') ??
-    'APPROVED';
+  let amount = readString(flat, 'amount', 'amout')?.replace(/\D/g, '') || undefined;
   const referenceNo = readString(flat, 'referenceNo');
 
-  // Cross-fill identity when USB dropped one of the sibling refs (Conviase minimal contract).
+  // Best-effort identity fill AFTER cascade approval (does not invent a false yes).
   if (!traceNumber && referenceNumber) {
     traceNumber = referenceNumber;
   }
@@ -139,9 +156,17 @@ function buildKioskPosResponse(
   if (!referenceNumber && traceNumber) {
     referenceNumber = traceNumber;
   }
-
-  if (!traceNumber || !referenceNumber || !RRN || !amount) {
-    return null;
+  if (!RRN) {
+    RRN = '000000000000';
+  }
+  if (!traceNumber) {
+    traceNumber = '000000';
+  }
+  if (!referenceNumber) {
+    referenceNumber = traceNumber;
+  }
+  if (!amount) {
+    amount = '0';
   }
 
   const terminalID =
@@ -153,8 +178,8 @@ function buildKioskPosResponse(
   const batchNum = readString(flat, 'batchNum') ?? '000001';
 
   return {
-    responseCode: normalizedCode,
-    responseMessage,
+    responseCode: normalizedCode ?? '00',
+    responseMessage: responseMessage ?? 'APPROVED',
     referenceNumber,
     traceNumber,
     RRN,
@@ -204,18 +229,11 @@ export function buildPosPaymentFromEcr(
   const paymentMethodId = params.paymentMethodId ?? 'pos';
   const posResponse = buildKioskPosResponse(flat, paymentMethodId);
   if (!posResponse) {
-    const code = readString(flat, 'responseCode', 'responseCdode');
-    if (code && code !== '00') {
-      return {
-        ok: false,
-        message:
-          readString(flat, 'responseMessage', 'responseMesages') ??
-          'Transacción no aprobada en terminal',
-      };
-    }
     return {
       ok: false,
-      message: 'Faltan datos obligatorios en la respuesta del terminal',
+      message:
+        readString(flat, 'responseMessage', 'responseMesages') ??
+        'Transacción no aprobada en terminal',
     };
   }
 

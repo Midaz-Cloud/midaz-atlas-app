@@ -230,3 +230,20 @@ export async function getFailedPayment(
   }
   return mapRow(row as Record<string, unknown>);
 }
+
+/** Hard-delete a failed payment row (e.g. after successful order retry). */
+export async function deleteFailedPayment(id: number): Promise<boolean> {
+  const db = await getKioskSqliteDb();
+  const result = await db.execute(
+    `DELETE FROM failed_payments WHERE id = ?;`,
+    [id],
+  );
+  return (result.rowsAffected ?? 0) > 0;
+}
+
+/** Wipe all failed_payments rows (admin / demo reset). */
+export async function clearFailedPayments(): Promise<number> {
+  const db = await getKioskSqliteDb();
+  const result = await db.execute(`DELETE FROM failed_payments;`);
+  return result.rowsAffected ?? 0;
+}

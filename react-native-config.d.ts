@@ -14,6 +14,15 @@ declare module 'react-native-config' {
     KIOSK_POS_TEST_CHARGE_VES?: string;
     KIOSK_FISCAL_SERVICE_URL?: string;
     KIOSK_FISCAL_MOCK?: string;
+    KIOSK_MAIL_MAILER?: string;
+    KIOSK_MAIL_HOST?: string;
+    KIOSK_MAIL_PORT?: string;
+    KIOSK_MAIL_USERNAME?: string;
+    KIOSK_MAIL_PASSWORD?: string;
+    KIOSK_MAIL_ENCRYPTION?: string;
+    KIOSK_MAIL_FROM_ADDRESS?: string;
+    KIOSK_MAIL_FROM_NAME?: string;
+    KIOSK_MAIL_TO?: string;
   }
 
   export const Config: NativeConfig;

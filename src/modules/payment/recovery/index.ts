@@ -8,6 +8,7 @@ export {
 } from './services/salvageFailedPayments';
 export {
   classifyRetryDuplicateRisk,
+  canRetryFailedPaymentOrder,
   retryFailedPaymentOrder,
   type RetryDuplicateRisk,
   type RetryFailedPaymentOrderResult,

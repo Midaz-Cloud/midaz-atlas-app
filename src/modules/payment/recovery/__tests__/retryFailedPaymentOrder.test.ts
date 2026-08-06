@@ -13,6 +13,8 @@ import {
 import { salvageFailedPayments } from '../services/salvageFailedPayments';
 
 const mockCreateOrder = jest.fn();
+const mockPrintOrderTicket = jest.fn();
+const mockEmitOrderFiscalInvoice = jest.fn();
 
 jest.mock('@shared/api/kiosk', () => {
   const actual = jest.requireActual('@shared/api/kiosk');
@@ -22,6 +24,25 @@ jest.mock('@shared/api/kiosk', () => {
     createKioskApiClient: jest.fn(() => ({
       createOrder: (request: unknown) => mockCreateOrder(request),
     })),
+  };
+});
+
+jest.mock('@shared/peripherals/printer', () => {
+  const actual = jest.requireActual('@shared/peripherals/printer');
+  return {
+    ...actual,
+    printOrderTicket: (...args: unknown[]) => mockPrintOrderTicket(...args),
+  };
+});
+
+jest.mock('@shared/peripherals/fiscal', () => {
+  const actual = jest.requireActual('@shared/peripherals/fiscal');
+  return {
+    ...actual,
+    emitOrderFiscalInvoice: (...args: unknown[]) =>
+      mockEmitOrderFiscalInvoice(...args),
+    shouldEmitFiscalInvoice: (declaresTaxes?: boolean) =>
+      Boolean(declaresTaxes),
   };
 });
 
@@ -56,11 +77,15 @@ function failedRowFor(raw: string, totalVes: number): FailedPaymentInput {
 describe('retryFailedPaymentOrder', () => {
   beforeEach(() => {
     mockCreateOrder.mockReset();
+    mockPrintOrderTicket.mockReset();
+    mockEmitOrderFiscalInvoice.mockReset();
     mockCatalogEntry.mockReset();
     mockCatalogEntry.mockImplementation(() => ({
       product: { taxRate: 16, isExempt: false },
       apiProductId: 901,
     }));
+    mockPrintOrderTicket.mockResolvedValue(undefined);
+    mockEmitOrderFiscalInvoice.mockResolvedValue({ issuedInvoiceNumber: 1 });
   });
 
   it('reintenta una fila salvada: POST sin reservationId y con el posResponse cobrado', async () => {
@@ -70,12 +95,30 @@ describe('retryFailedPaymentOrder', () => {
     );
     await salvageFailedPayments();
 
-    mockCreateOrder.mockResolvedValueOnce({ displayOrderNumber: 'ORD-777' });
+    mockCreateOrder.mockResolvedValueOnce({
+      displayOrderNumber: 'ORD-777',
+      shortCode: 'ABC123',
+    });
 
-    const result = await retryFailedPaymentOrder({ id, declaresTaxes: false });
+    const result = await retryFailedPaymentOrder({
+      id,
+      declaresTaxes: false,
+      printQrEnabled: true,
+      organizationName: 'Test Org',
+    });
 
     expect(result).toEqual({ ok: true, displayOrderNumber: 'ORD-777' });
     expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+    expect(mockEmitOrderFiscalInvoice).not.toHaveBeenCalled();
+    expect(mockPrintOrderTicket).toHaveBeenCalledTimes(1);
+    expect(mockPrintOrderTicket).toHaveBeenCalledWith(
+      expect.objectContaining({
+        displayOrderNumber: 'ORD-777',
+        printQrEnabled: true,
+        trackShortCode: 'ABC123',
+        organizationName: 'Test Org',
+      }),
+    );
     const request = mockCreateOrder.mock.calls[0][0];
     expect(request.reservationId).toBeUndefined();
     expect(request.items).toHaveLength(1);
@@ -83,9 +126,58 @@ describe('retryFailedPaymentOrder', () => {
     expect(request.posResponse.amount).toBe(String(fixture.amountCents));
     expect(request.posResponse.amount).toMatch(/^\d+$/);
 
-    const record = await getFailedPayment(id);
-    expect(record?.status).toBe('retried_ok');
-    expect(record?.salvage?.displayOrderNumber).toBe('ORD-777');
+    // Success deletes the failed_payments row.
+    expect(await getFailedPayment(id)).toBeNull();
+  });
+
+  it('reintenta fila open pos_parse sin salvage previo (fuerza monto del pedido)', async () => {
+    const fixture = FALLIDAS_2026_08_01[0];
+    const id = await recordFailedPayment(
+      failedRowFor(fixture.raw, fixture.amountCents / 100),
+    );
+
+    mockCreateOrder.mockResolvedValueOnce({ displayOrderNumber: 'ORD-888' });
+
+    const result = await retryFailedPaymentOrder({ id, declaresTaxes: false });
+
+    expect(result).toEqual({ ok: true, displayOrderNumber: 'ORD-888' });
+    expect(mockPrintOrderTicket).toHaveBeenCalledTimes(1);
+    expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+    expect(mockCreateOrder.mock.calls[0][0].posResponse.amount).toBe(
+      String(fixture.amountCents),
+    );
+    expect(await getFailedPayment(id)).toBeNull();
+  });
+
+  it('si imprime falla tras el POST, la orden queda OK y se limpia el fallido', async () => {
+    const fixture = FALLIDAS_2026_08_01[0];
+    const id = await recordFailedPayment(
+      failedRowFor(fixture.raw, fixture.amountCents / 100),
+    );
+    mockCreateOrder.mockResolvedValueOnce({ displayOrderNumber: 'ORD-999' });
+    mockPrintOrderTicket.mockRejectedValueOnce(new Error('printer offline'));
+
+    const result = await retryFailedPaymentOrder({ id, declaresTaxes: false });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.displayOrderNumber).toBe('ORD-999');
+      expect(result.printWarning).toBeTruthy();
+    }
+    expect(await getFailedPayment(id)).toBeNull();
+  });
+
+  it('con declaresTaxes emite fiscal antes del POST', async () => {
+    const fixture = FALLIDAS_2026_08_01[1];
+    const id = await recordFailedPayment(
+      failedRowFor(fixture.raw, fixture.amountCents / 100),
+    );
+    mockCreateOrder.mockResolvedValueOnce({ displayOrderNumber: 'ORD-TAX' });
+
+    const result = await retryFailedPaymentOrder({ id, declaresTaxes: true });
+    expect(result.ok).toBe(true);
+    expect(mockEmitOrderFiscalInvoice).toHaveBeenCalledTimes(1);
+    expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+    expect(mockPrintOrderTicket).toHaveBeenCalledTimes(1);
   });
 
   it('si el POST falla queda retry_failed y no se re-dispara sola', async () => {

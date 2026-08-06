@@ -1,6 +1,6 @@
 {
   "name": "MidazAtlasApp",
-  "version": "0.0.1",
+  "version": "1.1.0",
   "private": true,
   "scripts": {
     "android": "node scripts/adbDevServer.js && cross-env STORYBOOK_ENABLED=false ANDROID_HOME=%LOCALAPPDATA%/Android/Sdk ANDROID_SDK_ROOT=%LOCALAPPDATA%/Android/Sdk react-native run-android",
@@ -21,7 +21,8 @@
     "storybook:android": "cross-env STORYBOOK_ENABLED=true ANDROID_HOME=%LOCALAPPDATA%/Android/Sdk ANDROID_SDK_ROOT=%LOCALAPPDATA%/Android/Sdk react-native run-android",
     "storybook:ios": "cross-env STORYBOOK_ENABLED=true react-native run-ios",
     "storybook-generate": "sb-rn-get-stories",
-    "test": "jest"
+    "test": "jest",
+    "mail:test": "node scripts/testSmtpMail.js"
   },
   "dependencies": {
     "@gorhom/bottom-sheet": "^5.2.14",
@@ -42,7 +43,9 @@
     "react-native-reanimated": "^4.3.1",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-svg": "^15.15.5",
-    "react-native-worklets": "^0.8.3"
+    "react-native-worklets": "^0.8.3",
+    "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -62,6 +65,7 @@
     "@types/jest": "^29.5.13",
     "@types/react": "^19.2.0",
     "@types/react-test-renderer": "^19.1.0",
+    "@types/xlsx": "^0.0.35",
     "babel-plugin-module-resolver": "^5.0.3",
     "cross-env": "^10.1.0",
     "eslint": "^8.19.0",
