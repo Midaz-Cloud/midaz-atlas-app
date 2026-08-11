@@ -21,7 +21,6 @@ export type PosPaymentScreenProps = {
   onContinue: () => void;
   onChangeDocument?: () => void;
   showSyncStatus?: boolean;
-  posPaymentBusy?: boolean;
 };
 
 /** P10 (a) · POS / ECR (Figma 47:2). */
@@ -30,7 +29,6 @@ export function PosPaymentScreen({
   onContinue,
   onChangeDocument,
   showSyncStatus = true,
-  posPaymentBusy = false,
 }: PosPaymentScreenProps) {
   const colors = useKioskScreenColors();
   const {
@@ -45,7 +43,7 @@ export function PosPaymentScreen({
     changeDocumentLabel,
     posReady,
     isProcessing,
-  } = usePosPaymentScreen({ posPaymentBusy });
+  } = usePosPaymentScreen();
 
   const styles = useMemo(
     () =>

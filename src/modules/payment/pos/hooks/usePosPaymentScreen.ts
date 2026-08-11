@@ -16,12 +16,9 @@ import { formatAssociatedDocumentDisplay } from '../../utils/formatAssociatedDoc
 import { resolvePaymentPayerDocumentId } from '../../utils/resolvePaymentPayerDocumentId';
 import { usePaymentFlowTotals } from '../../hooks/usePaymentFlowTotals';
 
-export type UsePosPaymentScreenOptions = {
-  posPaymentBusy?: boolean;
-};
+export type UsePosPaymentScreenOptions = Record<string, never>;
 
-export function usePosPaymentScreen(options: UsePosPaymentScreenOptions = {}) {
-  const { posPaymentBusy = false } = options;
+export function usePosPaymentScreen(_options: UsePosPaymentScreenOptions = {}) {
   const { t } = useTranslation('payment');
   const { totalLabel, continueLabel, totalVes } = usePaymentFlowTotals();
   const { customer } = useKioskCustomer();
@@ -35,7 +32,7 @@ export function usePosPaymentScreen(options: UsePosPaymentScreenOptions = {}) {
     void ecr.connect().catch(() => {});
   }, [ecr.isConnected, ecr.isConnecting, ecr.usesNativeUsb, ecr.connect]);
 
-  const isProcessing = ecr.isProcessing || posPaymentBusy;
+  const isProcessing = ecr.isProcessing;
 
   const payerDocumentId = useMemo(
     () =>
@@ -50,7 +47,7 @@ export function usePosPaymentScreen(options: UsePosPaymentScreenOptions = {}) {
     if (shouldUseMockApi()) {
       return t('pos.mockMode');
     }
-    if (posPaymentBusy || ecr.isProcessing) {
+    if (ecr.isProcessing) {
       return t('pos.processing');
     }
     if (ecr.error) {
@@ -72,7 +69,6 @@ export function usePosPaymentScreen(options: UsePosPaymentScreenOptions = {}) {
     ecr.isConnecting,
     ecr.isProcessing,
     ecr.usesNativeUsb,
-    posPaymentBusy,
     t,
   ]);
 

@@ -1,20 +1,22 @@
 import { useMemo, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { formatPrimaryPrice } from '@shared/pricing';
 import {
   bodyTextStyle,
   displayTextStyle,
   kioskScreenLayout,
   useKioskScreenColors,
 } from '@shared/theme';
-import { formatUsdPrice } from '@shared/utils';
 
 import { formatOrderDisplayNumber } from '../formatOrderDisplayNumber';
 
 export type OrderOutcomeSummaryBannerProps = {
   orderId: string;
   orderPrefix: string;
-  totalUsd: number;
+  /** Amount in organization primary currency (or confirmed order currency). */
+  totalAmount: number;
+  currencyCode: string;
   paymentStatusIcon: ReactNode;
   paymentCompletedLabel: string;
   testID?: string;
@@ -24,13 +26,15 @@ export type OrderOutcomeSummaryBannerProps = {
 export function OrderOutcomeSummaryBanner({
   orderId,
   orderPrefix,
-  totalUsd,
+  totalAmount,
+  currencyCode,
   paymentStatusIcon,
   paymentCompletedLabel,
   testID = 'payment-outcome-summary-banner',
 }: OrderOutcomeSummaryBannerProps) {
   const colors = useKioskScreenColors();
   const orderLabel = `${orderPrefix} ${formatOrderDisplayNumber(orderId)}`;
+  const totalLabel = formatPrimaryPrice(totalAmount, currencyCode);
 
   const styles = useMemo(
     () =>
@@ -90,7 +94,9 @@ export function OrderOutcomeSummaryBanner({
     <View style={styles.banner} testID={testID}>
       <View style={styles.topRow}>
         <Text style={styles.orderLabel}>{orderLabel}</Text>
-        <Text style={styles.total}>{formatUsdPrice(totalUsd)}</Text>
+        <Text style={styles.total} testID={`${testID}-total`}>
+          {totalLabel}
+        </Text>
       </View>
       <View style={styles.statusRow}>
         <View style={styles.statusIconWrap}>{paymentStatusIcon}</View>

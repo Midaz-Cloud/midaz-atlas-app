@@ -40,6 +40,14 @@ export function fuzzyExtractResponseCode(text: string): string | undefined {
     /dateseCode"\s*:\s*"([^"]+)"/i,
     /responCseode"\s*:\s*"([^"]+)"/i,
     /eresponseCoe"\s*:\s*"([^"]+)"/i,
+    // USB: "responseode":"00" (dropped 'C')
+    /responseode"\s*:\s*"([^"]+)"/i,
+    // USB: "re:sponseCode""00" / "eresponseCod":"00"
+    /re:?sponseCod[e]?"+\s*:?\s*"?(\d{2})/i,
+    /e?responseCod"\s*:\s*"([^"]+)"/i,
+    // USB: "responeCsode"0:"0"" → 00
+    /responeCsode"0:"(\d)/i,
+    /respon[a-z]*Code"0:"(\d)/i,
     /[a-z,]{0,8}eCode"\s*:\s*"(\d{2})"/i,
   ]);
   if (!raw) {
@@ -65,6 +73,8 @@ export function fuzzyExtractTraceNumber(text: string): string | undefined {
     /trac[a-z0-9]{0,16}(?:number|nmber|umber|mber|numer|beer)"?\s*:?\s*"?([0-9A-Za-z]{4,})/i,
     /"raceNumber"\s*:\s*"([^"]+)"/i,
     /raceNumber"\s*:\s*"?([^",}\]]+)/i,
+    // USB: "r"aceNumber":000116" (stray quote after leading r)
+    /r"aceNumber"\s*:\s*"?(\d{4,})/i,
     // USB: "t:raceNumber""000216" (colon in key, missing : between key/value)
     /t[:."]{0,3}raceNumber["\s:]{0,6}"?(\d{4,})/i,
     /(?:trace|trce|trae|trac|race)[a-z0-9:."]{0,12}(?:number|nmber|umber|mber|numer)["\s:]{0,6}"?([0-9A-Za-z]{4,})/i,
@@ -124,6 +134,8 @@ export function fuzzyExtractRrn(text: string): string | undefined {
   const raw = firstMatch(text, [
     /RRN"\s*:\s*"([^"]+)"/i,
     /RRN"\s*:\s*(\d{8,14})/i,
+    // USB dropped leading R: "RN":"621919000133"
+    /"RN"\s*:\s*"(\d{8,14})"/i,
   ]);
   if (!raw) {
     return undefined;
@@ -143,6 +155,8 @@ export function fuzzyExtractAmount(
   const raw = firstMatch(text, [
     /"amount"\s*:\s*"(\d+)/i,
     /"amount"\s*:\s*(\d+)/i,
+    // USB: "amount"1:"118" (junk digit glued to key before real value)
+    /(?<![a-zA-Z])amount"\d:"(\d+)/i,
     // USB: amount""100 (missing colon between key/value)
     /(?<![a-zA-Z])amount"+(\d+)/i,
     /"\d+amount"\s*:\s*"?(\d+)/i,
@@ -159,6 +173,15 @@ export function fuzzyExtractAmount(
   if (raw) {
     const digits = raw.replace(/\D/g, '');
     if (digits.length > 0) {
+      // Prefer client-sent cents when USB matched only a truncated junk digit
+      // (e.g. amount"1:"118 matched by a looser pattern as "1").
+      if (
+        amountSentCents != null &&
+        amountSentCents > 0 &&
+        digits.length < String(amountSentCents).length
+      ) {
+        return String(amountSentCents);
+      }
       return digits;
     }
   }
@@ -173,6 +196,8 @@ export function fuzzyExtractReferenceNumber(text: string): string | undefined {
     /"referenceNumber"\s*:\s*"([^"]+)"/i,
     // USB: refrenceNumber"":"000026"
     /refe?renceNumber"+?\s*:?\s*"?([0-9A-Za-z]{3,})/i,
+    // USB: succeferenceNumber":"000023" (success+reference smashed)
+    /succe?ferenceNumber"\s*:\s*"?([0-9A-Za-z]{3,})/i,
     // USB: referenceNu":er":"0mb00013" — skip junk, anchor on digits
     /referenceNu[^0-9]{0,16}([0-9A-Za-z]{4,})/i,
     /refe"?renceNumber"?\s*:\s*"?([0-9A-Za-z]+)/i,
@@ -215,7 +240,10 @@ export function resolvePosIdentityFields(
 } | null {
   const responseCode = fuzzyExtractResponseCode(text);
   if (responseCode !== '00') {
-    return null;
+    // USB often keeps APPROVED readable while smashing responseCode/errorCode keys.
+    if (!/responseMessage"\s*:\s*"APPROVED"/i.test(text)) {
+      return null;
+    }
   }
 
   const amount = fuzzyExtractAmount(text, amountSentCents);

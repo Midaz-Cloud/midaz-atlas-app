@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { kioskConfig } from '@shared/config/kiosk';
@@ -66,7 +66,10 @@ type SimilarProductsFilter = {
 export type OrderingNavigatorProps = {
   onExit?: () => void;
   onProceedToPayment: () => void;
+  /** One-shot: open cart + checkout sheet after returning from payment. */
   initialCartCheckoutOpen?: boolean;
+  /** Called once the resume-to-cart intent has been applied (or dismissed). */
+  onInitialCartCheckoutConsumed?: () => void;
 };
 
 function productUsesMockModifierFlow(product: MenuProduct): boolean {
@@ -135,6 +138,7 @@ export function OrderingNavigator({
   onExit,
   onProceedToPayment,
   initialCartCheckoutOpen = false,
+  onInitialCartCheckoutConsumed,
 }: OrderingNavigatorProps) {
   const colors = useKioskScreenColors();
   const [route, setRoute] = useState<OrderingRoute>({ name: 'menu' });
@@ -143,6 +147,13 @@ export function OrderingNavigator({
     null,
   );
   const [similarFilter, setSimilarFilter] = useState<SimilarProductsFilter | null>(null);
+  /**
+   * Capture resume intent once. Must not stay true after leaving cart: cart layer
+   * unmounts off-route, so remounting with this still true reopens checkout and the
+   * old itemCount effect forced cart on every add from the menu.
+   */
+  const [resumeCartCheckout, setResumeCartCheckout] = useState(initialCartCheckoutOpen);
+  const resumeCartNavAppliedRef = useRef(false);
 
   const {
     lines,
@@ -154,6 +165,11 @@ export function OrderingNavigator({
     removeLine,
   } = useKioskOrder();
   const [sessionLimitVisible, setSessionLimitVisible] = useState(false);
+
+  const consumeResumeCartCheckout = useCallback(() => {
+    setResumeCartCheckout(false);
+    onInitialCartCheckoutConsumed?.();
+  }, [onInitialCartCheckoutConsumed]);
 
   const showSessionLimit = useCallback(() => {
     setSessionLimitVisible(true);
@@ -187,10 +203,13 @@ export function OrderingNavigator({
   );
 
   useEffect(() => {
-    if (initialCartCheckoutOpen && itemCount > 0) {
-      setRoute({ name: 'cart' });
+    if (!resumeCartCheckout || itemCount <= 0 || resumeCartNavAppliedRef.current) {
+      return;
     }
-  }, [initialCartCheckoutOpen, itemCount]);
+    resumeCartNavAppliedRef.current = true;
+    setRoute({ name: 'cart' });
+    onInitialCartCheckoutConsumed?.();
+  }, [resumeCartCheckout, itemCount, onInitialCartCheckoutConsumed]);
 
   useEffect(() => {
     if (
@@ -214,9 +233,10 @@ export function OrderingNavigator({
   }, []);
 
   const goToMenu = useCallback(() => {
+    consumeResumeCartCheckout();
     clearProductSessions();
     setRoute({ name: 'menu' });
-  }, [clearProductSessions]);
+  }, [clearProductSessions, consumeResumeCartCheckout]);
 
   const goToCart = useCallback(() => {
     if (itemCount > 0) {
@@ -610,7 +630,7 @@ export function OrderingNavigator({
           onDecrementLine={decrementLine}
           onRemoveLine={removeLine}
           onPressNext={() => {}}
-          initialCheckoutOpen={initialCartCheckoutOpen}
+          initialCheckoutOpen={resumeCartCheckout}
           onPressCheckoutPrimary={handleCheckoutPrimary}
         />
       </Layer>

@@ -98,13 +98,13 @@ export function extractEcrResponseCodeFromText(text: string): string | undefined
  */
 export function extractEcrErrorCodeFromText(text: string): number | undefined {
   const negative = text.match(
-    /(?:er"rorCode|erorrCode|erro[r]?Corde|errorCode)"?\s*:?\s*(-\d+)\b/i,
+    /(?:er"rorCode|erorrCode|erro[r]?Corde|errorCod[e]?)"?\s*,?\s*:?\s*(-\d+)\b/i,
   );
   if (negative?.[1] != null) {
     return Number(negative[1]);
   }
   const zeroOrPositive = text.match(
-    /(?:er"rorCode|erorrCode|erro[r]?Corde|errorCode)"?\s*:?\s*(\d+)\b/i,
+    /(?:er"rorCode|erorrCode|erro[r]?Corde|errorCod[e]?)"?\s*,?\s*:?\s*(\d+)\b/i,
   );
   if (zeroOrPositive?.[1] != null) {
     return Number(zeroOrPositive[1]);

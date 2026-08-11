@@ -2,7 +2,7 @@ import { getKioskApiUrl } from '@shared/config/api';
 
 import type { KioskApiClient } from '../client';
 import { logKioskCheckoutPayload } from '../logKioskCheckoutPayload';
-import { KioskApiError, throwIfNotOk } from '../errors';
+import { KioskApiError, throwIfNotOk, type KioskApiErrorBody } from '../errors';
 import { mapCachedConfigBody } from '../configCache';
 import { parseCartReserveResponse } from '../mappers/parseCartReserveResponse';
 import {
@@ -130,9 +130,34 @@ export class HttpKioskApiClient implements KioskApiClient {
       headers: this.headers(),
       body: JSON.stringify(request),
     });
-    await throwIfNotOk(response, '/kiosk/validate-payment');
-    const body = (await response.json()) as ValidateMobilePaymentResponse;
-    logKioskCheckoutPayload('POST /kiosk/validate-payment response', body);
+    const rawText = await response.text();
+    let body: ValidateMobilePaymentResponse | null = null;
+    try {
+      body = rawText ? (JSON.parse(rawText) as ValidateMobilePaymentResponse) : null;
+    } catch {
+      body = null;
+    }
+    logKioskCheckoutPayload('POST /kiosk/validate-payment response', {
+      httpStatus: response.status,
+      ok: response.ok,
+      body: body ?? rawText,
+    });
+    if (!response.ok) {
+      const message =
+        (body && typeof body === 'object' && 'message' in body && body.message) ||
+        `Kiosk API error (${response.status})`;
+      throw new KioskApiError(
+        `${String(message)} (/kiosk/validate-payment)`,
+        response.status,
+        body && typeof body === 'object' ? (body as KioskApiErrorBody) : undefined,
+      );
+    }
+    if (!body) {
+      throw new KioskApiError(
+        'Invalid validate-payment response body (/kiosk/validate-payment)',
+        response.status,
+      );
+    }
     return body;
   }
 

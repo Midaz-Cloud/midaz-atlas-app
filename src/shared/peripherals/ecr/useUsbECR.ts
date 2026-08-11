@@ -4,6 +4,7 @@ import { NativeEventEmitter } from 'react-native';
 import { shouldUseMockApi } from '@shared/config';
 
 import { createEcrClient } from './createEcrClient';
+import { ECR_PAYMENT_TIMEOUT_MS } from './ecrPaymentTimeoutMs';
 import { ecrErrorFromPaymentResponse } from './ecrTransactionError';
 import { extractLastBalancedJson } from './extractLastBalancedJson';
 import { formatEcrDocumentNumber } from './formatEcrDocumentNumber';
@@ -278,7 +279,7 @@ export function useUsbECR(): UseUsbECRReturn {
   }, [isConnected, usesNativeUsb]);
 
   const sendAndWait = useCallback(
-    async (payload: object, timeoutMs = 120_000): Promise<string> => {
+    async (payload: object, timeoutMs = ECR_PAYMENT_TIMEOUT_MS): Promise<string> => {
       if (!usesNativeUsb || !UsbSerialModule) {
         const type = (payload as { type?: string }).type;
         if (type === 'settlement') {
@@ -308,7 +309,9 @@ export function useUsbECR(): UseUsbECRReturn {
       const txPromise = new Promise<string>((resolve, reject) => {
         const timeoutId = setTimeout(() => {
           rejectPendingTransaction(
-            new Error('Timeout esperando respuesta del POS (120s)'),
+            new Error(
+              `Timeout esperando respuesta del POS (${Math.round(timeoutMs / 1000)}s)`,
+            ),
           );
         }, timeoutMs);
         pendingTransaction.current = { resolve, reject, timeoutId };

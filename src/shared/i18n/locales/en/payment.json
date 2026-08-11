@@ -47,7 +47,8 @@
       "dontClose": "Do not close this window."
     },
     "error": {
-      "title": "Reference not found",
+      "title": "Payment not found",
+      "alreadyReconciledTitle": "Payment already reconciled",
       "subtitle": "Check the digits you entered and try again.",
       "retry": "Try again",
       "help": "Request help",
@@ -119,6 +120,13 @@
     "mockMode": "Mock mode — no physical terminal",
     "nativeMissing": "POS module missing — rebuild Android",
     "testChargeBanner": "Terminal charge (test): {{chargeHint}}. Order and receipt use the real total."
+  },
+  "posCharge": {
+    "title": "Processing payment…",
+    "waitingPos": "Waiting for point of sale response",
+    "confirming": "Confirming payment",
+    "tapCardHint": "Tap or insert your card",
+    "timeRemainingHint": "Time left to complete payment at the point of sale"
   },
   "mobile": {
     "account": {

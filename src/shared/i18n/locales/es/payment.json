@@ -47,7 +47,8 @@
       "dontClose": "No cierres esta ventana."
     },
     "error": {
-      "title": "Referencia no encontrada",
+      "title": "Pago no encontrado",
+      "alreadyReconciledTitle": "Pago ya conciliado previamente",
       "subtitle": "Verifica los dígitos ingresados e intenta nuevamente.",
       "retry": "Reintentar",
       "help": "Solicitar ayuda",
@@ -119,6 +120,13 @@
     "mockMode": "Modo mock — sin terminal físico",
     "nativeMissing": "Módulo POS no instalado — recompila Android",
     "testChargeBanner": "Cobro en terminal (prueba): {{chargeHint}}. La orden y el ticket usan el total real."
+  },
+  "posCharge": {
+    "title": "Procesando pago…",
+    "waitingPos": "Esperando respuesta del punto de venta",
+    "confirming": "Confirmando pago",
+    "tapCardHint": "Acerca o ingresa tu tarjeta",
+    "timeRemainingHint": "Tiempo para completar el pago en el punto de venta"
   },
   "mobile": {
     "account": {

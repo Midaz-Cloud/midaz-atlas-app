@@ -5,6 +5,7 @@ export {
   documentIdToEcrDocumentNumber,
   EcrDocumentNumberError,
 } from './documentIdToEcrDocumentNumber';
+export { ECR_PAYMENT_TIMEOUT_MS } from './ecrPaymentTimeoutMs';
 export { extractLastBalancedJson } from './extractLastBalancedJson';
 export { formatEcrDocumentNumber } from './formatEcrDocumentNumber';
 export { isTransientEcrResponse } from './isTransientEcrResponse';

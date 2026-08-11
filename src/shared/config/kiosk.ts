@@ -8,8 +8,11 @@ export const kioskConfig = {
   orderTypeSelectionEnabled: true,
   /** P14 vs P15 en Storybook; en app usa `printQrEnabled` de config. */
   orderSuccessDisplayMode: 'number' as const satisfies 'number' | 'qr',
-  /** P16 · aviso tras inactividad y cuenta regresiva (doc Zona 7). */
-  inactivityIdleMs: 60_000,
+  /**
+   * P16 · sesión de compra: 5 min total.
+   * Aviso tras 4 min 30 s de inactividad; 30 s de cuenta regresiva antes de cerrar.
+   */
+  inactivityIdleMs: 270_000,
   inactivityGraceMs: 30_000,
   /** P19 · cancelación si el cajero no atiende. */
   assistanceTimeoutMs: 300_000,

@@ -11,10 +11,14 @@ import {
   PaymentStatusIllustration,
 } from '../components';
 import { referenceFlowLayoutStyles } from './referenceFlowLayout';
+import { resolveReferenceErrorTitleKind } from './resolveReferenceErrorTitle';
 
 export type ReferenceErrorScreenProps = {
   blocked: boolean;
-  /** API error detail (e.g. DisGlobal rejection). */
+  /**
+   * Raw API message — used only to detect "Pago ya conciliado previamente".
+   * Not shown on screen (backend `message` is not used as copy for now).
+   */
   message?: string;
   onBack: () => void;
   onRetry: () => void;
@@ -45,6 +49,12 @@ export function ReferenceErrorScreen({
     [colors],
   );
 
+  const titleKind = resolveReferenceErrorTitleKind(message);
+  const title =
+    titleKind === 'already_reconciled'
+      ? t('reference.error.alreadyReconciledTitle')
+      : t('reference.error.title');
+
   return (
     <KioskScreenLayout
       testID="payment-reference-error-screen"
@@ -56,8 +66,8 @@ export function ReferenceErrorScreen({
       <View style={referenceFlowLayoutStyles.inner}>
         <PaymentStatusIllustration
           variant="error"
-          title={t('reference.error.title')}
-          subtitle={message?.trim() || t('reference.error.subtitle')}
+          title={title}
+          subtitle={t('reference.error.subtitle')}
           footer={
             <View style={referenceFlowLayoutStyles.errorActions}>
               {blocked ? (
