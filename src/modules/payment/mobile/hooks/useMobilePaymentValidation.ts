@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import {
   isValidateMobilePaymentSuccess,
   KioskApiError,
+  logKioskCheckoutPayload,
   validateMobilePaymentWithApi,
 } from '@shared/api/kiosk';
 import { useKioskCustomer } from '@shared/customer';
@@ -47,8 +48,19 @@ export function useMobilePaymentValidation() {
           amountVes: totals.totalVes,
         });
 
+        logKioskCheckoutPayload('mobile validate decision', {
+          success: response.success,
+          status: response.status,
+          disglobalRef: response.disglobalRef,
+          message: response.message,
+          accepted: isValidateMobilePaymentSuccess(response),
+        });
+
         if (!isValidateMobilePaymentSuccess(response)) {
+          // Keep API message for logs / persistence / title sniffing only.
+          // UI does not show response.message raw (see ReferenceErrorScreen).
           const message = response.message || 'Pago móvil rechazado';
+          // const uiMessage = response.message; // commented: do not surface backend message as copy
           recordFailedPaymentSafe(
             buildFailedPaymentInput(
               {
@@ -89,6 +101,11 @@ export function useMobilePaymentValidation() {
             : error instanceof Error
               ? error.message
               : 'Error al validar pago móvil';
+        logKioskCheckoutPayload('mobile validate error', {
+          message,
+          statusCode: error instanceof KioskApiError ? error.statusCode : undefined,
+          body: error instanceof KioskApiError ? error.body : undefined,
+        });
         recordFailedPaymentSafe(
           buildFailedPaymentInput(
             {

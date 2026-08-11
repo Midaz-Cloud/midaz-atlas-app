@@ -24,7 +24,8 @@ const meta = {
   args: {
     orderId: 'K-000492',
     orderPrefix: 'Orden',
-    totalUsd: 5.35,
+    totalAmount: 5.35,
+    currencyCode: 'USD',
     paymentCompletedLabel: 'Pago completado exitosamente',
     paymentStatusIcon: <IconCheckCircle width={iconSize} height={iconSize} />,
   },
@@ -35,3 +36,10 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+
+export const VesPrimary: Story = {
+  args: {
+    totalAmount: 310,
+    currencyCode: 'VES',
+  },
+};

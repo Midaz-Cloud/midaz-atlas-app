@@ -85,6 +85,10 @@ export function AppNavigator() {
 
   }, [setTableNumber]);
 
+  const handleInitialCartCheckoutConsumed = useCallback(() => {
+    setResumeCartCheckout(false);
+  }, []);
+
 
 
   /** Intro / idle / pago terminado: vacía carrito, cliente y vuelve a home. */
@@ -136,6 +140,7 @@ export function AppNavigator() {
     ) : (
       <OrderingNavigator
         initialCartCheckoutOpen={resumeCartCheckout}
+        onInitialCartCheckoutConsumed={handleInitialCartCheckoutConsumed}
         onExit={() => {
           void handleExitToIntroduction();
         }}

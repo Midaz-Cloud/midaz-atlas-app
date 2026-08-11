@@ -26,6 +26,13 @@ export const Spanish: Story = {
   parameters: { locale: 'es' },
 };
 
+export const AlreadyReconciled: Story = {
+  parameters: { locale: 'es' },
+  args: {
+    message: 'Pago ya conciliado previamente',
+  },
+};
+
 export const Blocked: Story = {
   args: { blocked: true },
 };

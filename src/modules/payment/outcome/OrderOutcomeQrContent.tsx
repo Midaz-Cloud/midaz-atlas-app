@@ -2,7 +2,13 @@ import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useKioskOrder } from '@shared/kiosk-order';
-import { bodyTextStyle, displayTextStyle, kioskScreenLayout, useKioskScreenColors } from '@shared/theme';
+import { useKioskPricing } from '@shared/session';
+import {
+  bodyTextStyle,
+  displayTextStyle,
+  kioskScreenLayout,
+  useKioskScreenColors,
+} from '@shared/theme';
 
 import IconMobile from '@assets/images/payment/mobile/icon-mobile.svg';
 import IconCheckCircle from '@assets/images/payment/outcome/icon-check-circle.svg';
@@ -18,9 +24,17 @@ export type OrderOutcomeQrContentProps = {
 
 /** P15 · Ticket QR (Figma 64:2). */
 export function OrderOutcomeQrContent({ copy }: OrderOutcomeQrContentProps) {
-  const { orderId, totalUsd } = useKioskOrder();
+  const { orderId, totalUsd, confirmedOrder, primaryCurrency } = useKioskOrder();
+  const pricing = useKioskPricing();
   const colors = useKioskScreenColors();
   const iconSize = kioskScreenLayout.paymentOutcomeQrBannerIconSize;
+
+  const currencyCode =
+    confirmedOrder?.currencyCode ??
+    primaryCurrency ??
+    pricing?.primaryCurrency ??
+    'USD';
+  const totalAmount = confirmedOrder?.grandTotalCurrency ?? totalUsd;
 
   const styles = useMemo(
     () =>
@@ -75,7 +89,8 @@ export function OrderOutcomeQrContent({ copy }: OrderOutcomeQrContentProps) {
       <OrderOutcomeSummaryBanner
         orderId={orderId}
         orderPrefix={copy.orderPrefix}
-        totalUsd={totalUsd}
+        totalAmount={totalAmount}
+        currencyCode={currencyCode}
         paymentCompletedLabel={copy.paymentCompleted}
         paymentStatusIcon={
           <IconCheckCircle width={iconSize} height={iconSize} />

@@ -12,13 +12,11 @@ export type PosPaymentFlowStep = 'pos' | 'change-document';
 export type PosPaymentFlowProps = {
   onBack: () => void;
   onContinue: () => void;
-  posPaymentBusy?: boolean;
 };
 
 export function PosPaymentFlow({
   onBack,
   onContinue,
-  posPaymentBusy = false,
 }: PosPaymentFlowProps) {
   const { customer } = useKioskCustomer();
   const { paymentPayerDocumentId, setPaymentPayerDocumentId } = useKioskOrder();
@@ -53,7 +51,6 @@ export function PosPaymentFlow({
       onBack={onBack}
       onContinue={onContinue}
       onChangeDocument={() => setStep('change-document')}
-      posPaymentBusy={posPaymentBusy}
     />
   );
 }

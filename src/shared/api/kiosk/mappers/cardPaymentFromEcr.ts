@@ -126,6 +126,7 @@ function buildKioskPosResponse(
     'responseCoded',
     'rnsspoeCode',
     'rnnsspoeCode',
+    'responseode',
   );
   const normalizedCode =
     responseCode != null ? normalizeEcrResponseCode(responseCode) : undefined;

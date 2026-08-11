@@ -6,9 +6,7 @@ import { useKioskCustomer } from '@shared/customer';
 import { useKioskOrder } from '@shared/kiosk-order';
 import {
   buildFailedPaymentInput,
-  buildSuccessfulPosTransactionInput,
   recordFailedPaymentSafe,
-  recordSuccessfulPosTransactionSafe,
 } from '@shared/persistence';
 
 import type { CashierAssistanceReason } from './assistance/services/requestCashierAssistance';
@@ -16,12 +14,8 @@ import type { CashierAssistanceReason } from './assistance/services/requestCashi
 import { CallCashierScreen } from './assistance/CallCashierScreen';
 
 import { getEnabledPaymentMethods } from './data/getEnabledPaymentMethods';
-import { executePosCardPayment } from './pos/services/executePosCardPayment';
 import { useKioskSession } from '@shared/session';
-import { useEcrConnection } from '@shared/peripherals/ecr';
-import { buildPosPaymentFromEcr } from '@shared/api/kiosk/mappers/cardPaymentFromEcr';
 import { shouldSimulatePosFailure } from '@shared/config';
-import { toEcrTerminalAmount, resolvePosChargeAmountVes } from '@shared/peripherals/ecr';
 
 import { PaymentFlowPlaceholder } from './components/PaymentFlowPlaceholder';
 
@@ -41,8 +35,9 @@ import type { ProcessKioskOrderResult } from './processing/types';
 
 import { PaymentMethodScreen } from './payment-method/PaymentMethodScreen';
 
+import { PosChargeProcessingScreen } from './pos/PosChargeProcessingScreen';
 import { PosPaymentFlow } from './pos/PosPaymentFlow';
-import { resolvePaymentPayerDocumentId } from './utils/resolvePaymentPayerDocumentId';
+import type { PosChargeResult } from './pos/types';
 
 import { TransferReferenceFlow } from './reference/TransferReferenceFlow';
 
@@ -69,6 +64,8 @@ type PaymentRoute =
   | { name: 'reference'; methodId: TransferPaymentMethodId }
 
   | { name: 'processing' }
+
+  | { name: 'pos-charging' }
 
   | { name: 'outcome'; variant: OrderOutcomeVariant }
 
@@ -129,8 +126,6 @@ export function PaymentNavigator({
   const { customer } = useKioskCustomer();
   const { runtimeConfig, refreshCatalogAfterPurchase, orderType, tableNumber } =
     useKioskSession();
-  const ecr = useEcrConnection();
-  const [posPaymentBusy, setPosPaymentBusy] = useState(false);
   const [reserveBusy, setReserveBusy] = useState(false);
 
   const enabledMethods = useMemo(
@@ -252,7 +247,12 @@ export function PaymentNavigator({
 
   useEffect(() => {
 
-    if (itemCount === 0 && route.name !== 'outcome' && route.name !== 'assistance') {
+    if (
+      itemCount === 0 &&
+      route.name !== 'outcome' &&
+      route.name !== 'assistance' &&
+      route.name !== 'pos-charging'
+    ) {
 
       onBackToCart();
 
@@ -360,104 +360,29 @@ export function PaymentNavigator({
 
 
       if (methodId === 'pos') {
-        void (async () => {
-          const payerDocumentId = resolvePaymentPayerDocumentId(
-            paymentPayerDocumentId,
-            customer?.documentId,
-          );
-          if (!payerDocumentId) {
-            recordFailedPaymentSafe(
-              buildFailedPaymentInput(failedPaymentContext(methodId), {
-                stage: 'pos_charge',
-                errorReason: 'missing_document',
-                errorMessage: 'Documento del pagador no disponible',
-              }),
-            );
-            setRoute({ name: 'payment-error', methodId });
-            return;
-          }
-
-          setPosPaymentBusy(true);
-          try {
-            const reserveResult = await reserveCartBeforePayment(lines);
-            if (!reserveResult.ok) {
-              setRoute({ name: 'stock-shortage', shortages: reserveResult.shortages });
-              return;
-            }
-            setReservationId(reserveResult.reservationId);
-
-            const result = await executePosCardPayment({
-              ecr,
-              documentId: payerDocumentId,
-              cartTotalVes: totals.totalVes,
-            });
-            if (!result.ok) {
-              recordFailedPaymentSafe(
-                buildFailedPaymentInput(failedPaymentContext(methodId), {
-                  stage: 'pos_charge',
-                  errorReason: result.reason,
-                  errorMessage: result.message,
-                  rawJson: result.rawResponse ?? null,
-                }),
-              );
-              setRoute({ name: 'payment-error', methodId });
-              return;
-            }
-            const posPayment = buildPosPaymentFromEcr({
-              rawEcrResponse: result.rawResponse,
-              customer: {
-                documentId: customer!.documentId,
-                firstName: customer!.firstName,
-                lastName: customer!.lastName,
-                phone: customer!.phone,
-              },
-              payerDocumentId,
-              paymentMethodId: 'pos',
-              amountSentCents: toEcrTerminalAmount(
-                resolvePosChargeAmountVes(totals.totalVes),
-              ),
-            });
-            if (!posPayment.ok) {
-              recordFailedPaymentSafe(
-                buildFailedPaymentInput(failedPaymentContext(methodId), {
-                  stage: 'pos_parse',
-                  errorReason: 'pos_parse_failed',
-                  errorMessage: posPayment.message,
-                  rawJson: result.rawResponse,
-                }),
-              );
-              setRoute({ name: 'payment-error', methodId });
-              return;
-            }
-            recordSuccessfulPosTransactionSafe(
-              buildSuccessfulPosTransactionInput({
-                payload: posPayment.payload,
-                rawJson: result.rawResponse,
-              }),
-            );
-            setCardPaymentPayload(posPayment.payload);
-            goToProcessing();
-          } catch (err) {
-            recordFailedPaymentSafe(
-              buildFailedPaymentInput(failedPaymentContext(methodId), {
-                stage: 'pos_charge',
-                errorReason: 'error',
-                errorMessage: err instanceof Error ? err.message : String(err),
-                rawJson: ecr.lastTransactionResponse,
-              }),
-            );
-            setRoute({ name: 'payment-error', methodId });
-          } finally {
-            setPosPaymentBusy(false);
-          }
-        })();
+        setRoute({ name: 'pos-charging' });
         return;
       }
 
     },
 
-    [customer, ecr, failedPaymentContext, goToProcessing, lines, paymentPayerDocumentId, setCardPaymentPayload, setReservationId, totals.totalVes],
+    [failedPaymentContext],
 
+  );
+
+  const handlePosChargeComplete = useCallback(
+    (result: PosChargeResult) => {
+      if (result.ok) {
+        goToProcessing();
+        return;
+      }
+      if (result.kind === 'stock-shortage') {
+        setRoute({ name: 'stock-shortage', shortages: result.shortages });
+        return;
+      }
+      setRoute({ name: 'payment-error', methodId: 'pos' });
+    },
+    [goToProcessing],
   );
 
 
@@ -722,6 +647,14 @@ export function PaymentNavigator({
 
 
 
+  if (route.name === 'pos-charging') {
+
+    return <PosChargeProcessingScreen onComplete={handlePosChargeComplete} />;
+
+  }
+
+
+
   if (route.name === 'processing') {
 
     return <OrderProcessingScreen onComplete={handleProcessingComplete} />;
@@ -772,7 +705,6 @@ export function PaymentNavigator({
         <PosPaymentFlow
           onBack={handleBackFromFlow}
           onContinue={() => handleFlowContinue(route.methodId)}
-          posPaymentBusy={posPaymentBusy || reserveBusy}
         />
 
       );
