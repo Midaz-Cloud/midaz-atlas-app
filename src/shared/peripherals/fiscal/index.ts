@@ -11,6 +11,7 @@ export type {
 } from './types';
 export type { FiscalClient } from './FiscalClient';
 export { FiscalServiceError } from './FiscalServiceError';
+export { logFiscal } from './logFiscal';
 export { createFiscalClient, resetFiscalClientForTests } from './createFiscalClient';
 export { checkFiscalHealth } from './checkFiscalHealth';
 export { emitFiscalInvoice } from './emitFiscalInvoice';

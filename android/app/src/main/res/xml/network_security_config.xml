@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Midaz Atlas talks to HkaApp on the same device via http://127.0.0.1:8765.
+  Release builds set usesCleartextTraffic=false (RN default); allow cleartext
+  only for loopback so production APKs can still reach the local fiscal API
+  without opening cleartext to the public internet.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

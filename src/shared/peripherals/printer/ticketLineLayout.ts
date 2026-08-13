@@ -3,6 +3,12 @@ import i18n from '@shared/i18n/i18n';
 /** Thermal ticket printable width (chars), including right-aligned suffix. */
 export const TICKET_LINE_WIDTH = 31;
 
+/**
+ * Max length of `Nx {productName}` before wrapping onto a second ticket line.
+ * Kept below {@link TICKET_LINE_WIDTH} so line 1 never collides with the price column.
+ */
+export const PRODUCT_TICKET_LEFT_MAX = 30;
+
 export function formatTicketUsd(amount: number): string {
   return `$${amount.toFixed(2)}`;
 }
@@ -37,6 +43,28 @@ export function padTicketLine(
   const clippedLeft = left.length > maxLeft ? left.slice(0, Math.max(0, maxLeft)) : left;
   const gap = Math.max(1, width - clippedLeft.length - right.length);
   return `${clippedLeft}${' '.repeat(gap)}${right}`;
+}
+
+/**
+ * Product row: `Nx name` + right-aligned amount.
+ * If the left label exceeds {@link PRODUCT_TICKET_LEFT_MAX}, wraps to two lines and
+ * keeps the amount only on the last line (same pattern as modifiers).
+ */
+export function layoutProductTicketLines(
+  quantity: number,
+  name: string,
+  amountLabel: string,
+  width: number = TICKET_LINE_WIDTH,
+): string[] {
+  const left = `${quantity}x ${name}`;
+
+  if (left.length <= PRODUCT_TICKET_LEFT_MAX) {
+    return [padTicketLine(left, amountLabel, width)];
+  }
+
+  const first = left.slice(0, PRODUCT_TICKET_LEFT_MAX);
+  const rest = left.slice(PRODUCT_TICKET_LEFT_MAX).trimStart();
+  return [first, padTicketLine(rest.length > 0 ? rest : ' ', amountLabel, width)];
 }
 
 /**

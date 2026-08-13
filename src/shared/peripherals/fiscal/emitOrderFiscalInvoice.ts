@@ -3,6 +3,7 @@ import { shouldUseMockFiscal } from '@shared/config/fiscal';
 import { checkFiscalHealth } from './checkFiscalHealth';
 import { emitFiscalInvoice } from './emitFiscalInvoice';
 import { FiscalServiceError } from './FiscalServiceError';
+import { logFiscal } from './logFiscal';
 import type { MapOrderToFiscalInvoiceParams } from './mapOrderToFiscalInvoiceRequest';
 import {
   mapOrderToFiscalInvoiceRequest,
@@ -39,15 +40,13 @@ export async function emitOrderFiscalInvoice(
       throw new FiscalServiceError(
         health.message ??
           health.error ??
-          'Servicio fiscal o impresora no disponibles. Abra HkaApp y verifique USB.',
+          'Servicio fiscal o impresora no disponibles. Abra HkaApp y conecte la impresora (USB o Bluetooth).',
         503,
       );
     }
   }
 
-  if (__DEV__) {
-    console.log('[Fiscal] emitOrderFiscalInvoice request', request);
-  }
+  logFiscal('emitOrderFiscalInvoice request', request);
 
   const envelope = await emitFiscalInvoice(request);
   const issuedInvoiceNumber = envelope.data?.issuedInvoiceNumber;
@@ -60,9 +59,10 @@ export async function emitOrderFiscalInvoice(
     );
   }
 
-  if (__DEV__) {
-    console.log('[Fiscal] emitOrderFiscalInvoice response', envelope);
-  }
+  logFiscal('emitOrderFiscalInvoice ok', {
+    issuedInvoiceNumber,
+    message: envelope.message,
+  });
 
   return {
     issuedInvoiceNumber,

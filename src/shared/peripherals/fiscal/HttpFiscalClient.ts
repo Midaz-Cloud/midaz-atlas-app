@@ -2,6 +2,7 @@ import { getFiscalServiceBaseUrl } from '@shared/config/fiscal';
 
 import type { FiscalClient } from './FiscalClient';
 import { FiscalServiceError } from './FiscalServiceError';
+import { logFiscal } from './logFiscal';
 import { parseFiscalEmitEnvelope } from './parseFiscalEmitResponse';
 import { parseFiscalHealthEnvelope } from './parseFiscalHealthResponse';
 import type {
@@ -13,11 +14,13 @@ import type {
 
 async function fiscalFetch(url: string, init: RequestInit): Promise<Response> {
   try {
+    logFiscal(`${init.method ?? 'GET'} ${url}`);
     return await fetch(url, init);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
+    logFiscal('fetch failed', { url, detail });
     throw new FiscalServiceError(
-      `No se pudo conectar al servicio fiscal (${getFiscalServiceBaseUrl()}): ${detail}`,
+      `No se pudo conectar al servicio fiscal (${getFiscalServiceBaseUrl()}): ${detail}. Verifique que HkaApp este abierta en este dispositivo.`,
     );
   }
 }
@@ -45,6 +48,12 @@ export class HttpFiscalClient implements FiscalClient {
     });
     const body = await readFiscalJson(response);
     const envelope = parseFiscalHealthEnvelope(body);
+    logFiscal('health response', {
+      httpStatus: response.status,
+      healthy: envelope.data?.healthy,
+      message: envelope.message,
+      error: envelope.error,
+    });
 
     if (!response.ok && response.status !== 503) {
       throw new FiscalServiceError(
@@ -58,6 +67,7 @@ export class HttpFiscalClient implements FiscalClient {
 
   async emitInvoice(request: EmitFiscalInvoiceRequest): Promise<EmitFiscalInvoiceResult> {
     const url = `${this.baseUrl}/v1/invoices/emit`;
+    logFiscal('emit request', request);
     const response = await fiscalFetch(url, {
       method: 'POST',
       headers: {
@@ -68,6 +78,14 @@ export class HttpFiscalClient implements FiscalClient {
     });
     const body = await readFiscalJson(response);
     const envelope = parseFiscalEmitEnvelope(body);
+    logFiscal('emit response', {
+      httpStatus: response.status,
+      success: envelope.success,
+      issuedInvoiceNumber: envelope.data?.issuedInvoiceNumber,
+      message: envelope.message,
+      error: envelope.error,
+      validationErrors: envelope.data?.validationErrors,
+    });
 
     if (!response.ok) {
       const validationHint = envelope.data?.validationErrors?.join('; ');

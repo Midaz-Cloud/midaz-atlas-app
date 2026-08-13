@@ -8,8 +8,8 @@ import { formatCartLineModifierLines } from './formatCartLineModifierLines';
 import {
   formatTicketUsd,
   formatTicketVes,
+  layoutProductTicketLines,
   padTicketLine,
-  TICKET_LINE_WIDTH,
 } from './ticketLineLayout';
 
 export type FormatOrderTicketParams = {
@@ -115,9 +115,10 @@ export function formatOrderTicketText(params: FormatOrderTicketParams): string {
 
   for (const line of params.lines) {
     const name = resolveProductLabel(line.productId);
-    const left = `${line.quantity}x ${name}`.slice(0, 22);
     const right = formatTicketLineAmount(line.unitPrice * line.quantity, primaryCurrency);
-    lines.push(padTicketLine(left, right, TICKET_LINE_WIDTH));
+    for (const productLine of layoutProductTicketLines(line.quantity, name, right)) {
+      lines.push(productLine);
+    }
     for (const modifierLine of formatCartLineModifierLines(line)) {
       lines.push(modifierLine);
     }

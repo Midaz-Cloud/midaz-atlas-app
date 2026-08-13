@@ -4,6 +4,11 @@ import { getEnvString, parseBooleanEnv } from './env';
 
 const DEFAULT_FISCAL_SERVICE_URL = 'http://127.0.0.1:8765';
 
+/**
+ * Base URL of HkaApp's local HTTP API on the same Android device.
+ * Production APKs reach this via cleartext exception for loopback only
+ * (`res/xml/network_security_config.xml`).
+ */
 export const fiscalServiceConfig = {
   get baseUrl(): string {
     const raw = getEnvString('KIOSK_FISCAL_SERVICE_URL' as any);

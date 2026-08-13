@@ -1,7 +1,9 @@
 import {
   formatModifierPriceSuffix,
   layoutModifierTicketLines,
+  layoutProductTicketLines,
   padTicketLine,
+  PRODUCT_TICKET_LEFT_MAX,
   TICKET_LINE_WIDTH,
 } from '../ticketLineLayout';
 
@@ -33,5 +35,39 @@ describe('ticketLineLayout', () => {
     const lines = layoutModifierTicketLines(`+ ${description}`, 0);
 
     expect(lines[lines.length - 1].trim()).toMatch(/Gratis|Free$/);
+  });
+
+  describe('layoutProductTicketLines', () => {
+    it('keeps short names on one line with right-aligned price', () => {
+      const lines = layoutProductTicketLines(2, 'Cafe', '$12.00');
+      expect(lines).toHaveLength(1);
+      expect(lines[0].length).toBe(TICKET_LINE_WIDTH);
+      expect(lines[0].startsWith('2x Cafe')).toBe(true);
+      expect(lines[0].endsWith('$12.00')).toBe(true);
+    });
+
+    it('wraps long names to two lines and keeps price on the last line', () => {
+      const longName = 'A'.repeat(PRODUCT_TICKET_LEFT_MAX); // "1x " + name > 30
+      const lines = layoutProductTicketLines(1, longName, 'Bs. 10.00');
+
+      expect(lines).toHaveLength(2);
+      expect(lines[0].length).toBe(PRODUCT_TICKET_LEFT_MAX);
+      expect(lines[0].startsWith('1x ')).toBe(true);
+      expect(lines[0].includes('Bs.')).toBe(false);
+      expect(lines[1].length).toBe(TICKET_LINE_WIDTH);
+      expect(lines[1].endsWith('Bs. 10.00')).toBe(true);
+    });
+
+    it('does not exceed ticket width on either wrapped line', () => {
+      const lines = layoutProductTicketLines(
+        3,
+        'Hamburguesa doble con queso cheddar y tocino ahumado premium',
+        'Bs. 1,250.00',
+      );
+      expect(lines.length).toBe(2);
+      lines.forEach((line) => {
+        expect(line.length).toBeLessThanOrEqual(TICKET_LINE_WIDTH);
+      });
+    });
   });
 });

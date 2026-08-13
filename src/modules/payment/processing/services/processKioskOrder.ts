@@ -126,9 +126,7 @@ export async function processKioskOrder(
               : error instanceof Error
                 ? error.message
                 : 'Error al emitir la factura fiscal';
-          if (__DEV__) {
-            console.warn('[processKioskOrder] emitOrderFiscalInvoice failed', message);
-          }
+          console.warn('[processKioskOrder] emitOrderFiscalInvoice failed', message);
           return {
             status: 'fiscal_error',
             orderId: displayOrderNumber,
