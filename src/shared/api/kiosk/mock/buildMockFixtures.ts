@@ -94,6 +94,7 @@ export function getMockConfig(): KioskConfigResponse {
       rif: 'J-00000000-0',
       logo: null,
       primaryCurrency: 'USD',
+      invoicingType: 'fiscal_machine',
     },
     pagoMovilAccount: mockPagoMovilAccount,
     exchangeRates: {

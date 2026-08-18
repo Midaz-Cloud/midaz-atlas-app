@@ -34,6 +34,8 @@ import type {
   ValidateMobilePaymentResponse,
   KioskSettlementRequest,
   KioskSettlementResponse,
+  KioskZReportRequest,
+  KioskZReportResponse,
 } from '../types';
 
 /** Consume unused OkHttp response bodies (e.g. 304) to avoid connection leaks. */
@@ -223,7 +225,7 @@ export class HttpKioskApiClient implements KioskApiClient {
     return (await response.json()) as KioskCustomerApi;
   }
 
-  /** TODO: confirm path with backend — expected POST /kiosk/customers */
+  /** POST /kiosk/customers — live register uses createCustomerLive (full org body). */
   async registerCustomer(request: RegisterKioskCustomerRequest): Promise<KioskCustomerApi> {
     const response = await fetch(this.apiUrl('/kiosk/customers'), {
       method: 'POST',
@@ -249,9 +251,8 @@ export class HttpKioskApiClient implements KioskApiClient {
   }
 
   async submitSettlement(request: KioskSettlementRequest): Promise<KioskSettlementResponse> {
-    // Base QA: https://midazqa.dis-global.com/apis + /api/pos/settlements
-    // (un solo /api; evitar /api/api/pos/settlements)
-    const settlementPath = '/api/pos/settlements';
+    // Gateway kiosk JWT route (forwards to notifications POST /api/pos/settlements).
+    const settlementPath = '/kiosk/settlement';
     logKioskCheckoutPayload(`POST ${settlementPath} request`, request);
     const response = await fetch(this.apiUrl(settlementPath), {
       method: 'POST',
@@ -261,6 +262,20 @@ export class HttpKioskApiClient implements KioskApiClient {
     await throwIfNotOk(response, settlementPath);
     const body = (await response.json()) as KioskSettlementResponse;
     logKioskCheckoutPayload(`POST ${settlementPath} response`, body);
+    return body;
+  }
+
+  async submitZReport(request: KioskZReportRequest): Promise<KioskZReportResponse> {
+    const path = '/kiosk/z-reports';
+    logKioskCheckoutPayload(`POST ${path} request`, request);
+    const response = await fetch(this.apiUrl(path), {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify(request),
+    });
+    await throwIfNotOk(response, path);
+    const body = (await response.json()) as KioskZReportResponse;
+    logKioskCheckoutPayload(`POST ${path} response`, body);
     return body;
   }
 }

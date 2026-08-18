@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Text, TouchableOpacity } from 'react-native';
 
-import { showKioskDevUi } from '@shared/config';
+import { shouldSendSettlementExcelMail, showKioskDevUi } from '@shared/config';
 import { getSettlementMailTestParams, sendSettlementMail } from '@shared/mail';
 import { useKioskAppearance } from '@shared/session';
 import { brand } from '@shared/theme';
@@ -10,6 +10,7 @@ import { homeDevToolButtonStyles as styles } from './homeDevToolButtonStyles';
 
 /**
  * Dev control: generate settlement Excel + send via KIOSK_MAIL_* SMTP.
+ * Hidden unless `KIOSK_SETTLEMENT_EXCEL_MAIL=true` (same opt-in as cierre).
  */
 export function SettlementMailTestButton() {
   const [busy, setBusy] = useState(false);
@@ -41,7 +42,7 @@ export function SettlementMailTestButton() {
     }
   }, [appearance?.primaryColor, busy]);
 
-  if (!showKioskDevUi()) {
+  if (!showKioskDevUi() || !shouldSendSettlementExcelMail()) {
     return null;
   }
 

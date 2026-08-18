@@ -48,6 +48,19 @@ export type ProcessKioskOrderParams = {
   printQrEnabled?: boolean;
   declaresTaxes?: boolean;
   reservationId?: string | null;
+  /**
+   * Customer fiscal retry: do not short-circuit demo `fiscal_error`.
+   * Payment already succeeded; retry must actually emit (mock or HkaApp).
+   */
+  skipSimulatedFiscalError?: boolean;
+  /**
+   * Midaz order already created — skip POST /kiosk/orders (no duplicate).
+   * There is no kiosk API to PATCH fiscalInvoiceNumber.
+   */
+  existingRegisteredOrder?: {
+    displayOrderNumber: string;
+    shortCode?: string | null;
+  };
   onOrderRegistered?: (
     displayOrderNumber: string,
     grandTotalVES: number,
@@ -57,9 +70,12 @@ export type ProcessKioskOrderParams = {
   onReservationExpired?: () => void;
 };
 
-function buildProcessingPhases(declaresTaxes?: boolean): OrderProcessingPhase[] {
+function buildProcessingPhases(
+  declaresTaxes?: boolean,
+  paymentMethodId?: PaymentMethodId,
+): OrderProcessingPhase[] {
   const phases: OrderProcessingPhase[] = [];
-  if (shouldEmitFiscalInvoice(declaresTaxes)) {
+  if (shouldEmitFiscalInvoice(declaresTaxes, paymentMethodId)) {
     phases.push('fiscal');
   }
   phases.push('registering', 'printing');
@@ -89,23 +105,28 @@ export async function processKioskOrder(
   const phaseDelayMs = getDemoProcessingPhaseDelayMs();
   let displayOrderNumber = buildProvisionalOrderNumber();
   let trackShortCode: string | null = null;
+  let orderShortCode: string | null = null;
   let orderRegisteredFromApi = false;
   let fiscalInvoiceNumber: number | undefined;
 
-  const phases = buildProcessingPhases(params.declaresTaxes);
+  const phases = buildProcessingPhases(params.declaresTaxes, params.paymentMethodId);
 
   for (const phase of phases) {
     onPhase(phase);
 
     if (phase === 'fiscal') {
-      if (isKioskDemoMode && shouldEmitFiscalInvoice(params.declaresTaxes)) {
+      if (
+        isKioskDemoMode &&
+        !params.skipSimulatedFiscalError &&
+        shouldEmitFiscalInvoice(params.declaresTaxes, params.paymentMethodId)
+      ) {
         const outcome = getDemoProcessingOutcome();
         if (outcome === 'fiscal_error') {
           return { status: 'fiscal_error', orderId: displayOrderNumber };
         }
       }
 
-      if (shouldEmitFiscalInvoice(params.declaresTaxes)) {
+      if (shouldEmitFiscalInvoice(params.declaresTaxes, params.paymentMethodId)) {
         try {
           const fiscalResult = await emitOrderFiscalInvoice({
             lines: params.lines,
@@ -142,6 +163,20 @@ export async function processKioskOrder(
     }
 
     if (phase === 'registering') {
+      if (params.existingRegisteredOrder?.displayOrderNumber) {
+        displayOrderNumber = params.existingRegisteredOrder.displayOrderNumber;
+        const fromShortCode =
+          params.existingRegisteredOrder.shortCode?.trim() || null;
+        orderShortCode = fromShortCode;
+        const isCashPayment = params.paymentMethodId === 'cash';
+        trackShortCode = isCashPayment || !fromShortCode ? null : fromShortCode;
+        orderRegisteredFromApi = true;
+        if (phaseDelayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, phaseDelayMs));
+        }
+        continue;
+      }
+
       try {
         const token = await loadAccessToken();
         const client = createKioskApiClient(token ?? undefined);
@@ -155,11 +190,13 @@ export async function processKioskOrder(
           cardPayment: params.cardPayment,
           declaresTaxes: params.declaresTaxes,
           reservationId: params.reservationId,
+          fiscalInvoiceNumber,
         });
         const response = await client.createOrder(request);
         displayOrderNumber = response.displayOrderNumber;
         // UPDATE-14: QR solo con shortCode real. Efectivo / sin cocina → shortCode null → sin QR.
         const fromShortCode = response.shortCode?.trim() || null;
+        orderShortCode = fromShortCode;
         const isCashPayment = params.paymentMethodId === 'cash';
         trackShortCode = isCashPayment || !fromShortCode ? null : fromShortCode;
         orderRegisteredFromApi = true;
@@ -211,7 +248,7 @@ export async function processKioskOrder(
               rawJson,
             };
           }
-          return { status: 'failed', message: errorMessage, rawJson };
+          return { status: 'failed', message: errorMessage, rawJson, fiscalInvoiceNumber };
         }
       }
       if (phaseDelayMs > 0) {
@@ -247,14 +284,18 @@ export async function processKioskOrder(
         const message =
           error instanceof OrderPrintError
             ? error.message
-            : 'Error al imprimir el ticket';
+            : 'No se pudo imprimir el ticket de cliente';
         if (__DEV__) {
           console.warn(message);
         }
+        // Customer ticket (I0Z) is best-effort after fiscal + order exist.
+        // Do not map USB/print failures to fiscal_error (HkaApp).
         return {
-          status: 'fiscal_error',
+          status: 'ticket_print_failed',
           orderId: displayOrderNumber,
+          shortCode: orderShortCode,
           fiscalInvoiceNumber,
+          message,
         };
       }
       if (phaseDelayMs > 0) {

@@ -1,7 +1,7 @@
 import { buildCreateCustomerRequestFromForm } from '../createCustomer';
 
 describe('buildCreateCustomerRequestFromForm', () => {
-  it('maps form fields to POST /customers body with defaults', () => {
+  it('maps form fields to POST /kiosk/customers body with defaults', () => {
     expect(
       buildCreateCustomerRequestFromForm({
         documentId: 'V26728807',

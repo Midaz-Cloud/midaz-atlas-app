@@ -24,6 +24,8 @@ import type {
   ValidateMobilePaymentResponse,
   KioskSettlementRequest,
   KioskSettlementResponse,
+  KioskZReportRequest,
+  KioskZReportResponse,
 } from '../types';
 import { normalizeDocumentId } from '../utils/documentId';
 import { resolveProductAvailable } from '@shared/catalog/productAvailability';
@@ -194,7 +196,7 @@ export class MockKioskApiClient implements KioskApiClient {
   }
 
   async submitSettlement(request: KioskSettlementRequest): Promise<KioskSettlementResponse> {
-    logKioskCheckoutPayload('POST /api/pos/settlements request (mock)', request);
+    logKioskCheckoutPayload('POST /kiosk/settlement request (mock)', request);
     await delay(200);
     const settlementId = request.settlementId ?? `SETTLEMENT-${Date.now()}`;
     const posSerial =
@@ -207,7 +209,17 @@ export class MockKioskApiClient implements KioskApiClient {
       processedBy: 'kiosk:mock-device',
       createdAt: new Date().toISOString(),
     };
-    logKioskCheckoutPayload('POST /api/pos/settlements response (mock)', response);
+    logKioskCheckoutPayload('POST /kiosk/settlement response (mock)', response);
     return response;
+  }
+
+  async submitZReport(request: KioskZReportRequest): Promise<KioskZReportResponse> {
+    logKioskCheckoutPayload('POST /kiosk/z-reports request (mock)', request);
+    await delay(150);
+    return {
+      id: `mock-z-${Date.now()}`,
+      cooNumber: request.data.coo,
+      fiscalMachineSerial: request.fiscalMachineSerial,
+    };
   }
 }

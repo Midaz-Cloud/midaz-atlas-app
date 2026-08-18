@@ -5,11 +5,13 @@ import { FiscalServiceError } from './FiscalServiceError';
 import { logFiscal } from './logFiscal';
 import { parseFiscalEmitEnvelope } from './parseFiscalEmitResponse';
 import { parseFiscalHealthEnvelope } from './parseFiscalHealthResponse';
+import { parseFiscalZReportEnvelope } from './parseFiscalZReportResponse';
 import type {
   EmitFiscalInvoiceRequest,
   EmitFiscalInvoiceResult,
   FiscalHealthOptions,
   FiscalHealthResult,
+  FiscalZReportResult,
 } from './types';
 
 async function fiscalFetch(url: string, init: RequestInit): Promise<Response> {
@@ -94,6 +96,51 @@ export class HttpFiscalClient implements FiscalClient {
           envelope.error ??
           envelope.message ??
           `Fiscal emit HTTP ${response.status}`,
+        response.status,
+      );
+    }
+
+    return { envelope, httpStatus: response.status };
+  }
+
+  async printZReport(): Promise<FiscalZReportResult> {
+    return this.fetchZReport('POST', `${this.baseUrl}/v1/reports/z`);
+  }
+
+  async readLastZReport(): Promise<FiscalZReportResult> {
+    return this.fetchZReport('GET', `${this.baseUrl}/v1/reports/z`);
+  }
+
+  private async fetchZReport(
+    method: 'GET' | 'POST',
+    url: string,
+  ): Promise<FiscalZReportResult> {
+    logFiscal(`${method} ${url}`);
+    const response = await fiscalFetch(url, {
+      method,
+      headers: { Accept: 'application/json' },
+    });
+    const body = await readFiscalJson(response);
+    const envelope = parseFiscalZReportEnvelope(body);
+    logFiscal('z report response', {
+      method,
+      httpStatus: response.status,
+      success: envelope.success,
+      coo: envelope.data?.coo,
+      message: envelope.message,
+      error: envelope.error,
+    });
+
+    if (!response.ok) {
+      throw new FiscalServiceError(
+        envelope.error ?? envelope.message ?? `Fiscal Z HTTP ${response.status}`,
+        response.status,
+      );
+    }
+
+    if (!envelope.data) {
+      throw new FiscalServiceError(
+        envelope.message ?? 'Respuesta Z sin datos de auditoría',
         response.status,
       );
     }

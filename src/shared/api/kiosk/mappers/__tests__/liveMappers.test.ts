@@ -66,6 +66,19 @@ describe('live config mappers', () => {
     });
     expect(config.printQrEnabled).toBe(true);
   });
+
+  it('maps organization invoicingType and kioskInvoicingType', () => {
+    const config = mapLiveConfigToKioskConfigResponse({
+      ...(liveConfigFixture as KioskConfigResponseLive),
+      kioskInvoicingType: null,
+      organization: {
+        ...(liveConfigFixture as KioskConfigResponseLive).organization,
+        invoicingType: 'fiscal_machine',
+      },
+    });
+    expect(config.organization.invoicingType).toBe('fiscal_machine');
+    expect(config.kioskInvoicingType).toBeNull();
+  });
 });
 
 describe('live product mappers', () => {

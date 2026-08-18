@@ -11,5 +11,10 @@ export {
   type FormatSettlementTicketParams,
   type SettlementTicketTransactionLine,
 } from './formatSettlementTicketText';
-export { printOrderTicket, OrderPrintError } from './printOrderTicket';
+export {
+  printOrderTicket,
+  OrderPrintError,
+  isMissingUsbPrinterError,
+  NO_USB_PRINTER_CODE,
+} from './printOrderTicket';
 export { getPrinterTestOrderParams } from './printerTestOrderFixture';

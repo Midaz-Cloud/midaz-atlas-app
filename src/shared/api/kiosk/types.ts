@@ -42,6 +42,7 @@ export type KioskConfigOrganization = {
   logo: string | null;
   primaryCurrency: string;
   declaresTaxes?: boolean;
+  invoicingType?: string | null;
 };
 
 export type KioskExchangeRates = {
@@ -67,6 +68,7 @@ export type KioskConfigResponse = {
   printQrEnabled: boolean;
   comandaModel: 'printed' | 'sent';
   enabledPaymentMethods: PaymentMethodApi[];
+  kioskInvoicingType?: string | null;
   appearance: KioskConfigAppearance;
   organization: KioskConfigOrganization;
   pagoMovilAccount: KioskPagoMovilAccount | null;
@@ -251,6 +253,11 @@ export type CreateKioskOrderRequest = {
   posResponse?: KioskPosResponse;
   cardType?: string;
   cardHolder?: string;
+  /**
+   * Entero HkaApp `issuedInvoiceNumber`. Solo cuando el kiosco ya emitió en PP9+.
+   * No pad, no `invoiceData`, no COO.
+   */
+  fiscalInvoiceNumber?: number;
 };
 
 export type KioskOrderTaxBreakdownItem = {
@@ -283,7 +290,7 @@ export type KioskConfigFetchResult = {
   etag: string | null;
 };
 
-/** POS settlement payload from N620 SDK (POST /api/pos/settlements settlementData). */
+/** POS settlement payload from N620 SDK (POST /kiosk/settlement settlementData). */
 export type KioskSettlementData = {
   CreditBatchNo?: string;
   DebitBatchNo?: string;
@@ -321,5 +328,15 @@ export type KioskSettlementResponse = {
   success?: boolean;
   processedBy?: string;
   createdAt?: string;
+  [key: string]: unknown;
+};
+
+export type KioskZReportRequest = {
+  data: Record<string, string>;
+  fiscalMachineSerial: string;
+};
+
+export type KioskZReportResponse = {
+  id?: string;
   [key: string]: unknown;
 };

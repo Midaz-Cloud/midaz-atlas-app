@@ -1,4 +1,6 @@
-import { getEnvString } from './env';
+import Config from 'react-native-config';
+
+import { getEnvString, parseBooleanEnv } from './env';
 
 export type KioskMailConfig = {
   host: string;
@@ -28,6 +30,15 @@ function readMailEnv(key: string): string | undefined {
     return undefined;
   }
   return stripEnvQuotes(raw);
+}
+
+/**
+ * Opt-in Excel + SMTP after POS settlement (cierre de lote).
+ * Unset / anything other than literal `true` skips both.
+ * react-native-config is baked at native build time — changing this requires a rebuild.
+ */
+export function shouldSendSettlementExcelMail(): boolean {
+  return parseBooleanEnv(Config.KIOSK_SETTLEMENT_EXCEL_MAIL);
 }
 
 /**

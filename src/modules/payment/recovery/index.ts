@@ -13,3 +13,7 @@ export {
   type RetryDuplicateRisk,
   type RetryFailedPaymentOrderResult,
 } from './services/retryFailedPaymentOrder';
+export {
+  retryCustomerFiscalEmit,
+  type RetryCustomerFiscalEmitParams,
+} from './services/retryCustomerFiscalEmit';

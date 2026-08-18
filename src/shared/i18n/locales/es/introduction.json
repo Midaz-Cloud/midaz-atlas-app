@@ -18,5 +18,22 @@
     "subtitle": "Selecciona tu preferencia",
     "dineIn": "Para comer aquí",
     "takeOut": "Para llevar"
+  },
+  "adminDashboard": {
+    "progressTitle": "Progreso del cierre",
+    "confirmTitle": "Cierre de lote",
+    "confirmButton": "Confirmar",
+    "confirmProcessing": "Procesando…",
+    "confirmFiscalWithMail": "Se enviará el cierre al datáfono, el reporte Z a la impresora fiscal, el ticket térmico y el documento por correo. ¿Confirmar?",
+    "confirmFiscal": "Se enviará el cierre al datáfono, el reporte Z a la impresora fiscal y el ticket térmico. ¿Confirmar?",
+    "confirmWithMail": "Se enviará el cierre al datáfono, se imprimirá el ticket y se generará el documento para correo. ¿Confirmar?",
+    "confirm": "Se enviará el cierre al datáfono y se imprimirá el ticket. ¿Confirmar?",
+    "steps": {
+      "waitingPos": "Esperando confirmación del POS",
+      "fiscalZ": "Reporte Z fiscal",
+      "printing": "Imprimiendo documento",
+      "generatingDoc": "Generando documento",
+      "sendingDoc": "Enviando documento"
+    }
   }
 }

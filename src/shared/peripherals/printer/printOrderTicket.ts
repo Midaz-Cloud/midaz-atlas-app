@@ -9,14 +9,34 @@ export type PrintOrderTicketParams = FormatOrderTicketParams & {
   trackShortCode?: string | null;
 };
 
+export const NO_USB_PRINTER_CODE = 'NO_USB_DEVICE';
+
+function getErrorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('code' in error)) {
+    return undefined;
+  }
+  const code = (error as { code: unknown }).code;
+  return typeof code === 'string' ? code : undefined;
+}
+
 export class OrderPrintError extends Error {
-  constructor(message: string, options?: { cause?: unknown }) {
+  readonly code?: string;
+
+  constructor(message: string, options?: { cause?: unknown; code?: string }) {
     super(message);
     this.name = 'OrderPrintError';
+    this.code = options?.code;
     if (options?.cause instanceof Error) {
       this.cause = options.cause;
     }
   }
+}
+
+export function isMissingUsbPrinterError(error: unknown): boolean {
+  if (error instanceof OrderPrintError) {
+    return error.code === NO_USB_PRINTER_CODE;
+  }
+  return getErrorCode(error) === NO_USB_PRINTER_CODE;
 }
 
 export async function printOrderTicket(params: PrintOrderTicketParams): Promise<void> {
@@ -43,9 +63,13 @@ export async function printOrderTicket(params: PrintOrderTicketParams): Promise<
     await client.connect();
     await client.printText(body, merchantName, qrValue);
   } catch (error) {
+    const code = getErrorCode(error);
     const message =
       error instanceof Error ? error.message : 'No se pudo imprimir el ticket del pedido';
-    throw new OrderPrintError(message, { cause: error });
+    if (__DEV__ && code === NO_USB_PRINTER_CODE) {
+      console.warn('[Printer] No USB printer; skipping ticket print');
+    }
+    throw new OrderPrintError(message, { cause: error, code });
   } finally {
     try {
       await client.disconnect();

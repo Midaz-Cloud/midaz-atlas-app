@@ -1,17 +1,24 @@
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import {
   buildSettlementFromEcr,
+  createKioskApiClient,
   isSettlementApprovedPlainText,
+  loadAccessToken,
   loadLastPosSerial,
   salvageSettlementDataForPrint,
   saveLastPosSerial,
+  toPersistableSettlementRequest,
 } from '@shared/api/kiosk';
+import { KioskApiError } from '@shared/api/kiosk/errors';
 import { formatUserFacingError } from '@shared/api/kiosk/friendlySettlementError';
 import type { KioskSettlementData } from '@shared/api/kiosk/types';
+import { shouldPrintFiscalZ } from '@shared/api/kiosk/utils/invoicingType';
 import { KioskConfirmModal, KioskScreenLayout } from '@shared/components';
+import { shouldSendSettlementExcelMail } from '@shared/config';
 import {
   generateSettlementExcelDocument,
   sendSettlementExcelDocument,
@@ -22,14 +29,24 @@ import {
   listSuccessfulPosTransactions,
 } from '@shared/persistence';
 import { useEcrConnection } from '@shared/peripherals/ecr';
+import { createFiscalClient } from '@shared/peripherals/fiscal';
 import {
   createPrinterClient,
   formatSettlementTicketText,
   sanitizePrinterText,
 } from '@shared/peripherals/printer';
-import { useKioskAppearance } from '@shared/session';
+import { useKioskAppearance, useKioskOrganization } from '@shared/session';
 import { displayTextStyle, bodyTextStyle, useKioskScreenColors } from '@shared/theme';
 import { kioskScale } from '@shared/utils';
+
+import { runFiscalZClose } from '../services/runFiscalZClose';
+import {
+  buildCloseSteps,
+  type CloseStep,
+  type CloseStepId,
+  type CloseStepLabels,
+  type StepState,
+} from './buildCloseSteps';
 
 export type AdminDashboardScreenProps = {
   onBack: () => void;
@@ -37,24 +54,6 @@ export type AdminDashboardScreenProps = {
 };
 
 type StatusTone = 'neutral' | 'success' | 'error';
-
-type CloseStepId = 'waiting_pos' | 'generating_doc' | 'sending_doc' | 'printing';
-
-type StepState = 'pending' | 'active' | 'done' | 'error' | 'skipped';
-
-type CloseStep = {
-  id: CloseStepId;
-  label: string;
-  state: StepState;
-  detail?: string;
-};
-
-const INITIAL_CLOSE_STEPS: CloseStep[] = [
-  { id: 'waiting_pos', label: 'Esperando confirmación del POS', state: 'pending' },
-  { id: 'printing', label: 'Imprimiendo documento', state: 'pending' },
-  { id: 'generating_doc', label: 'Generando documento', state: 'pending' },
-  { id: 'sending_doc', label: 'Enviando documento', state: 'pending' },
-];
 
 function isPosCancelledOrFailedMessage(message: string): boolean {
   const lower = message.toLowerCase();
@@ -71,13 +70,29 @@ export function AdminDashboardScreen({
   onBack,
   onOpenFailedPayments,
 }: AdminDashboardScreenProps) {
+  const { t } = useTranslation('introduction');
   const colors = useKioskScreenColors();
   const appearance = useKioskAppearance();
+  const organization = useKioskOrganization();
+  const printsFiscalZ = shouldPrintFiscalZ(organization?.effectiveInvoicingType);
+  const excelMailEnabled = shouldSendSettlementExcelMail();
+  const closeStepLabels = useMemo<CloseStepLabels>(
+    () => ({
+      waiting_pos: t('adminDashboard.steps.waitingPos'),
+      fiscal_z: t('adminDashboard.steps.fiscalZ'),
+      printing: t('adminDashboard.steps.printing'),
+      generating_doc: t('adminDashboard.steps.generatingDoc'),
+      sending_doc: t('adminDashboard.steps.sendingDoc'),
+    }),
+    [t],
+  );
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<StatusTone>('neutral');
-  const [closeSteps, setCloseSteps] = useState<CloseStep[]>(INITIAL_CLOSE_STEPS);
+  const [closeSteps, setCloseSteps] = useState<CloseStep[]>(() =>
+    buildCloseSteps(excelMailEnabled, closeStepLabels),
+  );
   const [showCloseProgress, setShowCloseProgress] = useState(false);
   const [confirmCloseVisible, setConfirmCloseVisible] = useState(false);
 
@@ -87,7 +102,7 @@ export function AdminDashboardScreen({
   };
 
   const resetCloseProgress = () => {
-    setCloseSteps(INITIAL_CLOSE_STEPS.map((step) => ({ ...step })));
+    setCloseSteps(buildCloseSteps(excelMailEnabled, closeStepLabels));
     setShowCloseProgress(true);
   };
 
@@ -280,7 +295,9 @@ export function AdminDashboardScreen({
         try {
           await ecr.initialize();
           await ecr.connect();
-          connected = ecr.isConnected;
+          // connect() already succeeded; ecr.isConnected is React state and
+          // stays stale until the next render, so do not read it here.
+          connected = true;
         } catch (connErr) {
           console.warn('[AdminDashboard] Error al intentar conectar con el POS:', connErr);
         }
@@ -288,6 +305,10 @@ export function AdminDashboardScreen({
 
       if (!connected) {
         setStepState('waiting_pos', 'error', 'POS no conectado');
+        setStepState('fiscal_z', 'skipped');
+        setStepState('printing', 'skipped');
+        setStepState('generating_doc', 'skipped');
+        setStepState('sending_doc', 'skipped');
         showStatus(
           formatUserFacingError(
             'El punto de venta no está conectado. Verifica el cable USB e intenta de nuevo.',
@@ -310,6 +331,7 @@ export function AdminDashboardScreen({
           'error',
           cancelled ? 'Cierre cancelado o sin respuesta del POS' : errMsg,
         );
+        setStepState('fiscal_z', 'skipped');
         setStepState('printing', 'skipped');
         setStepState('generating_doc', 'skipped');
         setStepState('sending_doc', 'skipped');
@@ -364,6 +386,7 @@ export function AdminDashboardScreen({
             ? 'Respuesta incompleta del POS'
             : 'Cierre rechazado o cancelado en el POS',
         );
+        setStepState('fiscal_z', 'skipped');
         setStepState('printing', 'skipped');
         setStepState('generating_doc', 'skipped');
         setStepState('sending_doc', 'skipped');
@@ -377,6 +400,50 @@ export function AdminDashboardScreen({
       }
 
       setStepState('waiting_pos', 'done');
+
+      if (printsFiscalZ) {
+        setStepState('fiscal_z', 'active');
+        try {
+          const token = await loadAccessToken();
+          const zResult = await runFiscalZClose({
+            effectiveInvoicingType: organization?.effectiveInvoicingType,
+            fiscal: createFiscalClient(),
+            kiosk: createKioskApiClient(token ?? undefined),
+          });
+          if (zResult.persisted) {
+            setStepState('fiscal_z', 'done');
+          } else {
+            setStepState(
+              'fiscal_z',
+              'error',
+              zResult.warning ?? 'No se pudo completar el reporte Z',
+            );
+          }
+        } catch (zErr) {
+          const zMsg = zErr instanceof Error ? zErr.message : String(zErr);
+          console.warn('[AdminDashboard] Error inesperado en reporte Z:', zErr);
+          setStepState('fiscal_z', 'error', zMsg);
+        }
+      } else {
+        setStepState('fiscal_z', 'skipped', 'La organización no usa máquina fiscal');
+      }
+
+      const persistSettlementRequest = toPersistableSettlementRequest(
+        settlementResult,
+        salvaged,
+      );
+      if (persistSettlementRequest) {
+        try {
+          const token = await loadAccessToken();
+          await createKioskApiClient(token ?? undefined).submitSettlement(
+            persistSettlementRequest,
+          );
+        } catch (settleErr) {
+          if (!(settleErr instanceof KioskApiError && settleErr.statusCode === 409)) {
+            console.warn('[AdminDashboard] Error al registrar el cierre POS:', settleErr);
+          }
+        }
+      }
 
       let localTransactions: Awaited<
         ReturnType<typeof listSuccessfulPosTransactions>
@@ -432,56 +499,65 @@ export function AdminDashboardScreen({
         );
       }
 
-      // 2) Generate Excel (best-effort; must not block print).
-      setStepState('generating_doc', 'active');
-      await new Promise<void>((resolve) => setTimeout(resolve, 50));
-      try {
-        console.log('[AdminDashboard] Generando Excel de cierre…');
-        excelFile = await generateSettlementExcelDocument({
-          settlementData: printSettlementData,
-          referenceNo: printReferenceNo,
-          approved: true,
-          transactions: localTransactions,
-          headerColor: appearance?.primaryColor,
-        });
-        console.log('[AdminDashboard] Excel listo:', excelFile.fileName);
-        setStepState('generating_doc', 'done', excelFile.fileName);
-      } catch (genErr) {
-        docError = genErr instanceof Error ? genErr.message : String(genErr);
-        console.warn('[AdminDashboard] Error al generar Excel de cierre:', genErr);
-        setStepState('generating_doc', 'error', docError);
-      }
-
-      // 3) Send email (best-effort).
-      setStepState('sending_doc', 'active');
-      if (excelFile) {
+      // Excel + mail are opt-in (`KIOSK_SETTLEMENT_EXCEL_MAIL=true`).
+      // When off, those steps are omitted from the wizard (not shown as skipped).
+      if (excelMailEnabled) {
+        setStepState('generating_doc', 'active');
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
         try {
-          const mailResult = await sendSettlementExcelDocument({
+          console.log('[AdminDashboard] Generando Excel de cierre…');
+          excelFile = await generateSettlementExcelDocument({
             settlementData: printSettlementData,
             referenceNo: printReferenceNo,
             approved: true,
             transactions: localTransactions,
             headerColor: appearance?.primaryColor,
-            path: excelFile.path,
-            fileName: excelFile.fileName,
           });
-          mailSent = true;
-          setStepState('sending_doc', 'done', mailResult.to);
-          console.log('[AdminDashboard] Cierre enviado por correo:', mailResult);
-        } catch (mailErr) {
-          mailError = mailErr instanceof Error ? mailErr.message : String(mailErr);
-          console.warn('[AdminDashboard] Error al enviar correo de cierre:', mailErr);
-          setStepState('sending_doc', 'error', mailError);
+          console.log('[AdminDashboard] Excel listo:', excelFile.fileName);
+          setStepState('generating_doc', 'done', excelFile.fileName);
+        } catch (genErr) {
+          docError = genErr instanceof Error ? genErr.message : String(genErr);
+          console.warn('[AdminDashboard] Error al generar Excel de cierre:', genErr);
+          setStepState('generating_doc', 'error', docError);
         }
-      } else {
-        setStepState(
-          'sending_doc',
-          'skipped',
-          'Sin documento para enviar',
-        );
+
+        setStepState('sending_doc', 'active');
+        if (excelFile) {
+          try {
+            const mailResult = await sendSettlementExcelDocument({
+              settlementData: printSettlementData,
+              referenceNo: printReferenceNo,
+              approved: true,
+              transactions: localTransactions,
+              headerColor: appearance?.primaryColor,
+              path: excelFile.path,
+              fileName: excelFile.fileName,
+            });
+            mailSent = true;
+            setStepState('sending_doc', 'done', mailResult.to);
+            console.log('[AdminDashboard] Cierre enviado por correo:', mailResult);
+          } catch (mailErr) {
+            mailError = mailErr instanceof Error ? mailErr.message : String(mailErr);
+            console.warn('[AdminDashboard] Error al enviar correo de cierre:', mailErr);
+            setStepState('sending_doc', 'error', mailError);
+          }
+        } else {
+          setStepState('sending_doc', 'skipped', 'Sin documento para enviar');
+        }
       }
 
-      if (mailSent && printSuccess) {
+      if (!excelMailEnabled) {
+        if (printSuccess) {
+          showStatus('Cierre de lote realizado e impreso con éxito.', 'success');
+        } else {
+          showStatus(
+            formatUserFacingError(
+              'El cierre se confirmó en el datáfono, pero no se pudo imprimir el ticket. Revisa la impresora.',
+            ),
+            'error',
+          );
+        }
+      } else if (mailSent && printSuccess) {
         showStatus('Cierre de lote realizado, enviado por correo e impreso con éxito.', 'success');
       } else if (printSuccess && !mailSent) {
         showStatus(
@@ -590,9 +666,9 @@ export function AdminDashboardScreen({
 
           {showCloseProgress ? (
             <View style={styles.progressBox} testID="admin-close-progress">
-              <Text style={styles.progressTitle}>Progreso del cierre</Text>
+              <Text style={styles.progressTitle}>{t('adminDashboard.progressTitle')}</Text>
               {closeSteps.map((step, index) => (
-                <View key={step.id} style={styles.stepRow}>
+                <View key={step.id} style={styles.stepRow} testID={`admin-close-step-${step.id}`}>
                   {renderStepMarker(step, index)}
                   <View style={styles.stepTextCol}>
                     <Text
@@ -638,9 +714,17 @@ export function AdminDashboardScreen({
 
       <KioskConfirmModal
         visible={confirmCloseVisible}
-        title="Cierre de lote"
-        message="Se enviará el cierre al datáfono, se imprimirá el ticket y se generará el documento para correo. ¿Confirmar?"
-        confirmLabel={loading ? 'Procesando…' : 'Confirmar'}
+        title={t('adminDashboard.confirmTitle')}
+        message={
+          printsFiscalZ
+            ? excelMailEnabled
+              ? t('adminDashboard.confirmFiscalWithMail')
+              : t('adminDashboard.confirmFiscal')
+            : excelMailEnabled
+              ? t('adminDashboard.confirmWithMail')
+              : t('adminDashboard.confirm')
+        }
+        confirmLabel={loading ? t('adminDashboard.confirmProcessing') : t('adminDashboard.confirmButton')}
         busy={loading}
         onCancel={() => setConfirmCloseVisible(false)}
         onConfirm={() => {

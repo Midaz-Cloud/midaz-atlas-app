@@ -14,8 +14,11 @@ import {
 import type { OrderProcessingPhase, ProcessKioskOrderResult } from '../types';
 import type { PaymentMethodId } from '../../types';
 
-function initialProcessingPhase(declaresTaxes: boolean): OrderProcessingPhase {
-  return shouldEmitFiscalInvoice(declaresTaxes) ? 'fiscal' : 'registering';
+function initialProcessingPhase(
+  declaresTaxes: boolean,
+  paymentMethodId?: PaymentMethodId,
+): OrderProcessingPhase {
+  return shouldEmitFiscalInvoice(declaresTaxes, paymentMethodId) ? 'fiscal' : 'registering';
 }
 
 export type UseOrderProcessingParams = {
@@ -48,7 +51,7 @@ export function useOrderProcessing({ enabled, onComplete }: UseOrderProcessingPa
     organization?.declaresTaxes ?? runtimeConfig?.raw.organization.declaresTaxes,
   );
   const [phase, setPhase] = useState<OrderProcessingPhase>(() =>
-    initialProcessingPhase(declaresTaxes),
+    initialProcessingPhase(declaresTaxes, paymentMethodId as PaymentMethodId | undefined),
   );
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
@@ -92,7 +95,7 @@ export function useOrderProcessing({ enabled, onComplete }: UseOrderProcessingPa
     }
 
     let cancelled = false;
-    setPhase(initialProcessingPhase(declaresTaxes));
+    setPhase(initialProcessingPhase(declaresTaxes, paramsRef.current?.paymentMethodId));
 
     void (async () => {
       const params = paramsRef.current;

@@ -132,4 +132,71 @@ describe('HttpFiscalClient', () => {
       }),
     ).rejects.toMatchObject({ message: 'rif es obligatorio', httpStatus: 400 });
   });
+
+  const zBody = {
+    success: true,
+    apiVersion: '1',
+    serviceVersion: '0.01.0',
+    data: {
+      fecha: '17/08/2026 14:00:00',
+      coo: '2616',
+      fiscalMachineSerial: 'AF910-LIVE-001',
+    },
+    message: 'OK',
+    error: null,
+  };
+
+  it('POSTs /v1/reports/z to print Z', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => zBody,
+    });
+
+    const client = new HttpFiscalClient();
+    const result = await client.printZReport();
+
+    expect(result.envelope.data?.coo).toBe('2616');
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:8765/v1/reports/z',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('GETs /v1/reports/z to read last Z without printing', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => zBody,
+    });
+
+    const client = new HttpFiscalClient();
+    await client.readLastZReport();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:8765/v1/reports/z',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('throws FiscalServiceError with HTTP status on Z 503', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({
+        success: false,
+        apiVersion: '1',
+        serviceVersion: '0.01.0',
+        data: null,
+        message: 'No se pudo imprimir Z',
+        error: 'printer busy',
+      }),
+    });
+
+    const client = new HttpFiscalClient();
+    await expect(client.printZReport()).rejects.toMatchObject({
+      httpStatus: 503,
+      message: 'printer busy',
+    });
+  });
 });

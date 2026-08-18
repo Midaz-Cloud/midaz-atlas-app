@@ -1,4 +1,4 @@
-import { buildSettlementFromEcr } from '../buildSettlementFromEcr';
+import { buildSettlementFromEcr, toPersistableSettlementRequest } from '../buildSettlementFromEcr';
 
 const POS_CIERRE_EXAMPLE = JSON.stringify({
   success: true,
@@ -63,5 +63,34 @@ describe('buildSettlementFromEcr', () => {
     expect(result.ok).toBe(false);
     expect(result.request?.success).toBe(false);
     expect(result.request?.posSerial).toBe('N620W322141');
+  });
+
+  it('persists salvaged USB fields when structured parse fails', () => {
+    const parsed = buildSettlementFromEcr('not-json', {
+      posSerialFallback: '00000000',
+    });
+    const persist = toPersistableSettlementRequest(parsed, {
+      referenceNo: 'REF-1787018394386',
+      settlementData: {
+        responseCode: '00',
+        responseMessage: 'APPROVED',
+        deviceSerial: 'N620W322141',
+        DebitBatchNo: '000002',
+        CreditBatchNo: '000019',
+      },
+    });
+
+    expect(parsed.ok).toBe(false);
+    expect(persist?.success).toBe(true);
+    expect(persist?.settlementId).toBe('REF-1787018394386');
+    expect(persist?.posSerial).toBe('N620W322141');
+    expect(persist?.settlementData?.deviceSerial).toBe('N620W322141');
+  });
+
+  it('does not persist a success:false parse stub', () => {
+    const parsed = buildSettlementFromEcr('not-json', {
+      posSerialFallback: '00000000',
+    });
+    expect(toPersistableSettlementRequest(parsed)).toBeUndefined();
   });
 });

@@ -7,6 +7,7 @@ export {
   getKioskUploadsBaseUrl,
   getKioskDeviceSerialOverride,
   getKioskAdminPasscode,
+  getKioskTrackBaseUrl,
   getKioskPosTestChargeVes,
   getKioskApiUrl,
   KIOSK_DEMO_SERIAL,
@@ -37,5 +38,5 @@ export {
   shouldUseMockFiscal,
   getFiscalServiceBaseUrl,
 } from './fiscal';
-export { getKioskMailConfig } from './mail';
+export { getKioskMailConfig, shouldSendSettlementExcelMail } from './mail';
 export type { KioskMailConfig } from './mail';

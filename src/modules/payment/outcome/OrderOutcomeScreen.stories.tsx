@@ -152,6 +152,8 @@ const meta = {
 
     onCallCashier: fn(),
 
+    onRetryFiscal: fn(),
+
     onSessionComplete: fn(),
 
   },
@@ -249,6 +251,30 @@ export const FiscalErrorEnglish: Story = {
   args: { variant: 'fiscal_error' },
 
   decorators: FiscalErrorSpanish.decorators,
+
+};
+
+
+
+export const TicketPrintFailedSpanish: Story = {
+
+  parameters: { locale: 'es' },
+
+  args: { variant: 'ticket_print_failed', shortCode: 'JSGCHA' },
+
+  decorators: SuccessSpanish.decorators,
+
+};
+
+
+
+export const TicketPrintFailedEnglish: Story = {
+
+  parameters: { locale: 'en' },
+
+  args: { variant: 'ticket_print_failed', shortCode: 'JSGCHA' },
+
+  decorators: SuccessSpanish.decorators,
 
 };
 

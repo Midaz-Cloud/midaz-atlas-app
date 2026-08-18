@@ -67,7 +67,15 @@
       "title": "Fiscal printer error",
       "paymentOk": "Your payment was registered successfully.",
       "askCashier": "Please ask the cashier for your receipt",
-      "callCashier": "Call the cashier"
+      "callCashier": "Call the cashier",
+      "retryFiscal": "Retry fiscal print"
+    },
+    "ticketPrintFailed": {
+      "title": "Order confirmed!",
+      "ticketFailed": "The customer receipt could not be printed.",
+      "orderRegistered": "Your order is registered: {{shortCode}}",
+      "pickupInstructions": "Pick up your order when you see your number on the screen.",
+      "orderLabel": "Your order number"
     },
     "digitalTicket": {
       "title": "Your digital receipt",

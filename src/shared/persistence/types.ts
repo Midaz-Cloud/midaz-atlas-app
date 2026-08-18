@@ -1,6 +1,9 @@
 /** Failed-payment persistence types (SQLite registry for admin). */
 
-import type { CardPaymentPayload } from '@shared/kiosk-order/types';
+import type {
+  CardPaymentPayload,
+  MobilePaymentPayload,
+} from '@shared/kiosk-order/types';
 import type { KioskOrderModifierSelection } from '@shared/api/kiosk/types';
 
 export type FailedPaymentStage =
@@ -43,6 +46,11 @@ export type FailedPaymentOrderSnapshot = {
   reservationId?: string | null;
   orderType?: string;
   tableNumber?: string | null;
+  /** Midaz display number when POST /kiosk/orders already succeeded. */
+  displayOrderNumber?: string;
+  shortCode?: string | null;
+  /** HkaApp number already printed — retry must not re-emit. */
+  fiscalInvoiceNumber?: number;
 };
 
 export type FailedPaymentMethodSnapshot = {
@@ -55,6 +63,8 @@ export type FailedPaymentMethodSnapshot = {
   phone?: string;
   /** Full POS payload when available — lets an order retry re-POST as charged. */
   cardPayment?: CardPaymentPayload;
+  /** Pago móvil already validated — retry must not re-validate or re-charge. */
+  mobilePayment?: MobilePaymentPayload;
 };
 
 export type FailedPaymentInput = {

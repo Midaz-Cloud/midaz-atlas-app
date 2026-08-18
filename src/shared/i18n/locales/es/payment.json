@@ -67,7 +67,15 @@
       "title": "Error en la impresora fiscal",
       "paymentOk": "Tu pago fue registrado con éxito.",
       "askCashier": "Por favor, solicita tu ticket al cajero",
-      "callCashier": "Llamar al cajero"
+      "callCashier": "Llamar al cajero",
+      "retryFiscal": "Reintentar impresión fiscal"
+    },
+    "ticketPrintFailed": {
+      "title": "¡Pedido confirmado!",
+      "ticketFailed": "No se pudo imprimir el ticket de cliente.",
+      "orderRegistered": "Tu pedido está registrado: {{shortCode}}",
+      "pickupInstructions": "Retira tu pedido cuando veas tu número en pantalla.",
+      "orderLabel": "Tu número de pedido"
     },
     "digitalTicket": {
       "title": "Tu ticket digital",

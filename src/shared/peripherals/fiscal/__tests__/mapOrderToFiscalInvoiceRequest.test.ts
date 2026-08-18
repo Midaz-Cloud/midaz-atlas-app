@@ -40,6 +40,21 @@ describe('shouldEmitFiscalInvoice', () => {
     expect(shouldEmitFiscalInvoice('true')).toBe(true);
     expect(shouldEmitFiscalInvoice('false')).toBe(false);
   });
+
+  it('returns false for cash even when declaresTaxes is active', () => {
+    expect(shouldEmitFiscalInvoice(true, 'cash')).toBe(false);
+    expect(shouldEmitFiscalInvoice(true, 'efectivo_ves')).toBe(false);
+    expect(shouldEmitFiscalInvoice(true, 'efectivo_usd')).toBe(false);
+    expect(shouldEmitFiscalInvoice(true, 'efectivo')).toBe(false);
+  });
+
+  it('returns true for kiosk-collected methods when declaresTaxes is active', () => {
+    expect(shouldEmitFiscalInvoice(true, 'pos')).toBe(true);
+    expect(shouldEmitFiscalInvoice(true, 'debito')).toBe(true);
+    expect(shouldEmitFiscalInvoice(true, 'credito')).toBe(true);
+    expect(shouldEmitFiscalInvoice(true, 'mobile')).toBe(true);
+    expect(shouldEmitFiscalInvoice(true, 'pago_movil')).toBe(true);
+  });
 });
 
 describe('mapPaymentMethodToFiscalCode', () => {
@@ -85,6 +100,19 @@ describe('mapOrderToFiscalInvoiceRequest', () => {
         customerName: 'Juan Perez',
         usdToVesRate: 40,
         declaresTaxes: false,
+      }),
+    ).toBeNull();
+  });
+
+  it('returns null for cash even when declaresTaxes is true', () => {
+    expect(
+      mapOrderToFiscalInvoiceRequest({
+        lines: [sampleLine],
+        customerDocumentId: 'V12345678',
+        customerName: 'Juan Perez',
+        paymentMethodId: 'cash',
+        usdToVesRate: 40,
+        declaresTaxes: true,
       }),
     ).toBeNull();
   });

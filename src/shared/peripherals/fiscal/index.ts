@@ -8,6 +8,8 @@ export type {
   EmitFiscalInvoiceRequest,
   EmitFiscalInvoiceData,
   EmitFiscalInvoiceResult,
+  FiscalZReportData,
+  FiscalZReportResult,
 } from './types';
 export type { FiscalClient } from './FiscalClient';
 export { FiscalServiceError } from './FiscalServiceError';
@@ -37,3 +39,8 @@ export {
   parseFiscalHealthEnvelope,
 } from './parseFiscalHealthResponse';
 export { parseFiscalEmitEnvelope } from './parseFiscalEmitResponse';
+export {
+  parseFiscalZReportData,
+  parseFiscalZReportEnvelope,
+  toKioskZReportBody,
+} from './parseFiscalZReportResponse';

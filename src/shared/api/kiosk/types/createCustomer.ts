@@ -1,4 +1,4 @@
-/** Body de `POST /customers` según guía kiosco. */
+/** Body de `POST /kiosk/customers` (mismo contrato que POST /customers). */
 export type CreateCustomerRequestApi = {
   typeIdentification: string;
   identificationNumber: string;

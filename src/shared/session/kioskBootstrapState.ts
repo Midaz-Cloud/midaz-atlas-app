@@ -2,6 +2,7 @@ import type { PaymentMethodApi } from '@shared/api/kiosk';
 import { resolveKioskImageUrl } from '@shared/api/kiosk';
 import type { KioskConfigResponse, KioskAppearanceTranslation } from '@shared/api/kiosk';
 import { parseDeclaresTaxes } from '@shared/api/kiosk/utils/declaresTaxes';
+import { resolveEffectiveInvoicingType } from '@shared/api/kiosk/utils/invoicingType';
 import { mapConfigToRuntime, type KioskRuntimeConfig } from '@shared/api/kiosk/mappers/config';
 import { resolveKioskLanguagePolicy } from '@shared/i18n/resolveKioskLanguagePolicy';
 
@@ -29,6 +30,9 @@ export type KioskOrganizationState = {
   rif: string;
   logoUrl: string | null;
   declaresTaxes: boolean;
+  invoicingType: string | null;
+  kioskInvoicingType: string | null;
+  effectiveInvoicingType: string | null;
 };
 
 export type KioskOperationalState = {
@@ -99,6 +103,12 @@ export function buildBootstrapSnapshot(
       rif: config.organization.rif,
       logoUrl: resolveKioskImageUrl(config.organization.logo),
       declaresTaxes: parseDeclaresTaxes(config.organization.declaresTaxes),
+      invoicingType: config.organization.invoicingType ?? null,
+      kioskInvoicingType: config.kioskInvoicingType ?? null,
+      effectiveInvoicingType: resolveEffectiveInvoicingType(
+        config.kioskInvoicingType,
+        config.organization.invoicingType,
+      ),
     },
     operational: {
       foodServiceEnabled: runtime.foodServiceEnabled,

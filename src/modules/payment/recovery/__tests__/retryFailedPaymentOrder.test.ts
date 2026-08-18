@@ -107,7 +107,7 @@ describe('retryFailedPaymentOrder', () => {
       organizationName: 'Test Org',
     });
 
-    expect(result).toEqual({ ok: true, displayOrderNumber: 'ORD-777' });
+    expect(result).toMatchObject({ ok: true, displayOrderNumber: 'ORD-777' });
     expect(mockCreateOrder).toHaveBeenCalledTimes(1);
     expect(mockEmitOrderFiscalInvoice).not.toHaveBeenCalled();
     expect(mockPrintOrderTicket).toHaveBeenCalledTimes(1);
@@ -140,7 +140,7 @@ describe('retryFailedPaymentOrder', () => {
 
     const result = await retryFailedPaymentOrder({ id, declaresTaxes: false });
 
-    expect(result).toEqual({ ok: true, displayOrderNumber: 'ORD-888' });
+    expect(result).toMatchObject({ ok: true, displayOrderNumber: 'ORD-888' });
     expect(mockPrintOrderTicket).toHaveBeenCalledTimes(1);
     expect(mockCreateOrder).toHaveBeenCalledTimes(1);
     expect(mockCreateOrder.mock.calls[0][0].posResponse.amount).toBe(
@@ -178,6 +178,20 @@ describe('retryFailedPaymentOrder', () => {
     expect(mockEmitOrderFiscalInvoice).toHaveBeenCalledTimes(1);
     expect(mockCreateOrder).toHaveBeenCalledTimes(1);
     expect(mockPrintOrderTicket).toHaveBeenCalledTimes(1);
+  });
+
+  it('no re-emite HkaApp si la fila ya tiene fiscalInvoiceNumber', async () => {
+    const fixture = FALLIDAS_2026_08_01[1];
+    const row = failedRowFor(fixture.raw, fixture.amountCents / 100);
+    row.order = { ...row.order!, fiscalInvoiceNumber: 77 };
+    const id = await recordFailedPayment(row);
+    mockCreateOrder.mockResolvedValueOnce({ displayOrderNumber: 'ORD-RETRY' });
+
+    const result = await retryFailedPaymentOrder({ id, declaresTaxes: true });
+    expect(result.ok).toBe(true);
+    expect(mockEmitOrderFiscalInvoice).not.toHaveBeenCalled();
+    expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+    expect(mockCreateOrder.mock.calls[0][0].fiscalInvoiceNumber).toBe(77);
   });
 
   it('si el POST falla queda retry_failed y no se re-dispara sola', async () => {
@@ -256,5 +270,78 @@ describe('retryFailedPaymentOrder', () => {
         rawJson: null,
       }),
     ).toBe('low');
+  });
+
+  it('fiscal_error row: re-emits HkaApp and POSTs order without a second POS charge', async () => {
+    const fixture = FALLIDAS_2026_08_01[0];
+    const row = failedRowFor(fixture.raw, fixture.amountCents / 100);
+    row.stage = 'fiscal';
+    row.errorReason = 'fiscal_error';
+    row.errorMessage = 'Error al emitir factura fiscal';
+    const id = await recordFailedPayment(row);
+    mockCreateOrder.mockResolvedValueOnce({
+      displayOrderNumber: 'ORD-FISCAL',
+      shortCode: 'FISC01',
+    });
+
+    const result = await retryFailedPaymentOrder({ id, declaresTaxes: true });
+
+    expect(result).toMatchObject({
+      ok: true,
+      displayOrderNumber: 'ORD-FISCAL',
+      shortCode: 'FISC01',
+    });
+    expect(mockEmitOrderFiscalInvoice).toHaveBeenCalledTimes(1);
+    expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+    expect(mockPrintOrderTicket).toHaveBeenCalledTimes(1);
+    expect(await getFailedPayment(id)).toBeNull();
+  });
+
+  it('fiscal emit fail stays retry_failed so the operator can tap retry again', async () => {
+    const fixture = FALLIDAS_2026_08_01[0];
+    const row = failedRowFor(fixture.raw, fixture.amountCents / 100);
+    row.stage = 'fiscal';
+    row.errorReason = 'fiscal_error';
+    const id = await recordFailedPayment(row);
+    mockEmitOrderFiscalInvoice.mockRejectedValueOnce(new Error('HKA offline'));
+
+    const first = await retryFailedPaymentOrder({ id, declaresTaxes: true });
+    expect(first.ok).toBe(false);
+    if (!first.ok) {
+      expect(first.reason).toBe('fiscal_failed');
+    }
+    expect(mockCreateOrder).not.toHaveBeenCalled();
+    expect((await getFailedPayment(id))?.status).toBe('retry_failed');
+
+    mockEmitOrderFiscalInvoice.mockResolvedValueOnce({ issuedInvoiceNumber: 12 });
+    mockCreateOrder.mockResolvedValueOnce({ displayOrderNumber: 'ORD-RETRY2' });
+    const second = await retryFailedPaymentOrder({ id, declaresTaxes: true });
+    expect(second).toMatchObject({ ok: true, displayOrderNumber: 'ORD-RETRY2' });
+    expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it('if Midaz order already exists, only emits fiscal and does not POST again', async () => {
+    const fixture = FALLIDAS_2026_08_01[1];
+    const row = failedRowFor(fixture.raw, fixture.amountCents / 100);
+    row.stage = 'fiscal';
+    row.order = {
+      ...row.order!,
+      displayOrderNumber: 'ORD-EXISTING',
+      shortCode: 'EXIST1',
+    };
+    const id = await recordFailedPayment(row);
+
+    const result = await retryFailedPaymentOrder({ id, declaresTaxes: true });
+    expect(result).toMatchObject({
+      ok: true,
+      displayOrderNumber: 'ORD-EXISTING',
+      shortCode: 'EXIST1',
+    });
+    expect(mockEmitOrderFiscalInvoice).toHaveBeenCalledTimes(1);
+    expect(mockCreateOrder).not.toHaveBeenCalled();
+    expect(mockPrintOrderTicket).toHaveBeenCalledWith(
+      expect.objectContaining({ displayOrderNumber: 'ORD-EXISTING' }),
+    );
+    expect(await getFailedPayment(id)).toBeNull();
   });
 });

@@ -88,7 +88,8 @@ export type BuildSettlementFromEcrResult =
   | { ok: false; message: string; request?: KioskSettlementRequest };
 
 /**
- * Maps POS settlement USB payload to POST /api/pos/settlements (QA: base /apis + /api/pos/settlements).
+ * Maps POS settlement USB payload for POST /kiosk/settlement
+ * (gateway → notifications `/api/pos/settlements`).
  */
 export function buildSettlementFromEcr(
   rawEcrResponse: string,
@@ -155,4 +156,35 @@ export function buildSettlementFromEcr(
   }
 
   return { ok: true, request, flat };
+}
+
+/**
+ * Request to persist in Midaz. Uses the structured parse when it is approved;
+ * otherwise the salvaged USB fields. Never posts a `success: false` stub —
+ * those 404/400 and leave the cierre unsaved while the ticket still prints.
+ */
+export function toPersistableSettlementRequest(
+  result: BuildSettlementFromEcrResult,
+  salvaged?: { settlementData: KioskSettlementData; referenceNo?: string } | null,
+): KioskSettlementRequest | undefined {
+  if (result.ok && result.request.settlementData?.deviceSerial?.trim()) {
+    return result.request;
+  }
+
+  const data = salvaged?.settlementData;
+  const serial = data?.deviceSerial?.trim();
+  if (!data || !serial) {
+    return undefined;
+  }
+
+  return {
+    settlementId:
+      salvaged?.referenceNo ??
+      data.referenceNumber ??
+      `SETTLEMENT-${Date.now()}`,
+    success: true,
+    timestamp: new Date().toISOString(),
+    posSerial: serial,
+    settlementData: data,
+  };
 }

@@ -15,7 +15,7 @@ function joinCustomerNameParts(...parts: string[]): string {
 }
 
 /**
- * POST /customers (guía UPDATE-4):
+ * POST /kiosk/customers (mismo body que POST /customers):
  * - `name`: nombre completo (nombres + apellidos) — es lo que muestra la org.
  * - `billingName`: apellidos (nombre fiscal).
  */

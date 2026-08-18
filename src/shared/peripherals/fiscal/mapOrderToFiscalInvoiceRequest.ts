@@ -373,9 +373,57 @@ function mapCartLineToFiscalLines(
 
 
 
-export function shouldEmitFiscalInvoice(declaresTaxes?: unknown): boolean {
+export function shouldEmitFiscalInvoice(
 
-  return parseDeclaresTaxes(declaresTaxes);
+  declaresTaxes?: unknown,
+
+  paymentMethod?: unknown,
+
+): boolean {
+
+  if (!parseDeclaresTaxes(declaresTaxes)) {
+
+    return false;
+
+  }
+
+  if (paymentMethod == null || paymentMethod === '') {
+
+    return true;
+
+  }
+
+  const method = String(paymentMethod).toLowerCase();
+
+  if (
+
+    method === 'cash' ||
+
+    method === 'efectivo' ||
+
+    method === 'efectivo_ves' ||
+
+    method === 'efectivo_usd'
+
+  ) {
+
+    return false;
+
+  }
+
+  return (
+
+    method === 'pos' ||
+
+    method === 'debito' ||
+
+    method === 'credito' ||
+
+    method === 'mobile' ||
+
+    method === 'pago_movil'
+
+  );
 
 }
 
@@ -387,7 +435,7 @@ export function mapOrderToFiscalInvoiceRequest(
 
 ): EmitFiscalInvoiceRequest | null {
 
-  if (!shouldEmitFiscalInvoice(params.declaresTaxes)) {
+  if (!shouldEmitFiscalInvoice(params.declaresTaxes, params.paymentMethodId)) {
 
     return null;
 

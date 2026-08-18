@@ -7,7 +7,12 @@ import {
   mapCartToCreateOrderRequest,
 } from '@shared/api/kiosk';
 import { buildPosPaymentFromEcr } from '@shared/api/kiosk/mappers/cardPaymentFromEcr';
-import type { CardPaymentPayload, CartLine, OrderTotals } from '@shared/kiosk-order/types';
+import type {
+  CardPaymentPayload,
+  CartLine,
+  MobilePaymentPayload,
+  OrderTotals,
+} from '@shared/kiosk-order/types';
 import { defaultOrderFiscalConfig } from '@shared/kiosk-order';
 import {
   emitOrderFiscalInvoice,
@@ -180,6 +185,7 @@ export type RetryFailedPaymentOrderResult =
   | {
       ok: true;
       displayOrderNumber: string;
+      shortCode?: string | null;
       /** Present when the order was registered but ticket print failed. */
       printWarning?: string;
     }
@@ -195,7 +201,33 @@ export type RetryFailedPaymentOrderResult =
       message?: string;
     };
 
-/** Whether the admin UI should offer "Reintentar" for this row. */
+function resolveMobilePayload(
+  record: FailedPaymentRecord,
+): MobilePaymentPayload | null {
+  return record.payment?.mobilePayment ?? null;
+}
+
+function existingRegisteredOrderNumber(
+  record: FailedPaymentRecord,
+): string | null {
+  const value = record.order?.displayOrderNumber?.trim();
+  return value ? value : null;
+}
+
+function hasRetryablePaymentEvidence(record: FailedPaymentRecord): boolean {
+  if (existingRegisteredOrderNumber(record)) {
+    return true;
+  }
+  if (resolveRetryPayload(record) != null) {
+    return true;
+  }
+  if (resolveMobilePayload(record) != null) {
+    return true;
+  }
+  return record.paymentMethod === 'zelle';
+}
+
+/** Whether the admin / kiosk UI should offer "Reintentar" for this row. */
 export function canRetryFailedPaymentOrder(
   record: FailedPaymentRecord,
 ): boolean {
@@ -205,7 +237,7 @@ export function canRetryFailedPaymentOrder(
   if (!(record.order?.lines?.length)) {
     return false;
   }
-  return resolveRetryPayload(record) != null;
+  return hasRetryablePaymentEvidence(record);
 }
 
 export type RetryFailedPaymentOrderParams = {
@@ -240,13 +272,9 @@ export async function retryFailedPaymentOrder(
   }
 
   const payload = resolveRetryPayload(record);
-  if (!payload) {
-    return {
-      ok: false,
-      reason: 'not_eligible',
-      message: 'No hay payload POS reconstruible para esta fila',
-    };
-  }
+  const mobilePayload = resolveMobilePayload(record);
+  const existingOrderNumber = existingRegisteredOrderNumber(record);
+  const existingShortCode = record.order?.shortCode?.trim() || null;
   const lines = rebuildCartLines(record);
   if (lines.length === 0) {
     return {
@@ -257,25 +285,44 @@ export async function retryFailedPaymentOrder(
   }
 
   const paymentMethodId = (record.paymentMethod ?? 'pos') as PaymentMethodId;
+  if (!hasRetryablePaymentEvidence(record)) {
+    return {
+      ok: false,
+      reason: 'not_eligible',
+      message: 'No hay payload de pago reconstruible para esta fila',
+    };
+  }
+
   const orderType = record.order?.orderType as OrderType | undefined;
   const tableNumber = record.order?.tableNumber ?? undefined;
   const totals = rebuildOrderTotals(record);
   const usdToVesRate =
     params.usdToVesRate ?? defaultOrderFiscalConfig.usdToVesRate;
+  const existingFiscalInvoiceNumber =
+    record.order?.fiscalInvoiceNumber != null &&
+    Number.isInteger(record.order.fiscalInvoiceNumber) &&
+    record.order.fiscalInvoiceNumber > 0
+      ? record.order.fiscalInvoiceNumber
+      : undefined;
 
   // Build (pure) before taking the row: catalog gaps must not consume the arm.
-  const request = mapCartToCreateOrderRequest({
-    lines,
-    orderType,
-    tableNumber,
-    paymentMethodId,
-    customerId: record.customer?.customerId,
-    cardPayment: payload,
-    declaresTaxes: params.declaresTaxes,
-    // Original reservation is long expired; sending it would 400.
-    reservationId: null,
-  });
-  if (request.items.length !== lines.length) {
+  // Skip POST when Midaz already has the order — only re-emit fiscal + ticket.
+  const request = existingOrderNumber
+    ? null
+    : mapCartToCreateOrderRequest({
+        lines,
+        orderType,
+        tableNumber,
+        paymentMethodId,
+        customerId: record.customer?.customerId,
+        cardPayment: payload,
+        mobilePayment: mobilePayload,
+        declaresTaxes: params.declaresTaxes,
+        // Original reservation is long expired; sending it would 400.
+        reservationId: null,
+        fiscalInvoiceNumber: existingFiscalInvoiceNumber,
+      });
+  if (request && request.items.length !== lines.length) {
     return {
       ok: false,
       reason: 'catalog_mismatch',
@@ -290,20 +337,42 @@ export async function retryFailedPaymentOrder(
     return { ok: false, reason: 'already_taken' };
   }
 
+  const persistRetryFailure = async (message: string) => {
+    await updateFailedPaymentStatus(record.id, 'retry_failed', {
+      expectedStatus: 'retry_pending',
+      salvage: {
+        ...(record.salvage ?? {}),
+        ...(payload ? { payload } : {}),
+        retryError: message,
+      },
+    });
+  };
+
   try {
-    // 1) Fiscal (same gate as processKioskOrder)
-    if (shouldEmitFiscalInvoice(params.declaresTaxes)) {
+    // 1) Fiscal (same gate as processKioskOrder). Skip HkaApp if PP9+ already printed.
+    let issuedFiscalInvoiceNumber = existingFiscalInvoiceNumber;
+    if (
+      existingFiscalInvoiceNumber == null &&
+      shouldEmitFiscalInvoice(params.declaresTaxes, paymentMethodId)
+    ) {
       try {
-        await emitOrderFiscalInvoice({
+        const fiscalResult = await emitOrderFiscalInvoice({
           lines,
           customerDocumentId: record.customer?.documentId ?? '',
           customerName: customerDisplayName(record),
           paymentMethodId,
-          cardPayment: payload,
+          cardPayment: payload ?? undefined,
           primaryCurrency: params.primaryCurrency,
           usdToVesRate,
           declaresTaxes: params.declaresTaxes,
         });
+        const issued = fiscalResult?.issuedInvoiceNumber;
+        if (issued != null && issued > 0) {
+          issuedFiscalInvoiceNumber = issued;
+          if (request) {
+            request.fiscalInvoiceNumber = issued;
+          }
+        }
       } catch (error) {
         const message =
           error instanceof FiscalServiceError
@@ -311,20 +380,29 @@ export async function retryFailedPaymentOrder(
             : error instanceof Error
               ? error.message
               : 'Error al emitir la factura fiscal';
-        await updateFailedPaymentStatus(record.id, 'retry_failed', {
-          expectedStatus: 'retry_pending',
-          salvage: { ...(record.salvage ?? {}), payload, retryError: message },
-        });
+        await persistRetryFailure(message);
         return { ok: false, reason: 'fiscal_failed', message };
       }
     }
 
-    // 2) Register order
-    const token = await loadAccessToken();
-    const client = createKioskApiClient(token ?? undefined);
-    const response = await client.createOrder(request);
-    const displayOrderNumber = response.displayOrderNumber;
-    const fromShortCode = response.shortCode?.trim() || null;
+    // 2) Register order only when Midaz does not already have it.
+    // No PATCH for fiscalInvoiceNumber exists on the kiosk API.
+    let displayOrderNumber = existingOrderNumber ?? '';
+    let fromShortCode = existingShortCode;
+    if (request) {
+      const token = await loadAccessToken();
+      const client = createKioskApiClient(token ?? undefined);
+      const response = await client.createOrder(request);
+      displayOrderNumber = response.displayOrderNumber;
+      fromShortCode = response.shortCode?.trim() || null;
+    } else if (__DEV__ && issuedFiscalInvoiceNumber != null) {
+      console.info(
+        '[retryFailedPaymentOrder] skipped createOrder; order already exists',
+        `displayOrderNumber=${displayOrderNumber}`,
+        `fiscalInvoiceNumber=${issuedFiscalInvoiceNumber}`,
+      );
+    }
+
     const shouldPrintQr =
       Boolean(params.printQrEnabled) &&
       paymentMethodId !== 'cash' &&
@@ -349,7 +427,7 @@ export async function retryFailedPaymentOrder(
         trackShortCode: shouldPrintQr ? fromShortCode : null,
         declaresTaxes: params.declaresTaxes,
       });
-      return { ok: true, displayOrderNumber };
+      return { ok: true, displayOrderNumber, shortCode: fromShortCode };
     } catch (error) {
       if (__DEV__) {
         console.warn('[retryFailedPaymentOrder] printOrderTicket failed', error);
@@ -358,14 +436,16 @@ export async function retryFailedPaymentOrder(
         error instanceof OrderPrintError
           ? error.message
           : 'La orden se registró pero no se pudo imprimir el comprobante';
-      return { ok: true, displayOrderNumber, printWarning };
+      return {
+        ok: true,
+        displayOrderNumber,
+        shortCode: fromShortCode,
+        printWarning,
+      };
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await updateFailedPaymentStatus(record.id, 'retry_failed', {
-      expectedStatus: 'retry_pending',
-      salvage: { ...(record.salvage ?? {}), payload, retryError: message },
-    });
+    await persistRetryFailure(message);
     return { ok: false, reason: 'request_failed', message };
   }
 }

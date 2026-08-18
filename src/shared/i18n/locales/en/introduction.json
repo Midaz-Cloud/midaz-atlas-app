@@ -18,5 +18,22 @@
     "subtitle": "Select your preference",
     "dineIn": "Dine in",
     "takeOut": "Take out"
+  },
+  "adminDashboard": {
+    "progressTitle": "Settlement progress",
+    "confirmTitle": "Batch settlement",
+    "confirmButton": "Confirm",
+    "confirmProcessing": "Processing…",
+    "confirmFiscalWithMail": "The POS will close the batch, the fiscal printer will print report Z, the thermal ticket will print, and the document will be emailed. Confirm?",
+    "confirmFiscal": "The POS will close the batch, the fiscal printer will print report Z, and the thermal ticket will print. Confirm?",
+    "confirmWithMail": "The POS will close the batch, the ticket will print, and the document will be emailed. Confirm?",
+    "confirm": "The POS will close the batch and the ticket will print. Confirm?",
+    "steps": {
+      "waitingPos": "Waiting for POS confirmation",
+      "fiscalZ": "Fiscal Z report",
+      "printing": "Printing document",
+      "generatingDoc": "Generating document",
+      "sendingDoc": "Sending document"
+    }
   }
 }

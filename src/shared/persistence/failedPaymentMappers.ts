@@ -61,6 +61,9 @@ export function snapshotOrder(params: {
   reservationId?: string | null;
   orderType?: string;
   tableNumber?: string | null;
+  displayOrderNumber?: string;
+  shortCode?: string | null;
+  fiscalInvoiceNumber?: number;
 }): FailedPaymentOrderSnapshot {
   return {
     lines: params.lines.map((line) => ({
@@ -85,6 +88,13 @@ export function snapshotOrder(params: {
     reservationId: params.reservationId ?? null,
     orderType: params.orderType,
     tableNumber: params.tableNumber ?? null,
+    ...(params.displayOrderNumber?.trim()
+      ? { displayOrderNumber: params.displayOrderNumber.trim() }
+      : {}),
+    ...(params.shortCode?.trim() ? { shortCode: params.shortCode.trim() } : {}),
+    ...(params.fiscalInvoiceNumber != null && params.fiscalInvoiceNumber > 0
+      ? { fiscalInvoiceNumber: params.fiscalInvoiceNumber }
+      : {}),
   };
 }
 
@@ -106,6 +116,7 @@ export function snapshotPayment(params: {
     cedula: params.cardPayment?.cedula ?? params.mobilePayment?.cedula,
     phone: params.cardPayment?.phone ?? params.mobilePayment?.phone,
     ...(params.cardPayment ? { cardPayment: params.cardPayment } : {}),
+    ...(params.mobilePayment ? { mobilePayment: params.mobilePayment } : {}),
   };
 }
 
@@ -130,6 +141,9 @@ export function buildFailedPaymentInput(
     rawJson?: string | null;
     posReference?: string;
     mobileReference?: string;
+    fiscalInvoiceNumber?: number;
+    displayOrderNumber?: string;
+    shortCode?: string | null;
   },
 ): FailedPaymentInput {
   return {
@@ -144,6 +158,9 @@ export function buildFailedPaymentInput(
       reservationId: context.reservationId,
       orderType: context.orderType,
       tableNumber: context.tableNumber,
+      fiscalInvoiceNumber: failure.fiscalInvoiceNumber,
+      displayOrderNumber: failure.displayOrderNumber,
+      shortCode: failure.shortCode,
     }),
     payment: snapshotPayment({
       paymentMethod: context.paymentMethod,

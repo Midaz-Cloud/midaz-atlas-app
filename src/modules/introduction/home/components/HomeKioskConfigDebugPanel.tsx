@@ -208,6 +208,12 @@ export function HomeKioskConfigDebugPanel() {
         <DebugRow label="primaryCurrency" value={raw?.organization?.primaryCurrency} />
         <DebugRow label="declaresTaxes (raw)" value={raw?.organization?.declaresTaxes} />
         <DebugRow label="declaresTaxes (snapshot)" value={snapshot?.organization.declaresTaxes} />
+        <DebugRow label="invoicingType (org)" value={raw?.organization?.invoicingType} />
+        <DebugRow label="kioskInvoicingType" value={raw?.kioskInvoicingType} />
+        <DebugRow
+          label="effectiveInvoicingType"
+          value={snapshot?.organization.effectiveInvoicingType}
+        />
 
         {raw ? (
           <>

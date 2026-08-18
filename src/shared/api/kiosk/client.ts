@@ -11,6 +11,8 @@ import type {
   KioskProductsFetchResult,
   KioskSettlementRequest,
   KioskSettlementResponse,
+  KioskZReportRequest,
+  KioskZReportResponse,
   RegisterKioskCustomerRequest,
   ValidateMobilePaymentRequest,
   ValidateMobilePaymentResponse,
@@ -29,4 +31,5 @@ export interface KioskApiClient {
   registerCustomer(request: RegisterKioskCustomerRequest): Promise<KioskCustomerApi>;
   createOrder(request: CreateKioskOrderRequest): Promise<CreateKioskOrderResponse>;
   submitSettlement(request: KioskSettlementRequest): Promise<KioskSettlementResponse>;
+  submitZReport(request: KioskZReportRequest): Promise<KioskZReportResponse>;
 }

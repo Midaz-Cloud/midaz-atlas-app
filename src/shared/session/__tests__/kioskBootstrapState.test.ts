@@ -34,4 +34,20 @@ describe('buildBootstrapSnapshot', () => {
     expect(snapshot.pricing.exchangeRates?.usd).toBe(36.5);
     expect(snapshot.pricing.usePerLineTax).toBe(true);
   });
+
+  it('resolves effectiveInvoicingType preferring kiosk override', () => {
+    const config = mapLiveConfigToKioskConfigResponse({
+      ...(liveConfigFixture as KioskConfigResponseLive),
+      kioskInvoicingType: 'fiscal_machine',
+      organization: {
+        ...(liveConfigFixture as KioskConfigResponseLive).organization,
+        invoicingType: 'digital_invoicing',
+      },
+    });
+    const snapshot = buildBootstrapSnapshot(config, 'SN-1', 1);
+
+    expect(snapshot.organization.invoicingType).toBe('digital_invoicing');
+    expect(snapshot.organization.kioskInvoicingType).toBe('fiscal_machine');
+    expect(snapshot.organization.effectiveInvoicingType).toBe('fiscal_machine');
+  });
 });

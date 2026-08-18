@@ -14,6 +14,15 @@ export type OrderOutcomeFiscalErrorCopy = {
   paymentOk: string;
   askCashier: string;
   callCashier: string;
+  retryFiscal: string;
+};
+
+export type OrderOutcomeTicketPrintFailedCopy = {
+  title: string;
+  ticketFailed: string;
+  orderRegistered: (shortCode: string) => string;
+  pickupInstructions: string;
+  orderLabel: string;
 };
 
 export type OrderOutcomeDigitalTicketCopy = {
@@ -45,6 +54,19 @@ export function useOrderOutcomeScreen() {
       paymentOk: t('outcome.fiscalError.paymentOk'),
       askCashier: t('outcome.fiscalError.askCashier'),
       callCashier: t('outcome.fiscalError.callCashier'),
+      retryFiscal: t('outcome.fiscalError.retryFiscal'),
+    }),
+    [t],
+  );
+
+  const ticketPrintFailed = useMemo(
+    (): OrderOutcomeTicketPrintFailedCopy => ({
+      title: t('outcome.ticketPrintFailed.title'),
+      ticketFailed: t('outcome.ticketPrintFailed.ticketFailed'),
+      orderRegistered: (shortCode: string) =>
+        t('outcome.ticketPrintFailed.orderRegistered', { shortCode }),
+      pickupInstructions: t('outcome.ticketPrintFailed.pickupInstructions'),
+      orderLabel: t('outcome.ticketPrintFailed.orderLabel'),
     }),
     [t],
   );
@@ -61,5 +83,5 @@ export function useOrderOutcomeScreen() {
     [t],
   );
 
-  return { success, fiscalError, digitalTicket };
+  return { success, fiscalError, ticketPrintFailed, digitalTicket };
 }

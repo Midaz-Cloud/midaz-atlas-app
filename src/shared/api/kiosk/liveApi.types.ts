@@ -40,6 +40,7 @@ export type KioskConfigOrganizationLive = {
   logo: string | null;
   primaryCurrency: string;
   declaresTaxes?: boolean;
+  invoicingType?: string | null;
 };
 
 export type KioskExchangeRatesLive = {
@@ -64,6 +65,7 @@ export type KioskConfigResponseLive = {
   printQrEnabled?: boolean;
   comandaModel?: 'printed' | 'sent';
   enabledPaymentMethods?: string[];
+  kioskInvoicingType?: string | null;
   appearance?: KioskConfigAppearanceLive;
   organization: KioskConfigOrganizationLive;
   pagoMovilAccount?: KioskPagoMovilAccountLive | null;

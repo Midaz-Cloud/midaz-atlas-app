@@ -82,4 +82,40 @@ describe('printOrderTicket', () => {
 
     printSpy.mockRestore();
   });
+
+  it('wraps NO_USB_DEVICE as OrderPrintError with that code', async () => {
+    const { createPrinterClient } = jest.requireMock('../createPrinterClient') as {
+      createPrinterClient: jest.Mock;
+    };
+    const nativeError = Object.assign(new Error('No se encontraron impresoras USB'), {
+      code: 'NO_USB_DEVICE',
+    });
+    const client = {
+      connect: jest.fn().mockRejectedValue(nativeError),
+      disconnect: jest.fn().mockResolvedValue(undefined),
+      printText: jest.fn(),
+    };
+    createPrinterClient.mockReturnValueOnce(client);
+
+    await expect(
+      printOrderTicket({
+        displayOrderNumber: 'ORD-99',
+        lines: [],
+        totals: {
+          subtotalUsd: 1,
+          taxUsd: 0,
+          totalUsd: 1,
+          subtotalVes: 100,
+          taxVes: 0,
+          totalVes: 100,
+        },
+        usdToVesRate: 100,
+      }),
+    ).rejects.toMatchObject({
+      name: 'OrderPrintError',
+      code: 'NO_USB_DEVICE',
+      message: 'No se encontraron impresoras USB',
+    });
+    expect(client.printText).not.toHaveBeenCalled();
+  });
 });

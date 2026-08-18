@@ -27,6 +27,8 @@ export type MapOrderParams = {
   /** When false, items are sent with taxRate 0 so backend totals match kiosk (no IVA). */
   declaresTaxes?: boolean;
   reservationId?: string | null;
+  /** HkaApp `issuedInvoiceNumber` after a successful local fiscal emit. */
+  fiscalInvoiceNumber?: number;
 };
 
 function parseNumericField(value: unknown): number {
@@ -197,6 +199,14 @@ export function mapCartToCreateOrderRequest(params: MapOrderParams): CreateKiosk
 
   if (params.reservationId) {
     request.reservationId = params.reservationId;
+  }
+
+  if (
+    typeof params.fiscalInvoiceNumber === 'number' &&
+    Number.isInteger(params.fiscalInvoiceNumber) &&
+    params.fiscalInvoiceNumber > 0
+  ) {
+    request.fiscalInvoiceNumber = params.fiscalInvoiceNumber;
   }
 
   return request;

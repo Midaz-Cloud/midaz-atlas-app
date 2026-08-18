@@ -8,6 +8,16 @@ function trimTrailingSlash(url: string): string {
 
 const defaultBase = 'http://localhost:3000';
 
+/**
+ * Midaz-Web origin for ticket QR (`{origin}/track/{shortCode}`).
+ * Set `KIOSK_TRACK_BASE_URL` per environment. Unset falls back to localhost placeholder.
+ */
+const DEFAULT_TRACK_WEB_ORIGIN = 'http://localhost:8001';
+
+function normalizeTrackWebOrigin(raw: string): string {
+  return trimTrailingSlash(raw.trim()).replace(/\/track$/i, '');
+}
+
 export const kioskApiConfig = {
   get baseUrl(): string {
     return trimTrailingSlash(getEnvString('KIOSK_API_BASE_URL') ?? defaultBase);
@@ -28,6 +38,10 @@ export const kioskApiConfig = {
   },
   get qrGeneratorUrl(): string {
     return getEnvString('KIOSK_QR_GENERATOR_URL' as any) ?? 'http://54.207.27.120:32820/generateQr/';
+  },
+  get trackBaseUrl(): string {
+    const raw = getEnvString('KIOSK_TRACK_BASE_URL');
+    return normalizeTrackWebOrigin(raw ?? DEFAULT_TRACK_WEB_ORIGIN);
   },
 } as const;
 
@@ -63,6 +77,10 @@ export function getKioskDeviceSerialOverride(): string | undefined {
 
 export function getKioskAdminPasscode(): string | undefined {
   return kioskApiConfig.adminPasscode;
+}
+
+export function getKioskTrackBaseUrl(): string {
+  return kioskApiConfig.trackBaseUrl;
 }
 
 export function getKioskQrGeneratorUrl(): string {

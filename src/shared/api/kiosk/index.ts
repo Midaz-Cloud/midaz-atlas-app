@@ -45,7 +45,10 @@ export {
 export type { ProductAvailabilityInput } from '@shared/catalog/productAvailability';
 export { mapCartToCreateOrderRequest } from './mappers/order';
 export { buildPosPaymentFromEcr } from './mappers/cardPaymentFromEcr';
-export { buildSettlementFromEcr } from './mappers/buildSettlementFromEcr';
+export {
+  buildSettlementFromEcr,
+  toPersistableSettlementRequest,
+} from './mappers/buildSettlementFromEcr';
 export {
   isSettlementApprovedPlainText,
   salvageSettlementDataForPrint,
@@ -109,6 +112,11 @@ export {
 export type { PagoMovilDisplayFields } from './pagoMovilAccount';
 export { mockPagoMovilAccount } from './mock/mockPagoMovilAccount';
 export { orderTypeToFulfillment, fulfillmentToOrderType } from './mappers/fulfillment';
+export {
+  resolveEffectiveInvoicingType,
+  shouldPrintFiscalZ,
+} from './utils/invoicingType';
+export type { KioskInvoicingType } from './utils/invoicingType';
 export { mapCachedConfigBody, isLiveConfigCacheStale } from './configCache';
 export {
   saveAccessToken,

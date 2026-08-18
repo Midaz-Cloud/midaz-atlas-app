@@ -6,15 +6,18 @@ import { useKioskCustomer } from '@shared/customer';
 import { useKioskOrder } from '@shared/kiosk-order';
 import {
   buildFailedPaymentInput,
+  recordFailedPayment,
   recordFailedPaymentSafe,
 } from '@shared/persistence';
+import { parseDeclaresTaxes } from '@shared/api/kiosk/utils/declaresTaxes';
+import { retryCustomerFiscalEmit } from './recovery';
 
 import type { CashierAssistanceReason } from './assistance/services/requestCashierAssistance';
 
 import { CallCashierScreen } from './assistance/CallCashierScreen';
 
 import { getEnabledPaymentMethods } from './data/getEnabledPaymentMethods';
-import { useKioskSession } from '@shared/session';
+import { useKioskSession, useKioskOrganization } from '@shared/session';
 import { shouldSimulatePosFailure } from '@shared/config';
 
 import { PaymentFlowPlaceholder } from './components/PaymentFlowPlaceholder';
@@ -67,7 +70,7 @@ type PaymentRoute =
 
   | { name: 'pos-charging' }
 
-  | { name: 'outcome'; variant: OrderOutcomeVariant }
+  | { name: 'outcome'; variant: OrderOutcomeVariant; shortCode?: string | null }
 
   | {
       name: 'payment-error';
@@ -122,10 +125,15 @@ export function PaymentNavigator({
     reservationId,
     cardPaymentPayload,
     mobilePaymentPayload,
+    fiscalConfig,
+    primaryCurrency,
+    setConfirmedOrder,
+    confirmedOrder,
   } = useKioskOrder();
   const { customer } = useKioskCustomer();
   const { runtimeConfig, refreshCatalogAfterPurchase, orderType, tableNumber } =
     useKioskSession();
+  const organization = useKioskOrganization();
   const [reserveBusy, setReserveBusy] = useState(false);
 
   const enabledMethods = useMemo(
@@ -139,6 +147,10 @@ export function PaymentNavigator({
   const [route, setRoute] = useState<PaymentRoute>({ name: 'method-select' });
   const [lastPaymentMethodId, setLastPaymentMethodId] = useState<PaymentMethodId>('pos');
   const [orderRetryCount, setOrderRetryCount] = useState(0);
+  const [fiscalFailedPaymentId, setFiscalFailedPaymentId] = useState<number | null>(
+    null,
+  );
+  const [fiscalRetryBusy, setFiscalRetryBusy] = useState(false);
   const routeRef = useRef(route);
   routeRef.current = route;
   /** Once order+print succeeded, ignore late processKioskOrder failures (e.g. reservation_expired). */
@@ -445,13 +457,13 @@ export function PaymentNavigator({
 
   const handleProcessingComplete = useCallback(
 
-    (result: ProcessKioskOrderResult) => {
+    async (result: ProcessKioskOrderResult) => {
       // Late duplicate processKioskOrder (catalog refresh) must not yank success → cart.
       if (orderSucceededRef.current) {
         return;
       }
 
-      if (result.status === 'ok') {
+      if (result.status === 'ok' || result.status === 'ticket_print_failed') {
         orderSucceededRef.current = true;
         setOrderId(result.orderId);
         void refreshCatalogAfterPurchase();
@@ -461,20 +473,32 @@ export function PaymentNavigator({
           return;
         }
 
-        setRoute({ name: 'outcome', variant: 'success' });
+        setRoute({
+          name: 'outcome',
+          variant: result.status === 'ok' ? 'success' : 'ticket_print_failed',
+          shortCode: result.status === 'ticket_print_failed' ? result.shortCode : undefined,
+        });
         return;
       }
 
       if (result.status === 'fiscal_error') {
         orderSucceededRef.current = true;
         setOrderId(result.orderId);
-        recordFailedPaymentSafe(
-          buildFailedPaymentInput(failedPaymentContext(), {
-            stage: 'fiscal',
-            errorReason: 'fiscal_error',
-            errorMessage: result.message ?? 'Error al emitir factura fiscal',
-          }),
-        );
+        try {
+          const id = await recordFailedPayment(
+            buildFailedPaymentInput(failedPaymentContext(), {
+              stage: 'fiscal',
+              errorReason: 'fiscal_error',
+              errorMessage: result.message ?? 'Error al emitir factura fiscal',
+              fiscalInvoiceNumber: result.fiscalInvoiceNumber,
+              displayOrderNumber: confirmedOrder?.displayOrderNumber,
+            }),
+          );
+          setFiscalFailedPaymentId(id);
+        } catch (error) {
+          console.warn('[PaymentNavigator] record fiscal failed_payment', error);
+          setFiscalFailedPaymentId(null);
+        }
         setRoute({ name: 'outcome', variant: 'fiscal_error' });
         return;
       }
@@ -489,6 +513,7 @@ export function PaymentNavigator({
             posReference: result.posReference,
             mobileReference: result.mobileReference,
             rawJson: result.rawJson ?? null,
+            fiscalInvoiceNumber: result.fiscalInvoiceNumber,
           }),
         );
         setOrderRetryCount((prev) => {
@@ -520,6 +545,7 @@ export function PaymentNavigator({
             errorReason: 'failed',
             errorMessage: result.message ?? 'Error al procesar la orden',
             rawJson: result.rawJson ?? null,
+            fiscalInvoiceNumber: result.fiscalInvoiceNumber,
           }),
         );
         setRoute({ name: 'payment-error', methodId: lastPaymentMethodId });
@@ -527,9 +553,120 @@ export function PaymentNavigator({
 
     },
 
-    [failedPaymentContext, lastPaymentMethodId, onBackToCart, refreshCatalogAfterPurchase, setOrderId],
+    [
+      confirmedOrder?.displayOrderNumber,
+      failedPaymentContext,
+      lastPaymentMethodId,
+      onBackToCart,
+      refreshCatalogAfterPurchase,
+      setOrderId,
+    ],
 
   );
+
+  const handleRetryFiscal = useCallback(async () => {
+    if (fiscalRetryBusy) {
+      return;
+    }
+    setFiscalRetryBusy(true);
+    try {
+      const declaresTaxes = parseDeclaresTaxes(
+        organization?.declaresTaxes ?? runtimeConfig?.raw.organization.declaresTaxes,
+      );
+      const existingRegisteredOrder = confirmedOrder?.displayOrderNumber
+        ? {
+            displayOrderNumber: confirmedOrder.displayOrderNumber,
+          }
+        : undefined;
+      const result = await retryCustomerFiscalEmit({
+        failedPaymentId: fiscalFailedPaymentId,
+        salvage: {
+          declaresTaxes,
+          usdToVesRate: fiscalConfig.usdToVesRate,
+          primaryCurrency,
+          organizationName: organization?.name ?? runtimeConfig?.raw.organization.name,
+          organizationLegalName:
+            organization?.legalName ?? runtimeConfig?.raw.organization.legalName,
+          printQrEnabled: lastPaymentMethodId !== 'cash',
+        },
+        session: {
+          lines,
+          totals,
+          usdToVesRate: fiscalConfig.usdToVesRate,
+          primaryCurrency,
+          paymentMethodId: lastPaymentMethodId,
+          orderType,
+          tableNumber,
+          organizationName: organization?.name ?? runtimeConfig?.raw.organization.name,
+          organizationLegalName:
+            organization?.legalName ?? runtimeConfig?.raw.organization.legalName,
+          declaresTaxes,
+          customerId: customer?.id,
+          customerDocumentId: customer?.documentId,
+          customerName: customer
+            ? `${customer.firstName} ${customer.lastName}`.trim()
+            : undefined,
+          mobilePayment:
+            lastPaymentMethodId === 'mobile' ? mobilePaymentPayload : undefined,
+          cardPayment: lastPaymentMethodId === 'pos' ? cardPaymentPayload : undefined,
+          printQrEnabled: lastPaymentMethodId !== 'cash',
+          reservationId,
+          skipSimulatedFiscalError: true,
+          existingRegisteredOrder,
+          onOrderRegistered: (
+            displayOrderNumber,
+            grandTotalVES,
+            grandTotalCurrency,
+            currencyCode,
+          ) => {
+            setConfirmedOrder({
+              displayOrderNumber,
+              grandTotalVES,
+              grandTotalCurrency,
+              currencyCode,
+            });
+          },
+        },
+      });
+
+      if (result.status === 'ok' || result.status === 'ticket_print_failed') {
+        setFiscalFailedPaymentId(null);
+        setOrderId(result.orderId);
+        void refreshCatalogAfterPurchase();
+        setRoute({
+          name: 'outcome',
+          variant: result.status === 'ok' ? 'success' : 'ticket_print_failed',
+          shortCode:
+            result.status === 'ticket_print_failed' ? result.shortCode : undefined,
+        });
+        return;
+      }
+    } finally {
+      setFiscalRetryBusy(false);
+    }
+  }, [
+    cardPaymentPayload,
+    confirmedOrder?.displayOrderNumber,
+    customer,
+    fiscalConfig.usdToVesRate,
+    fiscalFailedPaymentId,
+    fiscalRetryBusy,
+    lastPaymentMethodId,
+    lines,
+    mobilePaymentPayload,
+    orderType,
+    organization,
+    primaryCurrency,
+    refreshCatalogAfterPurchase,
+    reservationId,
+    runtimeConfig?.raw.organization.declaresTaxes,
+    runtimeConfig?.raw.organization.legalName,
+    runtimeConfig?.raw.organization.name,
+    setConfirmedOrder,
+    setOrderId,
+    tableNumber,
+    totals,
+  ]);
 
   const handleStockShortageBackToCart = useCallback(() => {
     onBackToCart();
@@ -635,7 +772,13 @@ export function PaymentNavigator({
 
         variant={route.variant}
 
+        shortCode={route.shortCode}
+
         onCallCashier={handleCallCashier}
+
+        onRetryFiscal={route.variant === 'fiscal_error' ? handleRetryFiscal : undefined}
+
+        fiscalRetryBusy={fiscalRetryBusy}
 
         onSessionComplete={onSessionComplete}
 

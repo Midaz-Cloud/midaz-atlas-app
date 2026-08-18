@@ -34,5 +34,21 @@ describe('mapCartToCreateOrderRequest card payment', () => {
     expect(request.cedula).toBe('V25504486');
     expect(request.cardType).toBe('debito');
     expect(request.cardHolder).toBe('JUAN PEREZ');
+    expect(request).not.toHaveProperty('fiscalNumber');
+    expect(request).not.toHaveProperty('invoiceNumber');
+    expect(request).not.toHaveProperty('issuedInvoiceNumber');
+    expect(request).not.toHaveProperty('fiscalInvoiceNumber');
+  });
+
+  it('includes fiscalInvoiceNumber when HkaApp already issued', () => {
+    const request = mapCartToCreateOrderRequest({
+      lines: [],
+      paymentMethodId: 'pos',
+      cardPayment,
+      fiscalInvoiceNumber: 42,
+    });
+
+    expect(request.fiscalInvoiceNumber).toBe(42);
+    expect(request).not.toHaveProperty('issuedInvoiceNumber');
   });
 });

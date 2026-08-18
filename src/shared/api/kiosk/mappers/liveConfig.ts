@@ -46,6 +46,7 @@ export function mapLiveConfigToKioskConfigResponse(
     printQrEnabled: live.printQrEnabled ?? false,
     comandaModel: live.comandaModel ?? 'printed',
     enabledPaymentMethods: normalizeEnabledPaymentMethods(live.enabledPaymentMethods ?? []),
+    kioskInvoicingType: live.kioskInvoicingType ?? null,
     appearance: {
       primaryColor: liveAppearance.primaryColor ?? '#004be0',
       secondaryColor: liveAppearance.secondaryColor ?? '#07143a',
@@ -66,6 +67,7 @@ export function mapLiveConfigToKioskConfigResponse(
       logo: live.organization.logo,
       primaryCurrency: live.organization.primaryCurrency ?? 'USD',
       declaresTaxes: parseDeclaresTaxes(live.organization.declaresTaxes),
+      invoicingType: live.organization.invoicingType ?? null,
     },
     pagoMovilAccount: mapPagoMovilAccount(live.pagoMovilAccount),
     exchangeRates: live.exchangeRates ?? live.rates ?? null,

@@ -29,7 +29,7 @@ export async function createCustomerLive(params: {
   }
 
   const body = buildCreateCustomerRequestFromForm(params);
-  const url = getKioskApiUrl('/customers');
+  const url = getKioskApiUrl('/kiosk/customers');
 
   let response: Response;
   try {
