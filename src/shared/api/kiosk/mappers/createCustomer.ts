@@ -7,7 +7,10 @@ import {
   KIOSK_CUSTOMER_DEFAULT_BILLING_STATE,
   KIOSK_CUSTOMER_DEFAULT_NOTES,
 } from '../constants/customerDefaults';
-import type { CreateCustomerRequestApi } from '../types/createCustomer';
+import type {
+  CreateCustomerRequestApi,
+  UpdateCustomerRequestApi,
+} from '../types/createCustomer';
 import { parseDocumentId } from '../utils/documentId';
 
 function joinCustomerNameParts(...parts: string[]): string {
@@ -54,5 +57,27 @@ export function buildCreateCustomerRequestFromForm(params: {
     request.phoneNumber = phoneNumber;
   }
 
+  return request;
+}
+
+/** PATCH /kiosk/customers/:id — same name/phone/email mapping, no identification. */
+export function buildUpdateCustomerRequestFromForm(params: {
+  documentId: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email?: string;
+}): UpdateCustomerRequestApi {
+  const created = buildCreateCustomerRequestFromForm(params);
+  const request: UpdateCustomerRequestApi = {
+    name: created.name,
+    billingName: created.billingName,
+  };
+  if (created.email) {
+    request.email = created.email;
+  }
+  if (created.phoneNumber) {
+    request.phoneNumber = created.phoneNumber;
+  }
   return request;
 }

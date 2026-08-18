@@ -7,6 +7,7 @@ describe('initialRegisterFormFromPrefill', () => {
       lastName: '',
       phoneOperatorCode: '414',
       phoneSubscriberNumber: '',
+      email: '',
     });
   });
 
@@ -21,6 +22,7 @@ describe('initialRegisterFormFromPrefill', () => {
       lastName: '',
       phoneOperatorCode: '414',
       phoneSubscriberNumber: '',
+      email: '',
     });
   });
 
@@ -35,6 +37,21 @@ describe('initialRegisterFormFromPrefill', () => {
       lastName: '',
       phoneOperatorCode: '414',
       phoneSubscriberNumber: '',
+      email: '',
+    });
+  });
+
+  it('prefills email when present', () => {
+    expect(
+      initialRegisterFormFromPrefill('V12345678', {
+        firstName: 'Ana',
+        lastName: 'López',
+        email: 'Ana@Midaz.com',
+      }),
+    ).toMatchObject({
+      firstName: 'Ana',
+      lastName: 'López',
+      email: 'ana@midaz.com',
     });
   });
 });

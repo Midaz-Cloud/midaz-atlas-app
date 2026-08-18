@@ -8,6 +8,7 @@ import {
   composeDocumentId,
   getDocumentNumberMaxLength,
   lookupCustomerByDocument,
+  lookupPrefillDisplayName,
   normalizeDocumentId,
   parseDocumentId,
 } from '@shared/api/kiosk';
@@ -15,6 +16,7 @@ import { useKioskCustomer } from '@shared/customer';
 import { kioskScreenLayout, useKioskScreenColors } from '@shared/theme';
 import type { CustomerLookupStatus } from '../customer-register/components/CustomerLookupStatusBanner';
 import { buildCustomerLookupStatus } from '../customerLookupStatus';
+import { customerNeedsEmailUpdate, mapCustomerToRegisterPrefill } from '../customerEmail';
 
 import { CustomerBillingHeroIcon } from '../components/CustomerBillingHeroIcon';
 import { CustomerDocumentField } from './components/CustomerDocumentField';
@@ -23,16 +25,22 @@ import { customerFlowLayoutStyles } from '../theme/customerFlowLayout';
 
 export type CustomerLookupScreenProps = {
   initialDocumentId?: string;
+  requireEmail?: boolean;
   onBack: () => void;
   onCustomerReady: () => void;
   onRegisterRequired: (
     documentId: string,
-    options?: { lookupStatus: CustomerLookupStatus; prefill?: CustomerRegisterPrefill },
+    options?: {
+      lookupStatus: CustomerLookupStatus;
+      prefill?: CustomerRegisterPrefill;
+      existingCustomerId?: number;
+    },
   ) => void;
 };
 
 export function CustomerLookupScreen({
   initialDocumentId = '',
+  requireEmail = false,
   onBack,
   onCustomerReady,
   onRegisterRequired,
@@ -91,6 +99,20 @@ export function CustomerLookupScreen({
     setIsLoading(false);
 
     if (result.status === 'found') {
+      if (customerNeedsEmailUpdate(result.customer, requireEmail)) {
+        const prefill = mapCustomerToRegisterPrefill(result.customer);
+        onRegisterRequired(documentId, {
+          lookupStatus: {
+            kind: 'prefill',
+            source: 'org',
+            name: lookupPrefillDisplayName(prefill),
+            documentId,
+          },
+          prefill,
+          existingCustomerId: result.customer.id,
+        });
+        return;
+      }
       setCustomer(result.customer);
       onCustomerReady();
       return;
@@ -120,6 +142,7 @@ export function CustomerLookupScreen({
     fullDocumentId,
     onCustomerReady,
     onRegisterRequired,
+    requireEmail,
     setCustomer,
   ]);
 

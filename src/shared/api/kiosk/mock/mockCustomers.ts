@@ -45,6 +45,26 @@ export function mockRegisterCustomer(
   return customer;
 }
 
+export function mockUpdateCustomer(
+  customerId: number,
+  request: RegisterKioskCustomerRequest,
+): KioskCustomerApi {
+  const existing = [...customersByDocument.values()].find((customer) => customer.id === customerId);
+  if (!existing) {
+    throw new Error('Cliente no encontrado');
+  }
+  const email = request.email?.trim().toLowerCase() ?? '';
+  const updated: KioskCustomerApi = {
+    ...existing,
+    firstName: request.firstName.trim() || existing.firstName,
+    lastName: request.lastName.trim() || existing.lastName,
+    phone: request.phone ? normalizeVenezuelaPhone(request.phone) : existing.phone,
+    email: email || existing.email,
+  };
+  customersByDocument.set(normalizeDocumentId(updated.documentId), updated);
+  return updated;
+}
+
 export function resetMockCustomersForTests(): void {
   customersByDocument.clear();
   nextCustomerId = 2;

@@ -68,7 +68,11 @@ export {
   validateMobilePaymentWithApi,
 } from './services/validateMobilePaymentService';
 export type { BuildValidateMobilePaymentParams } from './services/validateMobilePaymentService';
-export { lookupCustomerByDocument, registerKioskCustomer } from './services/customerService';
+export {
+  lookupCustomerByDocument,
+  registerKioskCustomer,
+  updateKioskCustomer,
+} from './services/customerService';
 export type {
   LookupCustomerResult,
   RegisterCustomerResult,
@@ -116,6 +120,7 @@ export {
   resolveEffectiveInvoicingType,
   shouldUsePhysicalFiscalPrinter,
   shouldPrintFiscalZ,
+  shouldRequireCustomerEmail,
 } from './utils/invoicingType';
 export type { KioskInvoicingType } from './utils/invoicingType';
 export { mapCachedConfigBody, isLiveConfigCacheStale } from './configCache';

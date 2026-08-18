@@ -16,3 +16,11 @@ export type CreateCustomerRequestApi = {
   notes?: string;
   customerCode?: string;
 };
+
+/** Body de `PATCH /kiosk/customers/:id` (UpdateCustomerDto). No enviar email vacío. */
+export type UpdateCustomerRequestApi = {
+  name?: string;
+  billingName?: string;
+  email?: string;
+  phoneNumber?: string;
+};

@@ -12,6 +12,7 @@ const meta = {
   decorators: [withI18nStorybook, withKioskCustomerProvider],
   args: {
     documentId: 'V87654321',
+    requireEmail: false,
     onBack: fn(),
     onCustomerReady: fn(),
   },
@@ -33,5 +34,25 @@ export const JuridicoSpanish: Story = {
   parameters: { locale: 'es' },
   args: {
     documentId: 'J123456784',
+  },
+};
+
+export const DigitalInvoicingSpanish: Story = {
+  parameters: { locale: 'es' },
+  args: {
+    requireEmail: true,
+  },
+};
+
+export const ExistingCustomerAddEmail: Story = {
+  parameters: { locale: 'es' },
+  args: {
+    requireEmail: true,
+    existingCustomerId: 12,
+    prefill: {
+      firstName: 'María',
+      lastName: 'González',
+      phone: '04141234567',
+    },
   },
 };

@@ -21,6 +21,7 @@ export function initialRegisterFormFromPrefill(
   lastName: string;
   phoneOperatorCode: VenezuelaMobileOperatorCode;
   phoneSubscriberNumber: string;
+  email: string;
 } {
   if (!prefill) {
     return {
@@ -28,11 +29,13 @@ export function initialRegisterFormFromPrefill(
       lastName: '',
       phoneOperatorCode: DEFAULT_VENEZUELA_MOBILE_OPERATOR_CODE,
       phoneSubscriberNumber: '',
+      email: '',
     };
   }
 
   const phoneParts = splitRegisterPrefillPhone(prefill);
   const isJuridico = isJuridicoDocumentId(documentId);
+  const email = normalizePrefillText(prefill.email).toLowerCase();
 
   if (isJuridico) {
     const businessName = [prefill.firstName, prefill.lastName]
@@ -44,6 +47,7 @@ export function initialRegisterFormFromPrefill(
       lastName: '',
       phoneOperatorCode: phoneParts?.operatorCode ?? DEFAULT_VENEZUELA_MOBILE_OPERATOR_CODE,
       phoneSubscriberNumber: phoneParts?.subscriberNumber ?? '',
+      email,
     };
   }
 
@@ -52,5 +56,6 @@ export function initialRegisterFormFromPrefill(
     lastName: normalizePrefillText(prefill.lastName),
     phoneOperatorCode: phoneParts?.operatorCode ?? DEFAULT_VENEZUELA_MOBILE_OPERATOR_CODE,
     phoneSubscriberNumber: phoneParts?.subscriberNumber ?? '',
+    email,
   };
 }

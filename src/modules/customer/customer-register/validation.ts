@@ -23,7 +23,22 @@ export type RegisterFormValidationInput = {
   lastName: string;
   phoneOperatorCode: VenezuelaMobileOperatorCode;
   phoneSubscriberNumber: string;
+  email?: string;
+  requireEmail?: boolean;
 };
+
+/** Matches backend CUSTOMER_FIELD_LIMITS.email. */
+export const CUSTOMER_EMAIL_MAX_LENGTH = 40;
+
+const CUSTOMER_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function isValidCustomerEmail(email: string): boolean {
+  const trimmed = (email ?? '').trim();
+  if (trimmed.length === 0 || trimmed.length > CUSTOMER_EMAIL_MAX_LENGTH) {
+    return false;
+  }
+  return CUSTOMER_EMAIL_PATTERN.test(trimmed);
+}
 
 export function isRegisterFormValid(input: RegisterFormValidationInput): boolean {
   const firstName = (input.firstName ?? '').trim();
@@ -34,6 +49,10 @@ export function isRegisterFormValid(input: RegisterFormValidationInput): boolean
   );
 
   if (!phoneOk) {
+    return false;
+  }
+
+  if (input.requireEmail && !isValidCustomerEmail(input.email ?? '')) {
     return false;
   }
 

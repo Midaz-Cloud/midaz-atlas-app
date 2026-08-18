@@ -2,7 +2,11 @@ import { useCallback, useState } from 'react';
 
 import { CustomerLookupScreen } from './customer-lookup/CustomerLookupScreen';
 import { CustomerRegisterScreen } from './customer-register/CustomerRegisterScreen';
-import type { CustomerRegisterPrefill } from '@shared/api/kiosk';
+import {
+  shouldRequireCustomerEmail,
+  type CustomerRegisterPrefill,
+} from '@shared/api/kiosk';
+import { useKioskOrganization } from '@shared/session';
 
 import type { CustomerLookupStatus } from './customer-register/components/CustomerLookupStatusBanner';
 
@@ -13,6 +17,7 @@ type CustomerRoute =
       documentId: string;
       lookupStatus: CustomerLookupStatus;
       prefill?: CustomerRegisterPrefill;
+      existingCustomerId?: number;
     };
 
 export type CustomerNavigatorProps = {
@@ -21,6 +26,8 @@ export type CustomerNavigatorProps = {
 };
 
 export function CustomerNavigator({ onBackToCart, onCustomerReady }: CustomerNavigatorProps) {
+  const organization = useKioskOrganization();
+  const requireEmail = shouldRequireCustomerEmail(organization?.effectiveInvoicingType);
   const [route, setRoute] = useState<CustomerRoute>({ name: 'lookup' });
 
   const goToLookup = useCallback((initialDocumentId?: string) => {
@@ -30,13 +37,18 @@ export function CustomerNavigator({ onBackToCart, onCustomerReady }: CustomerNav
   const handleRegisterRequired = useCallback(
     (
       documentId: string,
-      options?: { lookupStatus: CustomerLookupStatus; prefill?: CustomerRegisterPrefill },
+      options?: {
+        lookupStatus: CustomerLookupStatus;
+        prefill?: CustomerRegisterPrefill;
+        existingCustomerId?: number;
+      },
     ) => {
       setRoute({
         name: 'register',
         documentId,
         lookupStatus: options?.lookupStatus ?? { kind: 'not_found', documentId },
         prefill: options?.prefill,
+        existingCustomerId: options?.existingCustomerId,
       });
     },
     [],
@@ -52,6 +64,8 @@ export function CustomerNavigator({ onBackToCart, onCustomerReady }: CustomerNav
     return (
       <CustomerRegisterScreen
         documentId={route.documentId}
+        requireEmail={requireEmail}
+        existingCustomerId={route.existingCustomerId}
         lookupStatus={route.lookupStatus}
         prefill={route.prefill}
         onBack={handleBackFromRegister}
@@ -63,6 +77,7 @@ export function CustomerNavigator({ onBackToCart, onCustomerReady }: CustomerNav
   return (
     <CustomerLookupScreen
       initialDocumentId={route.initialDocumentId}
+      requireEmail={requireEmail}
       onBack={onBackToCart}
       onCustomerReady={onCustomerReady}
       onRegisterRequired={handleRegisterRequired}

@@ -1,4 +1,9 @@
-import { composeRegisterPhone, isRegisterFormValid, isValidPhone } from '../validation';
+import {
+  composeRegisterPhone,
+  isRegisterFormValid,
+  isValidCustomerEmail,
+  isValidPhone,
+} from '../validation';
 
 describe('customer register validation', () => {
   it('validates venezuelan national phone', () => {
@@ -70,5 +75,47 @@ describe('customer register validation', () => {
         phoneSubscriberNumber: '1234567',
       }),
     ).toBe(false);
+  });
+});
+
+describe('customer register email validation', () => {
+  it('does not require email when the field is hidden (non-digital)', () => {
+    expect(
+      isRegisterFormValid({
+        documentType: 'V',
+        firstName: 'Ana',
+        lastName: 'López',
+        phoneOperatorCode: '414',
+        phoneSubscriberNumber: '1234567',
+      }),
+    ).toBe(true);
+    expect(
+      isRegisterFormValid({
+        documentType: 'V',
+        firstName: 'Ana',
+        lastName: 'López',
+        phoneOperatorCode: '414',
+        phoneSubscriberNumber: '1234567',
+        requireEmail: false,
+        email: '',
+      }),
+    ).toBe(true);
+  });
+
+  it('requires a valid email when digital invoicing is on', () => {
+    const base = {
+      documentType: 'V' as const,
+      firstName: 'Ana',
+      lastName: 'López',
+      phoneOperatorCode: '414' as const,
+      phoneSubscriberNumber: '1234567',
+      requireEmail: true,
+    };
+    expect(isRegisterFormValid({ ...base, email: '' })).toBe(false);
+    expect(isRegisterFormValid({ ...base, email: 'ana' })).toBe(false);
+    expect(isRegisterFormValid({ ...base, email: 'ana@midaz.com' })).toBe(true);
+    expect(isValidCustomerEmail('ana@midaz.com')).toBe(true);
+    expect(isValidCustomerEmail('not-an-email')).toBe(false);
+    expect(isValidCustomerEmail(`${'a'.repeat(33)}@midaz.com`)).toBe(false);
   });
 });

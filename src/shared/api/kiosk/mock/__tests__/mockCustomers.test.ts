@@ -1,5 +1,5 @@
 import { MockKioskApiClient } from '../MockKioskApiClient';
-import { resetMockCustomersForTests } from '../mockCustomers';
+import { mockUpdateCustomer, resetMockCustomersForTests } from '../mockCustomers';
 
 describe('MockKioskApiClient customers', () => {
   beforeEach(() => {
@@ -31,5 +31,28 @@ describe('MockKioskApiClient customers', () => {
     expect(created.id).toBeGreaterThan(1);
     const found = await client.findCustomerByDocument('V11111111');
     expect(found.firstName).toBe('Ana');
+  });
+
+  it('updates email on an existing customer without email', async () => {
+    const created = await client.registerCustomer({
+      documentId: 'V22222222',
+      firstName: 'Luis',
+      lastName: 'Pérez',
+      phone: '04140002222',
+      email: '',
+    });
+    expect(created.email).toBe('');
+
+    const updated = mockUpdateCustomer(created.id, {
+      documentId: created.documentId,
+      firstName: created.firstName,
+      lastName: created.lastName,
+      phone: created.phone,
+      email: 'luis.perez@correo.com',
+    });
+    expect(updated.email).toBe('luis.perez@correo.com');
+
+    const found = await client.findCustomerByDocument('V22222222');
+    expect(found.email).toBe('luis.perez@correo.com');
   });
 });

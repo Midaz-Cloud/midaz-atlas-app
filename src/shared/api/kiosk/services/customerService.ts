@@ -3,8 +3,13 @@ import { shouldUseMockApi } from '@shared/config';
 
 import { createCustomerLive } from '../http/customerCreate';
 import { lookupCustomerByCedulaLive } from '../http/customerLookup';
+import { updateCustomerLive } from '../http/customerUpdate';
 import { mapApiCustomerToKioskCustomer, mapRegisterRequestToApi } from '../mappers/customer';
-import { mockFindCustomerByDocument, mockRegisterCustomer } from '../mock/mockCustomers';
+import {
+  mockFindCustomerByDocument,
+  mockRegisterCustomer,
+  mockUpdateCustomer,
+} from '../mock/mockCustomers';
 import type { CustomerRegisterPrefill } from '../types/customerLookup';
 import { normalizeDocumentId } from '../utils/documentId';
 
@@ -87,6 +92,33 @@ export async function registerKioskCustomer(params: {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Error al registrar el cliente';
+    return { status: 'error', message };
+  }
+}
+
+export async function updateKioskCustomer(params: {
+  customerId: number;
+  documentId: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email?: string;
+}): Promise<RegisterCustomerResult> {
+  if (!shouldUseMockApi()) {
+    const live = await updateCustomerLive(params);
+    if (live.status === 'ok') {
+      return live;
+    }
+    return { status: 'error', message: live.message };
+  }
+
+  try {
+    const request = mapRegisterRequestToApi(params);
+    const api = mockUpdateCustomer(params.customerId, request);
+    return { status: 'ok', customer: mapApiCustomerToKioskCustomer(api) };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Error al actualizar el cliente';
     return { status: 'error', message };
   }
 }

@@ -3,7 +3,12 @@ import { ScrollView, Text, View } from 'react-native';
 
 import { PaymentFlowHero } from '@modules/payment/components';
 import { KioskScreenLayout } from '@shared/components';
-import { registerKioskCustomer, parseDocumentId, type CustomerRegisterPrefill } from '@shared/api/kiosk';
+import {
+  parseDocumentId,
+  registerKioskCustomer,
+  updateKioskCustomer,
+  type CustomerRegisterPrefill,
+} from '@shared/api/kiosk';
 import { useKioskCustomer } from '@shared/customer';
 import type { VenezuelaMobileOperatorCode } from '@shared/phone';
 import { kioskScreenLayout, useKioskScreenColors } from '@shared/theme';
@@ -22,6 +27,8 @@ import { customerFlowLayoutStyles } from '../theme/customerFlowLayout';
 
 export type CustomerRegisterScreenProps = {
   documentId: string;
+  requireEmail?: boolean;
+  existingCustomerId?: number;
   lookupStatus?: CustomerLookupStatus;
   prefill?: CustomerRegisterPrefill;
   onBack: () => void;
@@ -30,12 +37,15 @@ export type CustomerRegisterScreenProps = {
 
 export function CustomerRegisterScreen({
   documentId,
+  requireEmail = false,
+  existingCustomerId,
   lookupStatus,
   prefill,
   onBack,
   onCustomerReady,
 }: CustomerRegisterScreenProps) {
-  const copy = useCustomerRegisterScreen(documentId);
+  const isEmailUpdate = existingCustomerId != null;
+  const copy = useCustomerRegisterScreen(documentId, { requireEmail, isEmailUpdate });
   const { setCustomer } = useKioskCustomer();
   const colors = useKioskScreenColors();
   const documentType = useMemo(() => parseDocumentId(documentId).type, [documentId]);
@@ -45,6 +55,7 @@ export function CustomerRegisterScreen({
   );
   const [firstName, setFirstName] = useState(initialForm.firstName ?? '');
   const [lastName, setLastName] = useState(initialForm.lastName ?? '');
+  const [email, setEmail] = useState(initialForm.email ?? '');
   const [phoneOperatorCode, setPhoneOperatorCode] = useState<VenezuelaMobileOperatorCode>(
     initialForm.phoneOperatorCode,
   );
@@ -66,8 +77,19 @@ export function CustomerRegisterScreen({
       lastName: copy.isJuridico ? '' : lastName,
       phoneOperatorCode,
       phoneSubscriberNumber,
+      email,
+      requireEmail,
     }),
-    [copy.isJuridico, documentType, firstName, lastName, phoneOperatorCode, phoneSubscriberNumber],
+    [
+      copy.isJuridico,
+      documentType,
+      email,
+      firstName,
+      lastName,
+      phoneOperatorCode,
+      phoneSubscriberNumber,
+      requireEmail,
+    ],
   );
 
   const canSubmit = isRegisterFormValid(validationInput) && !isSubmitting;
@@ -79,12 +101,17 @@ export function CustomerRegisterScreen({
 
     setIsSubmitting(true);
     setErrorMessage(undefined);
-    const result = await registerKioskCustomer({
+    const payload = {
       documentId,
       firstName,
       lastName: copy.isJuridico ? '' : lastName,
       phone,
-    });
+      ...(requireEmail ? { email } : {}),
+    };
+    const result =
+      existingCustomerId != null
+        ? await updateKioskCustomer({ customerId: existingCustomerId, ...payload })
+        : await registerKioskCustomer(payload);
     setIsSubmitting(false);
 
     if (result.status === 'ok') {
@@ -92,15 +119,22 @@ export function CustomerRegisterScreen({
       onCustomerReady();
       return;
     }
-    setErrorMessage(result.message || copy.errorRegisterFailed);
+    setErrorMessage(
+      result.message || (isEmailUpdate ? copy.errorUpdateFailed : copy.errorRegisterFailed),
+    );
   }, [
     copy.errorRegisterFailed,
+    copy.errorUpdateFailed,
     copy.isJuridico,
     documentId,
+    email,
+    existingCustomerId,
     firstName,
+    isEmailUpdate,
     lastName,
     onCustomerReady,
     phone,
+    requireEmail,
     setCustomer,
     validationInput,
   ]);
@@ -140,13 +174,16 @@ export function CustomerRegisterScreen({
           ) : null}
           <CustomerRegisterForm
             isJuridico={copy.isJuridico}
+            requireEmail={requireEmail}
             firstName={firstName}
             lastName={lastName}
+            email={email}
             phoneOperatorCode={phoneOperatorCode}
             phoneSubscriberNumber={phoneSubscriberNumber}
             firstNameLabel={copy.firstNameLabel}
             lastNameLabel={copy.lastNameLabel}
             businessNameLabel={copy.businessNameLabel}
+            emailLabel={copy.emailLabel}
             phoneSubscriberPlaceholder={copy.phoneSubscriberPlaceholder}
             onFirstNameChange={(value) => {
               setErrorMessage(undefined);
@@ -155,6 +192,10 @@ export function CustomerRegisterScreen({
             onLastNameChange={(value) => {
               setErrorMessage(undefined);
               setLastName(value);
+            }}
+            onEmailChange={(value) => {
+              setErrorMessage(undefined);
+              setEmail(value);
             }}
             onPhoneOperatorChange={(code) => {
               setErrorMessage(undefined);

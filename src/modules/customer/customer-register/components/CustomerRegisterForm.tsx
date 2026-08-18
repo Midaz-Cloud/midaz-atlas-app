@@ -1,40 +1,48 @@
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import type { VenezuelaMobileOperatorCode } from '@shared/phone';
-import { kioskScreenLayout } from '@shared/theme';
 
 import { customerFlowLayoutStyles } from '../../theme/customerFlowLayout';
+import { CUSTOMER_EMAIL_MAX_LENGTH } from '../validation';
 import { CustomerPhoneField } from './CustomerPhoneField';
 import { CustomerTextField } from './CustomerTextField';
 
 export type CustomerRegisterFormProps = {
   isJuridico: boolean;
+  requireEmail: boolean;
   firstName: string;
   lastName: string;
+  email: string;
   phoneOperatorCode: VenezuelaMobileOperatorCode;
   phoneSubscriberNumber: string;
   firstNameLabel: string;
   lastNameLabel: string;
   businessNameLabel: string;
+  emailLabel: string;
   phoneSubscriberPlaceholder: string;
   onFirstNameChange: (value: string) => void;
   onLastNameChange: (value: string) => void;
+  onEmailChange: (value: string) => void;
   onPhoneOperatorChange: (code: VenezuelaMobileOperatorCode) => void;
   onPhoneSubscriberChange: (number: string) => void;
 };
 
 export function CustomerRegisterForm({
   isJuridico,
+  requireEmail,
   firstName,
   lastName,
+  email,
   phoneOperatorCode,
   phoneSubscriberNumber,
   firstNameLabel,
   lastNameLabel,
   businessNameLabel,
+  emailLabel,
   phoneSubscriberPlaceholder,
   onFirstNameChange,
   onLastNameChange,
+  onEmailChange,
   onPhoneOperatorChange,
   onPhoneSubscriberChange,
 }: CustomerRegisterFormProps) {
@@ -49,13 +57,12 @@ export function CustomerRegisterForm({
           testID="customer-register-first-name"
         />
       ) : (
-        <View style={styles.nameRow}>
+        <>
           <CustomerTextField
             label={firstNameLabel}
             value={firstName}
             onChangeText={onFirstNameChange}
             hideLabel
-            style={styles.nameField}
             testID="customer-register-first-name"
           />
           <CustomerTextField
@@ -63,11 +70,23 @@ export function CustomerRegisterForm({
             value={lastName}
             onChangeText={onLastNameChange}
             hideLabel
-            style={styles.nameField}
             testID="customer-register-last-name"
           />
-        </View>
+        </>
       )}
+      {requireEmail ? (
+        <CustomerTextField
+          label={emailLabel}
+          value={email}
+          onChangeText={onEmailChange}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          hideLabel
+          maxLength={CUSTOMER_EMAIL_MAX_LENGTH}
+          testID="customer-register-email"
+        />
+      ) : null}
       <CustomerPhoneField
         subscriberPlaceholder={phoneSubscriberPlaceholder}
         operatorCode={phoneOperatorCode}
@@ -79,14 +98,3 @@ export function CustomerRegisterForm({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: kioskScreenLayout.customerRegisterNameRowGap,
-  },
-  nameField: {
-    flex: 1,
-  },
-});

@@ -1,4 +1,7 @@
-import { buildCreateCustomerRequestFromForm } from '../createCustomer';
+import {
+  buildCreateCustomerRequestFromForm,
+  buildUpdateCustomerRequestFromForm,
+} from '../createCustomer';
 
 describe('buildCreateCustomerRequestFromForm', () => {
   it('maps form fields to POST /kiosk/customers body with defaults', () => {
@@ -58,6 +61,49 @@ describe('buildCreateCustomerRequestFromForm', () => {
         firstName: 'Acme C.A.',
         lastName: '',
         phone: '04141234567',
+      }).email,
+    ).toBeUndefined();
+  });
+
+  it('omits blank email so backend does not receive an empty string', () => {
+    expect(
+      buildCreateCustomerRequestFromForm({
+        documentId: 'V26728807',
+        firstName: 'Alexander',
+        lastName: 'Romero',
+        phone: '04141234567',
+        email: '  ',
+      }).email,
+    ).toBeUndefined();
+  });
+});
+
+describe('buildUpdateCustomerRequestFromForm', () => {
+  it('sends name, phone and email without identification fields', () => {
+    expect(
+      buildUpdateCustomerRequestFromForm({
+        documentId: 'V26728807',
+        firstName: 'Alexander',
+        lastName: 'Romero',
+        phone: '04141234567',
+        email: 'alex@example.com',
+      }),
+    ).toEqual({
+      name: 'Alexander Romero',
+      billingName: 'Romero',
+      email: 'alex@example.com',
+      phoneNumber: '04141234567',
+    });
+  });
+
+  it('omits blank email on update', () => {
+    expect(
+      buildUpdateCustomerRequestFromForm({
+        documentId: 'V26728807',
+        firstName: 'Alexander',
+        lastName: 'Romero',
+        phone: '04141234567',
+        email: '',
       }).email,
     ).toBeUndefined();
   });

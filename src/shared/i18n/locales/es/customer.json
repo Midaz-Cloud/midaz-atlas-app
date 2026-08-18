@@ -11,9 +11,13 @@
   "register": {
     "title": "Confirma tus datos",
     "subtitle": "Verifica que tu nombre sea correcto e ingresa tu número de teléfono para mantenerte al tanto de tu pedido.",
+    "subtitleWithEmail": "Verifica que tu nombre sea correcto e ingresa tu teléfono y correo para recibir la factura digital.",
+    "titleAddEmail": "Agrega tu correo",
+    "subtitleAddEmail": "Encontramos tus datos. Ingresa un correo electrónico para emitir la factura digital.",
     "firstName": "Nombre",
     "lastName": "Apellido",
     "businessName": "Razón social",
+    "email": "Correo electrónico",
     "phoneSubscriber": "Ingresa tu número de teléfono",
     "phoneOperatorTitle": "Código de operadora",
     "phoneOperatorClose": "Cerrar selector de operadora",
@@ -31,7 +35,8 @@
   "errors": {
     "notFound": "No encontramos un cliente con esta cédula.",
     "network": "No pudimos verificar la cédula. Intenta de nuevo.",
-    "registerFailed": "No pudimos completar el registro. Intenta de nuevo."
+    "registerFailed": "No pudimos completar el registro. Intenta de nuevo.",
+    "updateFailed": "No pudimos actualizar tus datos. Intenta de nuevo."
   },
   "validation": {
     "documentV": "La cédula venezolana (V) debe tener 7 u 8 dígitos, por ejemplo 12.345.678.",
@@ -40,6 +45,8 @@
     "firstNameRequired": "El nombre es obligatorio.",
     "lastNameRequired": "El apellido es obligatorio.",
     "businessNameRequired": "La razón social es obligatoria.",
-    "phoneRequired": "Selecciona una operadora válida e ingresa 7 dígitos (ej. 0414-1234567)."
+    "phoneRequired": "Selecciona una operadora válida e ingresa 7 dígitos (ej. 0414-1234567).",
+    "emailRequired": "El correo electrónico es obligatorio para la factura digital.",
+    "emailInvalid": "Ingresa un correo electrónico válido."
   }
 }

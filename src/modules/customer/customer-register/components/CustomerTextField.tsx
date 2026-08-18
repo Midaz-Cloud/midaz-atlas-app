@@ -13,6 +13,7 @@ export type CustomerTextFieldProps = {
   autoCorrect?: boolean;
   hideLabel?: boolean;
   style?: StyleProp<ViewStyle>;
+  maxLength?: number;
   testID?: string;
 };
 
@@ -25,6 +26,7 @@ export function CustomerTextField({
   autoCorrect = true,
   hideLabel = false,
   style,
+  maxLength,
   testID,
 }: CustomerTextFieldProps) {
   const fieldStyles = useCustomerRegisterFieldStyles();
@@ -42,6 +44,7 @@ export function CustomerTextField({
         placeholder={label}
         placeholderTextColor={fieldStyles.label.color}
         accessibilityLabel={label}
+        maxLength={maxLength}
       />
     </View>
   );

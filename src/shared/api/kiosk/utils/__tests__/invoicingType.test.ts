@@ -1,6 +1,7 @@
 import {
   resolveEffectiveInvoicingType,
   shouldPrintFiscalZ,
+  shouldRequireCustomerEmail,
   shouldUsePhysicalFiscalPrinter,
 } from '../invoicingType';
 
@@ -42,5 +43,15 @@ describe('shouldPrintFiscalZ', () => {
     expect(shouldPrintFiscalZ('hybrid')).toBe(false);
     expect(shouldPrintFiscalZ(null)).toBe(false);
     expect(shouldPrintFiscalZ(undefined)).toBe(false);
+  });
+});
+
+describe('shouldRequireCustomerEmail', () => {
+  it('is true only for digital_invoicing', () => {
+    expect(shouldRequireCustomerEmail('digital_invoicing')).toBe(true);
+    expect(shouldRequireCustomerEmail('fiscal_machine')).toBe(false);
+    expect(shouldRequireCustomerEmail('hybrid')).toBe(false);
+    expect(shouldRequireCustomerEmail(null)).toBe(false);
+    expect(shouldRequireCustomerEmail(undefined)).toBe(false);
   });
 });

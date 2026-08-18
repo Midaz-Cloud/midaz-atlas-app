@@ -20,3 +20,10 @@ export function shouldUsePhysicalFiscalPrinter(
 export function shouldPrintFiscalZ(effectiveInvoicingType?: string | null): boolean {
   return effectiveInvoicingType === 'fiscal_machine';
 }
+
+/** Correo obligatorio en registro de cliente solo para factura digital HKA. */
+export function shouldRequireCustomerEmail(
+  effectiveInvoicingType?: string | null,
+): boolean {
+  return effectiveInvoicingType === 'digital_invoicing';
+}
