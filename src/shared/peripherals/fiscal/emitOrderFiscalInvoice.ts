@@ -23,7 +23,13 @@ export type EmitOrderFiscalInvoiceError = {
 export async function emitOrderFiscalInvoice(
   params: MapOrderToFiscalInvoiceParams,
 ): Promise<EmitOrderFiscalInvoiceResult | null> {
-  if (!shouldEmitFiscalInvoice(params.declaresTaxes, params.paymentMethodId)) {
+  if (
+    !shouldEmitFiscalInvoice(
+      params.declaresTaxes,
+      params.paymentMethodId,
+      params.effectiveInvoicingType,
+    )
+  ) {
     return null;
   }
 

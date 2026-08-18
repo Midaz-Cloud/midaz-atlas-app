@@ -93,7 +93,7 @@ function makeKiosk(submitZReport = jest.fn().mockResolvedValue({ id: 'z-1' })) {
 }
 
 describe('runFiscalZClose', () => {
-  it('skips digital invoicing without calling HkaApp or Midaz', async () => {
+  it('skips digital invoicing without calling I0Z/HkaApp or Midaz', async () => {
     const fiscal = makeFiscal();
     const kiosk = makeKiosk();
     const result = await runFiscalZClose({
@@ -103,6 +103,7 @@ describe('runFiscalZClose', () => {
     });
     expect(result).toEqual({ attempted: false, printed: false, persisted: false });
     expect(fiscal.printZReport).not.toHaveBeenCalled();
+    expect(fiscal.readLastZReport).not.toHaveBeenCalled();
     expect(kiosk.submitZReport).not.toHaveBeenCalled();
   });
 

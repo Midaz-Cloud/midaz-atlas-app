@@ -431,6 +431,7 @@ export function FailedPaymentDetailScreen({
       const result = await retryFailedPaymentOrder({
         id: paymentId,
         declaresTaxes: parseDeclaresTaxes(organization?.declaresTaxes),
+        effectiveInvoicingType: organization?.effectiveInvoicingType,
         usdToVesRate: bcvRate ?? defaultOrderFiscalConfig.usdToVesRate,
         primaryCurrency: pricing?.primaryCurrency,
         organizationName: organization?.name,

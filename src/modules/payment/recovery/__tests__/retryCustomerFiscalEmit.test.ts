@@ -36,8 +36,7 @@ jest.mock('@shared/peripherals/fiscal', () => {
     ...actual,
     emitOrderFiscalInvoice: (...args: unknown[]) =>
       mockEmitOrderFiscalInvoice(...args),
-    shouldEmitFiscalInvoice: (declaresTaxes?: boolean) =>
-      Boolean(declaresTaxes),
+    shouldEmitFiscalInvoice: actual.shouldEmitFiscalInvoice,
   };
 });
 

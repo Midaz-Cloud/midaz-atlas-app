@@ -9,6 +9,7 @@ import { getCatalogEntryByLineProductId } from '@shared/catalog/catalogStore';
 import { normalizeDocumentId } from '@shared/api/kiosk/utils/documentId';
 
 import { parseDeclaresTaxes } from '@shared/api/kiosk/utils/declaresTaxes';
+import { shouldUsePhysicalFiscalPrinter } from '@shared/api/kiosk/utils/invoicingType';
 
 import { isVesPrimaryCurrency } from '@shared/pricing/kioskPricing';
 
@@ -39,6 +40,9 @@ export type MapOrderToFiscalInvoiceParams = {
   usdToVesRate: number;
 
   declaresTaxes?: boolean;
+
+  /** Same source as Z close (`organization.effectiveInvoicingType`). */
+  effectiveInvoicingType?: string | null;
 
 };
 
@@ -379,7 +383,15 @@ export function shouldEmitFiscalInvoice(
 
   paymentMethod?: unknown,
 
+  effectiveInvoicingType?: string | null,
+
 ): boolean {
+
+  if (!shouldUsePhysicalFiscalPrinter(effectiveInvoicingType)) {
+
+    return false;
+
+  }
 
   if (!parseDeclaresTaxes(declaresTaxes)) {
 
@@ -435,7 +447,13 @@ export function mapOrderToFiscalInvoiceRequest(
 
 ): EmitFiscalInvoiceRequest | null {
 
-  if (!shouldEmitFiscalInvoice(params.declaresTaxes, params.paymentMethodId)) {
+  if (
+    !shouldEmitFiscalInvoice(
+      params.declaresTaxes,
+      params.paymentMethodId,
+      params.effectiveInvoicingType,
+    )
+  ) {
 
     return null;
 

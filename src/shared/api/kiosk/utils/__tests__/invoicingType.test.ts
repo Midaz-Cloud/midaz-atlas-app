@@ -1,6 +1,7 @@
 import {
   resolveEffectiveInvoicingType,
   shouldPrintFiscalZ,
+  shouldUsePhysicalFiscalPrinter,
 } from '../invoicingType';
 
 describe('resolveEffectiveInvoicingType', () => {
@@ -24,10 +25,21 @@ describe('resolveEffectiveInvoicingType', () => {
   });
 });
 
+describe('shouldUsePhysicalFiscalPrinter', () => {
+  it('is false only for digital_invoicing', () => {
+    expect(shouldUsePhysicalFiscalPrinter('digital_invoicing')).toBe(false);
+    expect(shouldUsePhysicalFiscalPrinter('fiscal_machine')).toBe(true);
+    expect(shouldUsePhysicalFiscalPrinter('hybrid')).toBe(true);
+    expect(shouldUsePhysicalFiscalPrinter(null)).toBe(true);
+    expect(shouldUsePhysicalFiscalPrinter(undefined)).toBe(true);
+  });
+});
+
 describe('shouldPrintFiscalZ', () => {
   it('is true only for fiscal_machine', () => {
     expect(shouldPrintFiscalZ('fiscal_machine')).toBe(true);
     expect(shouldPrintFiscalZ('digital_invoicing')).toBe(false);
+    expect(shouldPrintFiscalZ('hybrid')).toBe(false);
     expect(shouldPrintFiscalZ(null)).toBe(false);
     expect(shouldPrintFiscalZ(undefined)).toBe(false);
   });

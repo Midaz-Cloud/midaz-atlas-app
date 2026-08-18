@@ -243,6 +243,7 @@ export function canRetryFailedPaymentOrder(
 export type RetryFailedPaymentOrderParams = {
   id: number;
   declaresTaxes?: boolean;
+  effectiveInvoicingType?: string | null;
   usdToVesRate?: number;
   primaryCurrency?: string;
   organizationName?: string;
@@ -353,7 +354,11 @@ export async function retryFailedPaymentOrder(
     let issuedFiscalInvoiceNumber = existingFiscalInvoiceNumber;
     if (
       existingFiscalInvoiceNumber == null &&
-      shouldEmitFiscalInvoice(params.declaresTaxes, paymentMethodId)
+      shouldEmitFiscalInvoice(
+        params.declaresTaxes,
+        paymentMethodId,
+        params.effectiveInvoicingType,
+      )
     ) {
       try {
         const fiscalResult = await emitOrderFiscalInvoice({
@@ -365,6 +370,7 @@ export async function retryFailedPaymentOrder(
           primaryCurrency: params.primaryCurrency,
           usdToVesRate,
           declaresTaxes: params.declaresTaxes,
+          effectiveInvoicingType: params.effectiveInvoicingType,
         });
         const issued = fiscalResult?.issuedInvoiceNumber;
         if (issued != null && issued > 0) {

@@ -41,8 +41,7 @@ jest.mock('@shared/peripherals/fiscal', () => {
     ...actual,
     emitOrderFiscalInvoice: (...args: unknown[]) =>
       mockEmitOrderFiscalInvoice(...args),
-    shouldEmitFiscalInvoice: (declaresTaxes?: boolean) =>
-      Boolean(declaresTaxes),
+    shouldEmitFiscalInvoice: actual.shouldEmitFiscalInvoice,
   };
 });
 
@@ -176,6 +175,24 @@ describe('retryFailedPaymentOrder', () => {
     const result = await retryFailedPaymentOrder({ id, declaresTaxes: true });
     expect(result.ok).toBe(true);
     expect(mockEmitOrderFiscalInvoice).toHaveBeenCalledTimes(1);
+    expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+    expect(mockPrintOrderTicket).toHaveBeenCalledTimes(1);
+  });
+
+  it('no emite HkaApp cuando invoicingType es digital_invoicing', async () => {
+    const fixture = FALLIDAS_2026_08_01[1];
+    const id = await recordFailedPayment(
+      failedRowFor(fixture.raw, fixture.amountCents / 100),
+    );
+    mockCreateOrder.mockResolvedValueOnce({ displayOrderNumber: 'ORD-DIG' });
+
+    const result = await retryFailedPaymentOrder({
+      id,
+      declaresTaxes: true,
+      effectiveInvoicingType: 'digital_invoicing',
+    });
+    expect(result.ok).toBe(true);
+    expect(mockEmitOrderFiscalInvoice).not.toHaveBeenCalled();
     expect(mockCreateOrder).toHaveBeenCalledTimes(1);
     expect(mockPrintOrderTicket).toHaveBeenCalledTimes(1);
   });

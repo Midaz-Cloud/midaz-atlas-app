@@ -130,6 +130,59 @@ describe('processKioskOrder phases', () => {
     expect(emitOrderFiscalInvoice).not.toHaveBeenCalled();
   });
 
+  it('skips fiscal phase for digital_invoicing + POS even when declaresTaxes', async () => {
+    const { shouldEmitFiscalInvoice: realShouldEmit } = jest.requireActual(
+      '@shared/peripherals/fiscal',
+    ) as { shouldEmitFiscalInvoice: typeof shouldEmitFiscalInvoice };
+    (shouldEmitFiscalInvoice as jest.Mock).mockImplementation(realShouldEmit);
+
+    const phases: OrderProcessingPhase[] = [];
+    await processKioskOrder(
+      {
+        ...baseParams,
+        paymentMethodId: 'pos',
+        declaresTaxes: true,
+        effectiveInvoicingType: 'digital_invoicing',
+      },
+      (phase) => phases.push(phase),
+    );
+
+    expect(phases).toEqual(['registering', 'printing']);
+    expect(emitOrderFiscalInvoice).not.toHaveBeenCalled();
+    expect(mockCreateOrder).toHaveBeenCalled();
+    expect(printOrderTicket).toHaveBeenCalled();
+  });
+
+  it('includes fiscal phase for fiscal_machine + POS + declaresTaxes', async () => {
+    const { shouldEmitFiscalInvoice: realShouldEmit } = jest.requireActual(
+      '@shared/peripherals/fiscal',
+    ) as { shouldEmitFiscalInvoice: typeof shouldEmitFiscalInvoice };
+    (shouldEmitFiscalInvoice as jest.Mock).mockImplementation(realShouldEmit);
+    (emitOrderFiscalInvoice as jest.Mock).mockResolvedValue({
+      issuedInvoiceNumber: 10,
+    });
+
+    const phases: OrderProcessingPhase[] = [];
+    await processKioskOrder(
+      {
+        ...baseParams,
+        paymentMethodId: 'pos',
+        declaresTaxes: true,
+        effectiveInvoicingType: 'fiscal_machine',
+      },
+      (phase) => phases.push(phase),
+    );
+
+    expect(phases).toEqual(['fiscal', 'registering', 'printing']);
+    expect(emitOrderFiscalInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymentMethodId: 'pos',
+        declaresTaxes: true,
+        effectiveInvoicingType: 'fiscal_machine',
+      }),
+    );
+  });
+
   it('passes issuedInvoiceNumber as fiscalInvoiceNumber on the order POST', async () => {
     (shouldEmitFiscalInvoice as jest.Mock).mockReturnValue(true);
     (emitOrderFiscalInvoice as jest.Mock).mockResolvedValue({

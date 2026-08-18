@@ -17,8 +17,11 @@ import type { PaymentMethodId } from '../../types';
 function initialProcessingPhase(
   declaresTaxes: boolean,
   paymentMethodId?: PaymentMethodId,
+  effectiveInvoicingType?: string | null,
 ): OrderProcessingPhase {
-  return shouldEmitFiscalInvoice(declaresTaxes, paymentMethodId) ? 'fiscal' : 'registering';
+  return shouldEmitFiscalInvoice(declaresTaxes, paymentMethodId, effectiveInvoicingType)
+    ? 'fiscal'
+    : 'registering';
 }
 
 export type UseOrderProcessingParams = {
@@ -50,8 +53,13 @@ export function useOrderProcessing({ enabled, onComplete }: UseOrderProcessingPa
   const declaresTaxes = parseDeclaresTaxes(
     organization?.declaresTaxes ?? runtimeConfig?.raw.organization.declaresTaxes,
   );
+  const effectiveInvoicingType = organization?.effectiveInvoicingType;
   const [phase, setPhase] = useState<OrderProcessingPhase>(() =>
-    initialProcessingPhase(declaresTaxes, paymentMethodId as PaymentMethodId | undefined),
+    initialProcessingPhase(
+      declaresTaxes,
+      paymentMethodId as PaymentMethodId | undefined,
+      effectiveInvoicingType,
+    ),
   );
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
@@ -69,6 +77,7 @@ export function useOrderProcessing({ enabled, onComplete }: UseOrderProcessingPa
     organizationLegalName:
       organization?.legalName ?? runtimeConfig?.raw.organization.legalName,
     declaresTaxes,
+    effectiveInvoicingType,
     customerId: customer?.id,
     customerDocumentId: customer?.documentId,
     customerName: customer
@@ -95,7 +104,13 @@ export function useOrderProcessing({ enabled, onComplete }: UseOrderProcessingPa
     }
 
     let cancelled = false;
-    setPhase(initialProcessingPhase(declaresTaxes, paramsRef.current?.paymentMethodId));
+    setPhase(
+      initialProcessingPhase(
+        declaresTaxes,
+        paramsRef.current?.paymentMethodId,
+        paramsRef.current?.effectiveInvoicingType,
+      ),
+    );
 
     void (async () => {
       const params = paramsRef.current;

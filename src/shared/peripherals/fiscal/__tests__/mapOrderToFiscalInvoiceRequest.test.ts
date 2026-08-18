@@ -55,6 +55,22 @@ describe('shouldEmitFiscalInvoice', () => {
     expect(shouldEmitFiscalInvoice(true, 'mobile')).toBe(true);
     expect(shouldEmitFiscalInvoice(true, 'pago_movil')).toBe(true);
   });
+
+  it('returns false for digital_invoicing even with POS and declaresTaxes', () => {
+    expect(shouldEmitFiscalInvoice(true, 'pos', 'digital_invoicing')).toBe(false);
+    expect(shouldEmitFiscalInvoice(true, 'mobile', 'digital_invoicing')).toBe(
+      false,
+    );
+  });
+
+  it('returns true for fiscal_machine + POS + declaresTaxes', () => {
+    expect(shouldEmitFiscalInvoice(true, 'pos', 'fiscal_machine')).toBe(true);
+  });
+
+  it('keeps HkaApp for hybrid or unset type when declaresTaxes and POS', () => {
+    expect(shouldEmitFiscalInvoice(true, 'pos', 'hybrid')).toBe(true);
+    expect(shouldEmitFiscalInvoice(true, 'pos', undefined)).toBe(true);
+  });
 });
 
 describe('mapPaymentMethodToFiscalCode', () => {
@@ -113,6 +129,20 @@ describe('mapOrderToFiscalInvoiceRequest', () => {
         paymentMethodId: 'cash',
         usdToVesRate: 40,
         declaresTaxes: true,
+      }),
+    ).toBeNull();
+  });
+
+  it('returns null for digital_invoicing even with POS and declaresTaxes', () => {
+    expect(
+      mapOrderToFiscalInvoiceRequest({
+        lines: [sampleLine],
+        customerDocumentId: 'V12345678',
+        customerName: 'Juan Perez',
+        paymentMethodId: 'pos',
+        usdToVesRate: 40,
+        declaresTaxes: true,
+        effectiveInvoicingType: 'digital_invoicing',
       }),
     ).toBeNull();
   });

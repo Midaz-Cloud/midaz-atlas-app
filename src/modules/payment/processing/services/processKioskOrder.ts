@@ -47,6 +47,8 @@ export type ProcessKioskOrderParams = {
   cardPayment?: CardPaymentPayload | null;
   printQrEnabled?: boolean;
   declaresTaxes?: boolean;
+  /** Same source as Z close (`organization.effectiveInvoicingType`). */
+  effectiveInvoicingType?: string | null;
   reservationId?: string | null;
   /**
    * Customer fiscal retry: do not short-circuit demo `fiscal_error`.
@@ -70,12 +72,27 @@ export type ProcessKioskOrderParams = {
   onReservationExpired?: () => void;
 };
 
+function orderShouldEmitFiscalInvoice(
+  params: Pick<
+    ProcessKioskOrderParams,
+    'declaresTaxes' | 'paymentMethodId' | 'effectiveInvoicingType'
+  >,
+): boolean {
+  return shouldEmitFiscalInvoice(
+    params.declaresTaxes,
+    params.paymentMethodId,
+    params.effectiveInvoicingType,
+  );
+}
+
 function buildProcessingPhases(
-  declaresTaxes?: boolean,
-  paymentMethodId?: PaymentMethodId,
+  params: Pick<
+    ProcessKioskOrderParams,
+    'declaresTaxes' | 'paymentMethodId' | 'effectiveInvoicingType'
+  >,
 ): OrderProcessingPhase[] {
   const phases: OrderProcessingPhase[] = [];
-  if (shouldEmitFiscalInvoice(declaresTaxes, paymentMethodId)) {
+  if (orderShouldEmitFiscalInvoice(params)) {
     phases.push('fiscal');
   }
   phases.push('registering', 'printing');
@@ -109,7 +126,7 @@ export async function processKioskOrder(
   let orderRegisteredFromApi = false;
   let fiscalInvoiceNumber: number | undefined;
 
-  const phases = buildProcessingPhases(params.declaresTaxes, params.paymentMethodId);
+  const phases = buildProcessingPhases(params);
 
   for (const phase of phases) {
     onPhase(phase);
@@ -118,7 +135,7 @@ export async function processKioskOrder(
       if (
         isKioskDemoMode &&
         !params.skipSimulatedFiscalError &&
-        shouldEmitFiscalInvoice(params.declaresTaxes, params.paymentMethodId)
+        orderShouldEmitFiscalInvoice(params)
       ) {
         const outcome = getDemoProcessingOutcome();
         if (outcome === 'fiscal_error') {
@@ -126,7 +143,7 @@ export async function processKioskOrder(
         }
       }
 
-      if (shouldEmitFiscalInvoice(params.declaresTaxes, params.paymentMethodId)) {
+      if (orderShouldEmitFiscalInvoice(params)) {
         try {
           const fiscalResult = await emitOrderFiscalInvoice({
             lines: params.lines,
@@ -138,6 +155,7 @@ export async function processKioskOrder(
             primaryCurrency: params.primaryCurrency,
             usdToVesRate: params.usdToVesRate,
             declaresTaxes: params.declaresTaxes,
+            effectiveInvoicingType: params.effectiveInvoicingType,
           });
           fiscalInvoiceNumber = fiscalResult?.issuedInvoiceNumber;
         } catch (error) {

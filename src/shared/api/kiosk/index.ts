@@ -114,6 +114,7 @@ export { mockPagoMovilAccount } from './mock/mockPagoMovilAccount';
 export { orderTypeToFulfillment, fulfillmentToOrderType } from './mappers/fulfillment';
 export {
   resolveEffectiveInvoicingType,
+  shouldUsePhysicalFiscalPrinter,
   shouldPrintFiscalZ,
 } from './utils/invoicingType';
 export type { KioskInvoicingType } from './utils/invoicingType';

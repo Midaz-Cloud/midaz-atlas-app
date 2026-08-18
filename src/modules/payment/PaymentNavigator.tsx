@@ -573,6 +573,7 @@ export function PaymentNavigator({
       const declaresTaxes = parseDeclaresTaxes(
         organization?.declaresTaxes ?? runtimeConfig?.raw.organization.declaresTaxes,
       );
+      const effectiveInvoicingType = organization?.effectiveInvoicingType;
       const existingRegisteredOrder = confirmedOrder?.displayOrderNumber
         ? {
             displayOrderNumber: confirmedOrder.displayOrderNumber,
@@ -582,6 +583,7 @@ export function PaymentNavigator({
         failedPaymentId: fiscalFailedPaymentId,
         salvage: {
           declaresTaxes,
+          effectiveInvoicingType,
           usdToVesRate: fiscalConfig.usdToVesRate,
           primaryCurrency,
           organizationName: organization?.name ?? runtimeConfig?.raw.organization.name,
@@ -601,6 +603,7 @@ export function PaymentNavigator({
           organizationLegalName:
             organization?.legalName ?? runtimeConfig?.raw.organization.legalName,
           declaresTaxes,
+          effectiveInvoicingType,
           customerId: customer?.id,
           customerDocumentId: customer?.documentId,
           customerName: customer
