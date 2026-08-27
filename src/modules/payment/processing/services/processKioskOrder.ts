@@ -7,6 +7,7 @@ import {
   mapCartToCreateOrderRequest,
   loadAccessToken,
 } from '@shared/api/kiosk';
+import type { FulfillmentType } from '@shared/api/kiosk';
 import type {
   CardPaymentPayload,
   CartLine,
@@ -35,6 +36,12 @@ export type ProcessKioskOrderParams = {
   primaryCurrency?: string;
   paymentMethodId?: PaymentMethodId;
   orderType?: OrderType;
+  /**
+   * Fulfillment de la opción de tipo de pedido que eligió el cliente. Manda sobre
+   * `orderType`, que solo distingue dineIn/takeOut y no alcanza desde que los tipos
+   * se configuran por panel (dos opciones pueden mapear al mismo par legado).
+   */
+  fulfillment?: FulfillmentType;
   tableNumber?: string;
   organizationName?: string;
   organizationLegalName?: string;
@@ -201,6 +208,7 @@ export async function processKioskOrder(
         const request = mapCartToCreateOrderRequest({
           lines: params.lines,
           orderType: params.orderType,
+          fulfillment: params.fulfillment,
           tableNumber: params.tableNumber,
           paymentMethodId: params.paymentMethodId,
           customerId: params.customerId,

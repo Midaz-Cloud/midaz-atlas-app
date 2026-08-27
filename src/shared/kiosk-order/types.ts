@@ -79,6 +79,9 @@ export type MobilePaymentPayload = {
 };
 
 /** Set after successful POS payment, sent with POST /kiosk/orders for debito/credito. */
+/** Tipo de tarjeta declarado por el cliente en el kiosko. */
+export type CardKind = 'debito' | 'credito';
+
 export type CardPaymentPayload = {
   posResponse: KioskPosResponse;
   cardType: string;

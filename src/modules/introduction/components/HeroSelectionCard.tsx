@@ -16,7 +16,7 @@ import {
   useKioskScreenColors,
 } from '@shared/theme';
 
-import { orderTypeLayout, orderTypeShadows } from '../order-type/theme';
+import { orderTypeCompactLayout, orderTypeLayout, orderTypeShadows } from '../order-type/theme';
 
 export type HeroSelectionImageVariant = 'dineIn' | 'takeOut';
 
@@ -27,6 +27,8 @@ type HeroSelectionCardProps = {
   imageUrl?: string | null;
   onPress: () => void;
   testID?: string;
+  /** Variante achatada para cuando entran 3 opciones en pantalla. */
+  compact?: boolean;
 };
 
 export function HeroSelectionCard({
@@ -35,6 +37,7 @@ export function HeroSelectionCard({
   imageUrl,
   onPress,
   testID,
+  compact = false,
 }: HeroSelectionCardProps) {
   const colors = useKioskScreenColors();
   const [loadFailed, setLoadFailed] = useState(false);
@@ -51,7 +54,9 @@ export function HeroSelectionCard({
       StyleSheet.create({
         container: {
           width: orderTypeLayout.optionWidth,
-          height: orderTypeLayout.optionHeight,
+          height: compact
+            ? orderTypeCompactLayout.optionHeight
+            : orderTypeLayout.optionHeight,
           alignSelf: 'center',
         },
         pressed: {
@@ -64,10 +69,14 @@ export function HeroSelectionCard({
         card: {
           position: 'absolute',
           left: orderTypeLayout.cardHorizontalInset,
-          top: orderTypeLayout.cardTop,
+          top: compact ? orderTypeCompactLayout.cardTop : orderTypeLayout.cardTop,
           width: orderTypeLayout.cardWidth,
-          height: orderTypeLayout.cardHeight,
-          borderRadius: orderTypeLayout.cardRadius,
+          height: compact
+            ? orderTypeCompactLayout.cardHeight
+            : orderTypeLayout.cardHeight,
+          borderRadius: compact
+            ? orderTypeCompactLayout.cardRadius
+            : orderTypeLayout.cardRadius,
           backgroundColor: colors.cardBackground,
           alignItems: 'center',
           justifyContent: 'center',
@@ -81,7 +90,7 @@ export function HeroSelectionCard({
           textAlign: 'center',
         },
       }),
-    [colors],
+    [colors, compact],
   );
 
   return (
@@ -94,7 +103,10 @@ export function HeroSelectionCard({
       {showImage ? (
         <KioskCachedImage
           source={{ uri: imageUrl! }}
-          style={[styles.imageBase, imageStyles[imageVariant]]}
+          style={[
+            styles.imageBase,
+            compact ? compactImageStyles[imageVariant] : imageStyles[imageVariant],
+          ]}
           resizeMode="contain"
           onError={() => setLoadFailed(true)}
         />
@@ -105,6 +117,8 @@ export function HeroSelectionCard({
     </Pressable>
   );
 }
+
+const scaleImage = (value: number) => value * orderTypeCompactLayout.imageScale;
 
 const imageStyles: Record<HeroSelectionImageVariant, StyleProp<ImageStyle>> = {
   dineIn: {
@@ -118,5 +132,20 @@ const imageStyles: Record<HeroSelectionImageVariant, StyleProp<ImageStyle>> = {
     height: orderTypeLayout.imageHeightTakeOut,
     top: orderTypeLayout.imageTopTakeOut,
     left: orderTypeLayout.imageLeftTakeOut,
+  },
+};
+
+const compactImageStyles: Record<HeroSelectionImageVariant, StyleProp<ImageStyle>> = {
+  dineIn: {
+    width: scaleImage(orderTypeLayout.imageWidthDineIn),
+    height: scaleImage(orderTypeLayout.imageHeightDineIn),
+    top: scaleImage(orderTypeLayout.imageTopDineIn),
+    alignSelf: 'center',
+  },
+  takeOut: {
+    width: scaleImage(orderTypeLayout.imageWidthTakeOut),
+    height: scaleImage(orderTypeLayout.imageHeightTakeOut),
+    top: scaleImage(orderTypeLayout.imageTopTakeOut),
+    left: scaleImage(orderTypeLayout.imageLeftTakeOut),
   },
 };

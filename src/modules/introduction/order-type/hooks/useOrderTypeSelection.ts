@@ -1,15 +1,15 @@
 import { useCallback } from 'react';
 
-import type { OrderType } from '../../types';
+import type { KioskOrderTypeChoice } from '@shared/api/kiosk';
 
 type UseOrderTypeSelectionOptions = {
-  onContinue: (orderType: OrderType) => void;
+  onContinue: (choice: KioskOrderTypeChoice) => void;
 };
 
 export function useOrderTypeSelection({ onContinue }: UseOrderTypeSelectionOptions) {
   const selectOrderType = useCallback(
-    (orderType: OrderType) => {
-      onContinue(orderType);
+    (choice: KioskOrderTypeChoice) => {
+      onContinue(choice);
     },
     [onContinue],
   );

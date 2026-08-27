@@ -15,8 +15,12 @@ export type {
   KioskProductTaxRateLive,
   KioskProductsResponseLive,
 } from './liveApi.types';
-export type { KioskRuntimeConfig } from './mappers/config';
-export { mapConfigToRuntime } from './mappers/config';
+export type {
+  KioskRuntimeConfig,
+  KioskOrderTypeChoice,
+  KioskOrderTypeImageVariant,
+} from './mappers/config';
+export { mapConfigToRuntime, DEFAULT_FULFILLMENT } from './mappers/config';
 export {
   mapApiProductToMenuProduct,
   buildCategoriesFromProducts,

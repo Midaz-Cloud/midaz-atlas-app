@@ -68,6 +68,9 @@ export function getMockConfig(): KioskConfigResponse {
   return {
     id: 'mock-config-id',
     kioskDeviceId: 'mock-device-id',
+    // null = par de fábrica, que es lo que Storybook y los mocks venían mostrando.
+    orderTypes: null,
+    kioskInvoicingType: null,
     foodServiceEnabled: true,
     tableFieldEnabled: false,
     printQrEnabled: false,

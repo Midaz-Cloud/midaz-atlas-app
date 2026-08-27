@@ -9,6 +9,7 @@ import { getCatalogEntryByLineProductId } from '@shared/catalog/catalogStore';
 import type {
   CreateKioskOrderRequest,
   CreateKioskOrderResponse,
+  FulfillmentType,
   KioskOrderItemRequest,
   KioskOrderModifierSelection,
 } from '../types';
@@ -18,6 +19,12 @@ import { paymentMethodIdToApi } from './paymentMethod';
 export type MapOrderParams = {
   lines: CartLine[];
   orderType?: OrderType;
+  /**
+   * Fulfillment de la opción que eligió el cliente. Manda sobre `orderType`, que solo
+   * distingue dineIn/takeOut y no alcanza desde que los tipos se configuran por panel
+   * (dos opciones distintas pueden mapear al mismo par legado).
+   */
+  fulfillment?: FulfillmentType;
   tableNumber?: string;
   notes?: string;
   paymentMethodId?: PaymentMethodId;
@@ -165,10 +172,18 @@ export function mapCartToCreateOrderRequest(params: MapOrderParams): CreateKiosk
     .map((line) => mapLineToItem(line, declaresTaxes))
     .filter((item): item is KioskOrderItemRequest => item != null);
 
-  const paymentMethod = paymentMethodIdToApi(params.paymentMethodId);
+  const uiPaymentMethod = paymentMethodIdToApi(params.paymentMethodId);
+  // `paymentMethodIdToApi` mapea 'pos' → 'debito' porque la UI tiene una sola
+  // tarjeta de "Punto de venta". El tipo real lo declara el cliente en la
+  // pantalla siguiente y viaja en `cardPayment.cardType`; es lo que decide el
+  // método HKA del backend (tarjeta_dd/catalogo11 05 vs tarjeta_dc/06).
+  const paymentMethod =
+    uiPaymentMethod === 'debito' && params.cardPayment?.cardType === 'credito'
+      ? 'credito'
+      : uiPaymentMethod;
   const request: CreateKioskOrderRequest = {
     items,
-    fulfillmentType: orderTypeToFulfillment(params.orderType),
+    fulfillmentType: params.fulfillment ?? orderTypeToFulfillment(params.orderType),
     tableNumber: params.tableNumber,
     notes: params.notes,
     paymentMethod,

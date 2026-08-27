@@ -120,6 +120,7 @@ export function PaymentNavigator({
     totals,
     paymentPayerDocumentId,
     setReservationId,
+    applyServerUnitPrices,
     decrementLine,
     removeLine,
     reservationId,
@@ -213,6 +214,8 @@ export function PaymentNavigator({
             }
             if (result.ok) {
               setReservationId(result.reservationId);
+              // Price lock: el backend factura con el precio congelado al reservar.
+              applyServerUnitPrices(result.serverPrices);
               setRoute({ name: 'processing' });
               return;
             }
@@ -281,6 +284,8 @@ export function PaymentNavigator({
         const result = await reserveCartBeforePayment(lines);
         if (result.ok) {
           setReservationId(result.reservationId);
+          // Price lock: el backend factura con el precio congelado al reservar.
+          applyServerUnitPrices(result.serverPrices);
           onSuccess();
           return;
         }
@@ -298,7 +303,7 @@ export function PaymentNavigator({
         setReserveBusy(false);
       }
     },
-    [failedPaymentContext, lastPaymentMethodId, lines, setReservationId],
+    [applyServerUnitPrices, failedPaymentContext, lastPaymentMethodId, lines, setReservationId],
   );
 
   const handleSelectMethod = useCallback((methodId: PaymentMethodId) => {

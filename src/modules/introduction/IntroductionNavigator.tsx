@@ -16,13 +16,14 @@ import {
 import { LanguageSelectionScreen } from './language-selection/LanguageSelectionScreen';
 import { OrderTypeScreen } from './order-type/OrderTypeScreen';
 import type { IntroductionStep, OrderType } from './types';
+import { fulfillmentToOrderType, type KioskOrderTypeChoice } from '@shared/api/kiosk';
 
 type IntroductionNavigatorProps = {
   onComplete: (orderType?: OrderType) => void;
 };
 
 export function IntroductionNavigator({ onComplete }: IntroductionNavigatorProps) {
-  const { runtimeConfig, setOrderType: setSessionOrderType } = useKioskSession();
+  const { runtimeConfig, setOrderSelection } = useKioskSession();
   const { languageSwitcherEnabled, enabledLocales } = useSessionLocale();
   const flowFlags = getIntroductionFlowFlags(
     runtimeConfig?.orderTypeSelectionEnabled,
@@ -35,19 +36,22 @@ export function IntroductionNavigator({ onComplete }: IntroductionNavigatorProps
   const advanceFromHome = useCallback(() => {
     const next = getStepAfterHome(flowFlags);
     if (next === 'complete') {
-      setSessionOrderType('dineIn');
-      onComplete('dineIn');
+      // 0 opciones: no se le pregunta nada al cliente y la orden va como consumo
+      // en el local. 1 opción: se aplica sola, sin pantalla de por medio.
+      const onlyChoice = runtimeConfig?.orderTypeChoices?.[0];
+      setOrderSelection(onlyChoice);
+      onComplete(onlyChoice ? fulfillmentToOrderType(onlyChoice.fulfillment) : 'dineIn');
       return;
     }
     setStep(next);
-  }, [flowFlags, onComplete, setSessionOrderType]);
+  }, [flowFlags, onComplete, runtimeConfig, setOrderSelection]);
 
   const advanceFromOrderType = useCallback(
-    (orderType: OrderType) => {
-      setSessionOrderType(orderType);
-      onComplete(orderType);
+    (choice: KioskOrderTypeChoice) => {
+      setOrderSelection(choice);
+      onComplete(fulfillmentToOrderType(choice.fulfillment));
     },
-    [onComplete, setSessionOrderType],
+    [onComplete, setOrderSelection],
   );
 
   const goBackToHome = useCallback(() => {

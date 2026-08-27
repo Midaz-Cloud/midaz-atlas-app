@@ -5,7 +5,21 @@ export type PaymentMethodApi =
   | 'efectivo'
   | 'efectivo_ves';
 
-export type FulfillmentType = 'IN_STORE' | 'PICKUP' | 'DELIVERY';
+// DINE_IN existe en el backend desde siempre; el kiosko no lo usaba hasta que el
+// panel dejó configurar los tipos de pedido a mano.
+export type FulfillmentType = 'IN_STORE' | 'DINE_IN' | 'PICKUP' | 'DELIVERY';
+
+/**
+ * Opción del selector de tipo de pedido, configurada por sucursal desde el panel.
+ * `label` es libre; `fulfillment` es lo que viaja en la orden.
+ */
+export type KioskOrderTypeOption = {
+  id: string;
+  label: string;
+  fulfillment: FulfillmentType;
+  image?: string | null;
+  enabled: boolean;
+};
 
 export type KioskLoginRequest = {
   serialNumber: string;
@@ -69,6 +83,8 @@ export type KioskConfigResponse = {
   comandaModel: 'printed' | 'sent';
   enabledPaymentMethods: PaymentMethodApi[];
   kioskInvoicingType?: string | null;
+  /** `null` = el kiosko usa el par de fábrica (Comer aquí / Para llevar). */
+  orderTypes: KioskOrderTypeOption[] | null;
   appearance: KioskConfigAppearance;
   organization: KioskConfigOrganization;
   pagoMovilAccount: KioskPagoMovilAccount | null;
@@ -148,6 +164,12 @@ export type CartReserveItemResult = {
   reserved: boolean;
   availableQuantity: number;
   requested: number;
+  /**
+   * Precio unitario congelado por el server al reservar (price lock). Es el número
+   * con el que se va a emitir la factura, así que el cobro debe usar ESTE y no el
+   * del catálogo local, que puede estar hasta 60 s desactualizado.
+   */
+  unitPrice?: number | null;
 };
 
 export type CartReserveResponse = {
@@ -288,6 +310,8 @@ export type CreateKioskOrderResponse = {
 export type KioskConfigFetchResult = {
   config: KioskConfigResponse;
   etag: string | null;
+  /** `true` cuando el server respondió 304 y `config` sale del caché local. */
+  notModified: boolean;
 };
 
 /** POS settlement payload from N620 SDK (POST /kiosk/settlement settlementData). */

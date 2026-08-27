@@ -48,7 +48,7 @@ export function useOrderProcessing({ enabled, onComplete }: UseOrderProcessingPa
     clearReservationId,
   } = useKioskOrder();
   const { customer } = useKioskCustomer();
-  const { orderType, tableNumber, runtimeConfig } = useKioskSession();
+  const { orderType, orderSelection, tableNumber, runtimeConfig } = useKioskSession();
   const organization = useKioskOrganization();
   const declaresTaxes = parseDeclaresTaxes(
     organization?.declaresTaxes ?? runtimeConfig?.raw.organization.declaresTaxes,
@@ -72,6 +72,7 @@ export function useOrderProcessing({ enabled, onComplete }: UseOrderProcessingPa
     primaryCurrency,
     paymentMethodId: paymentMethodId as PaymentMethodId | undefined,
     orderType,
+    fulfillment: orderSelection?.fulfillment,
     tableNumber,
     organizationName: organization?.name ?? runtimeConfig?.raw.organization.name,
     organizationLegalName:

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { buildPosPaymentFromEcr } from '@shared/api/kiosk/mappers/cardPaymentFromEcr';
 import { useKioskCustomer } from '@shared/customer';
 import { useKioskOrder } from '@shared/kiosk-order';
+import { applyServerPricesToLines } from '@shared/kiosk-order/applyServerPricesToLines';
 import {
   resolvePosChargeAmountVes,
   toEcrTerminalAmount,
@@ -49,8 +50,11 @@ type ChargeDeps = {
   customer: ReturnType<typeof useKioskCustomer>['customer'];
   lines: ReturnType<typeof useKioskOrder>['lines'];
   totals: ReturnType<typeof useKioskOrder>['totals'];
+  applyServerUnitPrices: ReturnType<typeof useKioskOrder>['applyServerUnitPrices'];
+  computeTotalsFor: ReturnType<typeof useKioskOrder>['computeTotalsFor'];
   reservationId: ReturnType<typeof useKioskOrder>['reservationId'];
   cardPaymentPayload: ReturnType<typeof useKioskOrder>['cardPaymentPayload'];
+  cardKind: ReturnType<typeof useKioskOrder>['cardKind'];
   mobilePaymentPayload: ReturnType<typeof useKioskOrder>['mobilePaymentPayload'];
   orderType: ReturnType<typeof useKioskSession>['orderType'];
   tableNumber: ReturnType<typeof useKioskSession>['tableNumber'];
@@ -67,8 +71,11 @@ async function runPosCharge(deps: ChargeDeps): Promise<PosChargeResult> {
     customer,
     lines,
     totals,
+    applyServerUnitPrices,
+    computeTotalsFor,
     reservationId,
     cardPaymentPayload,
+    cardKind,
     mobilePaymentPayload,
     orderType,
     tableNumber,
@@ -120,10 +127,17 @@ async function runPosCharge(deps: ChargeDeps): Promise<PosChargeResult> {
     }
     setReservationId(reserveResult.reservationId);
 
+    // Price lock: el backend va a facturar con los precios que congeló al reservar,
+    // así que el POS tiene que cobrar ESE total. `totals` viene del render anterior
+    // y `applyServerUnitPrices` no se propaga a tiempo — se recalcula en el momento.
+    const lockedLines = applyServerPricesToLines(lines, reserveResult.serverPrices);
+    const lockedTotals = computeTotalsFor(lockedLines);
+    applyServerUnitPrices(reserveResult.serverPrices);
+
     const result = await executePosCardPayment({
       ecr,
       documentId: payerDocumentId,
-      cartTotalVes: totals.totalVes,
+      cartTotalVes: lockedTotals.totalVes,
     });
     if (!result.ok) {
       recordFailedPaymentSafe(
@@ -162,9 +176,12 @@ async function runPosCharge(deps: ChargeDeps): Promise<PosChargeResult> {
         phone: customer.phone,
       },
       payerDocumentId,
-      paymentMethodId: 'pos',
+      // Lo que declaró el cliente en la pantalla anterior. Antes iba fijo en
+      // 'pos', así que `cardType` salía siempre 'debito' y la factura declaraba
+      // catalogo11 05 aunque el pago fuera con crédito.
+      paymentMethodId: cardKind === 'credito' ? 'credito' : 'pos',
       amountSentCents: toEcrTerminalAmount(
-        resolvePosChargeAmountVes(totals.totalVes),
+        resolvePosChargeAmountVes(lockedTotals.totalVes),
       ),
     });
     if (!posPayment.ok) {
@@ -214,11 +231,14 @@ export function usePosChargeProcessing({
   const {
     lines,
     totals,
+    applyServerUnitPrices,
+    computeTotalsFor,
     paymentPayerDocumentId,
     setReservationId,
     setCardPaymentPayload,
     reservationId,
     cardPaymentPayload,
+    cardKind,
     mobilePaymentPayload,
   } = useKioskOrder();
   const { customer } = useKioskCustomer();
@@ -251,8 +271,11 @@ export function usePosChargeProcessing({
           customer,
           lines,
           totals,
+          applyServerUnitPrices,
+          computeTotalsFor,
           reservationId,
           cardPaymentPayload,
+          cardKind,
           mobilePaymentPayload,
           orderType,
           tableNumber,

@@ -13,7 +13,8 @@ import { useTranslation } from 'react-i18next';
 
 import type { OrderType } from '@modules/introduction/types';
 
-import type { KioskRuntimeConfig } from '@shared/api/kiosk';
+import type { KioskOrderTypeChoice, KioskRuntimeConfig } from '@shared/api/kiosk';
+import { fulfillmentToOrderType } from '@shared/api/kiosk';
 import { syncMockCatalogFromMenuMocks } from '@shared/api/kiosk/mock/buildMockFixtures';
 import { kioskScreenColors, kioskScreenLayout } from '@shared/theme';
 import { displayTextStyle } from '@shared/theme';
@@ -37,6 +38,13 @@ export type KioskSessionContextValue = {
   bootstrapPhase: KioskBootstrapPhase | null;
   orderType: OrderType | undefined;
   setOrderType: (orderType: OrderType) => void;
+  /**
+   * Opción de tipo de pedido efectivamente elegida (o auto-aplicada cuando hay una
+   * sola). Es la fuente del `fulfillmentType` que viaja en la orden; `orderType` se
+   * mantiene derivado para no romper lo ya persistido en pagos fallidos.
+   */
+  orderSelection: KioskOrderTypeChoice | undefined;
+  setOrderSelection: (choice: KioskOrderTypeChoice | undefined) => void;
   tableNumber: string | undefined;
   setTableNumber: (value: string | undefined) => void;
   deviceSerial: string | null;
@@ -63,6 +71,13 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
   const [bootstrapPhase, setBootstrapPhase] = useState<KioskBootstrapPhase | null>(null);
   const [imageProgress, setImageProgress] = useState<ImageSyncProgress | null>(null);
   const [orderType, setOrderType] = useState<OrderType | undefined>();
+  const [orderSelection, setOrderSelectionState] = useState<KioskOrderTypeChoice | undefined>();
+
+  /** Guardar la opción mantiene `orderType` en sincronía para el código legado. */
+  const setOrderSelection = useCallback((choice: KioskOrderTypeChoice | undefined) => {
+    setOrderSelectionState(choice);
+    setOrderType(choice ? fulfillmentToOrderType(choice.fulfillment) : undefined);
+  }, []);
   const [tableNumber, setTableNumber] = useState<string | undefined>();
   const [deviceSerial, setDeviceSerial] = useState<string | null>(null);
   const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null);
@@ -149,6 +164,8 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
       bootstrapPhase,
       orderType,
       setOrderType,
+      orderSelection,
+      setOrderSelection,
       tableNumber,
       setTableNumber,
       deviceSerial,
@@ -162,6 +179,8 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
       bootstrapSnapshot,
       bootstrapPhase,
       orderType,
+      orderSelection,
+      setOrderSelection,
       tableNumber,
       deviceSerial,
       retryBootstrap,

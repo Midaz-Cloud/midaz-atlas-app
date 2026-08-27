@@ -19,6 +19,18 @@
       "description": "Pago en divisas"
     }
   },
+  "cardType": {
+    "title": "¿Débito o crédito?",
+    "subtitle": "Selecciona el tipo de tarjeta con el que vas a pagar.",
+    "debito": {
+      "title": "Débito",
+      "description": "Se descuenta de tu cuenta al instante"
+    },
+    "credito": {
+      "title": "Crédito",
+      "description": "Se carga a tu tarjeta de crédito"
+    }
+  },
   "flow": {
     "totalLabel": "Monto total",
     "continue": "Continuar",

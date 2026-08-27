@@ -28,8 +28,21 @@ class UsbSerialModule(private val reactContext: ReactApplicationContext) :
 
     private var serialPort: UsbSerialPort? = null
     private var usbConnection: android.hardware.usb.UsbDeviceConnection? = null
-    private var keepReading = false
+    @Volatile private var keepReading = false
     private var readThread: Thread? = null
+
+    /**
+     * Generación del lector. `keepReading` solo no alcanza: `serialPort.read()`
+     * es una transferencia bulk bloqueante que ignora `interrupt()`, así que un
+     * hilo viejo despierta hasta 1 s después de que lo mandaron a parar — y para
+     * entonces `startReadThread()` ya devolvió `keepReading` a `true`, con lo que
+     * el viejo seguía vivo. Dos hilos leyendo el mismo puerto se reparten los
+     * bytes y sus chunks llegan mezclados a `rxByteBuffer`: así salió
+     * `"daa":{` en vez de `"data":{` y `PPAROVED` en vez de `APPROVED` en el
+     * cobro con tarjeta del 27/8/2026, que dejó la venta perdida con el dinero
+     * ya cobrado.
+     */
+    @Volatile private var readGeneration = 0
     private val rxByteBuffer = ByteArrayOutputStream()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var firstSend = true
@@ -225,24 +238,32 @@ class UsbSerialModule(private val reactContext: ReactApplicationContext) :
 
     private fun startReadThread() {
         stopReadThread()
+        val generation = ++readGeneration
         keepReading = true
+        // rxByteBuffer se toca solo desde el main thread (onRxChunk/processBuffer).
+        mainHandler.post { rxByteBuffer.reset() }
 
         readThread = Thread {
             val buffer = ByteArray(4096)
-            while (keepReading) {
+            while (keepReading && generation == readGeneration) {
                 try {
                     val len = serialPort?.read(buffer, 1000) ?: break
                     if (len > 0) {
+                        // Un lector de otra generación no puede aportar bytes: los
+                        // suyos van mezclados con los del lector vigente.
+                        if (generation != readGeneration) break
                         val rx = buffer.copyOf(len)
                         mainHandler.post {
-                            onRxChunk(rx)
+                            if (generation == readGeneration) {
+                                onRxChunk(rx)
+                            }
                         }
                     }
                 } catch (e: Exception) {
-                    if (keepReading) {
+                    if (keepReading && generation == readGeneration) {
                         mainHandler.post { addLog("Error leyendo: ${e.message}") }
                     }
-                    keepReading = false
+                    break
                 }
             }
         }
@@ -283,8 +304,26 @@ class UsbSerialModule(private val reactContext: ReactApplicationContext) :
 
     private fun stopReadThread() {
         keepReading = false
-        readThread?.interrupt()
+        readGeneration += 1
+        val previous = readThread
         readThread = null
+        previous?.interrupt()
+
+        // Esperar a que el lector viejo salga ANTES de abrir otro sobre el mismo
+        // puerto: mientras siga dentro de `read()` se queda con bytes que el
+        // nuevo ya no va a ver. El timeout de lectura es de 1 s, así que 2 s
+        // alcanzan; si no murió, al menos la guarda de generación descarta lo
+        // que lea. `connect()` corre en el hilo de NativeModules, no en el main.
+        if (previous != null && previous != Thread.currentThread()) {
+            try {
+                previous.join(2000)
+                if (previous.isAlive) {
+                    mainHandler.post { addLog("Lector previo no terminó en 2s (gen $readGeneration)") }
+                }
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+        }
     }
 
     private fun resetMessageAssemblyStats() {

@@ -97,7 +97,7 @@ export class HttpKioskApiClient implements KioskApiClient {
       if (!config) {
         throw new KioskApiError('Config cache is invalid', 304);
       }
-      return { config, etag: ifNoneMatch ?? null };
+      return { config, etag: ifNoneMatch ?? null, notModified: true };
     }
     await throwIfNotOk(response, '/kiosk/config');
     const liveBody = await response.json();
@@ -107,7 +107,7 @@ export class HttpKioskApiClient implements KioskApiClient {
     const config = mapLiveConfigToKioskConfigResponse(liveBody);
     const etag = response.headers.get('ETag');
     await saveCachedConfigBody(liveBody);
-    return { config, etag };
+    return { config, etag, notModified: false };
   }
 
   async getBanks(): Promise<KioskBank[]> {

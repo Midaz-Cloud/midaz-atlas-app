@@ -19,6 +19,18 @@
       "description": "Pay in foreign currency"
     }
   },
+  "cardType": {
+    "title": "Debit or credit?",
+    "subtitle": "Select the card type you will pay with.",
+    "debito": {
+      "title": "Debit",
+      "description": "Charged to your account instantly"
+    },
+    "credito": {
+      "title": "Credit",
+      "description": "Charged to your credit card"
+    }
+  },
   "flow": {
     "totalLabel": "Total amount",
     "continue": "Continue",

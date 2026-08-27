@@ -1,5 +1,17 @@
 import type { CartReserveResponse } from '../types';
 
+/** Precio unitario congelado por el server. `null` = el backend no lo mandó. */
+function parseUnitPrice(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const n = Number.parseFloat(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 function parseNumericField(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -21,6 +33,10 @@ export function parseCartReserveResponse(body: unknown): CartReserveResponse {
           reserved: Boolean(item.reserved),
           availableQuantity: parseNumericField(item.availableQuantity),
           requested: parseNumericField(item.requested),
+          // Ojo: este parser reconstruye el ítem campo por campo, así que todo lo
+          // que el backend agregue hay que sumarlo acá o se pierde en silencio
+          // (le pasó al price lock: `unitPrice` llegaba y se descartaba).
+          unitPrice: parseUnitPrice(item.unitPrice),
         };
       })
     : [];

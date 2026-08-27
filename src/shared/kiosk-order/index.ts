@@ -12,6 +12,7 @@ export type {
 } from './KioskOrderProvider';
 export { defaultOrderFiscalConfig } from './mockOrderFiscalConfig';
 export type {
+  CardKind,
   CartLine,
   ComputeOrderTotalsOptions,
   KioskOrderCheckoutSnapshot,

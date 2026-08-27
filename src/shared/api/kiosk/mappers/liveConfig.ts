@@ -1,5 +1,15 @@
-import type { KioskConfigResponseLive, KioskPagoMovilAccountLive } from '../liveApi.types';
-import type { KioskConfigResponse, KioskPagoMovilAccount, PaymentMethodApi } from '../types';
+import type {
+  KioskConfigResponseLive,
+  KioskOrderTypeOptionLive,
+  KioskPagoMovilAccountLive,
+} from '../liveApi.types';
+import type {
+  FulfillmentType,
+  KioskConfigResponse,
+  KioskOrderTypeOption,
+  KioskPagoMovilAccount,
+  PaymentMethodApi,
+} from '../types';
 import { parseDeclaresTaxes } from '../utils/declaresTaxes';
 
 const KNOWN_PAYMENT_METHODS: readonly PaymentMethodApi[] = [
@@ -71,7 +81,38 @@ export function mapLiveConfigToKioskConfigResponse(
     },
     pagoMovilAccount: mapPagoMovilAccount(live.pagoMovilAccount),
     exchangeRates: live.exchangeRates ?? live.rates ?? null,
+    orderTypes: mapOrderTypes(live.orderTypes),
   };
+}
+
+const KNOWN_FULFILLMENTS: readonly FulfillmentType[] = ['IN_STORE', 'DINE_IN', 'PICKUP', 'DELIVERY'];
+
+/**
+ * `null`/ausente = el kiosko sigue con el par de fábrica. Se descartan las opciones
+ * sin etiqueta o con un fulfillment que esta versión de la app no conoce, en vez de
+ * romper el bootstrap entero por una fila mal cargada en el panel.
+ */
+function mapOrderTypes(
+  live: KioskOrderTypeOptionLive[] | null | undefined,
+): KioskOrderTypeOption[] | null {
+  if (live == null) {
+    return null;
+  }
+  return live.reduce<KioskOrderTypeOption[]>((acc, option) => {
+    const label = (option?.label ?? '').trim();
+    const fulfillment = option?.fulfillment as FulfillmentType | undefined;
+    if (!option?.id || !label || !fulfillment || !KNOWN_FULFILLMENTS.includes(fulfillment)) {
+      return acc;
+    }
+    acc.push({
+      id: option.id,
+      label,
+      fulfillment,
+      image: option.image ?? null,
+      enabled: option.enabled !== false,
+    });
+    return acc;
+  }, []);
 }
 
 export function isLiveConfigShape(body: unknown): body is KioskConfigResponseLive {

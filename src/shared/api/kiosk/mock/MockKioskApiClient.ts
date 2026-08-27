@@ -50,9 +50,9 @@ export class MockKioskApiClient implements KioskApiClient {
   async getConfig(ifNoneMatch?: string | null): Promise<KioskConfigFetchResult> {
     await delay(150);
     if (ifNoneMatch && ifNoneMatch === this.cachedEtag) {
-      return { config: getMockConfig(), etag: this.cachedEtag };
+      return { config: getMockConfig(), etag: this.cachedEtag, notModified: true };
     }
-    return { config: getMockConfig(), etag: this.cachedEtag };
+    return { config: getMockConfig(), etag: this.cachedEtag, notModified: false };
   }
 
   async getBanks(): Promise<KioskBank[]> {
@@ -134,6 +134,7 @@ export class MockKioskApiClient implements KioskApiClient {
         reserved,
         availableQuantity,
         requested: item.quantity,
+        unitPrice: product ? Number(product.price) : null,
       };
     });
 

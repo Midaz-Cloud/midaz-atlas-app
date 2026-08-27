@@ -17,6 +17,7 @@ import {
   wouldExceedCartLimit,
 } from './cartSessionLimit';
 import { computeOrderTotals } from './computeOrderTotals';
+import { applyServerPricesToLines } from './applyServerPricesToLines';
 import { cartLineModifierKey } from './modifierKey';
 import { defaultOrderFiscalConfig } from './mockOrderFiscalConfig';
 import type {
@@ -25,6 +26,7 @@ import type {
   ConfirmedOrderTotals,
   KioskOrderCheckoutSnapshot,
   ModifierSelection,
+  CardKind,
   CardPaymentPayload,
   MobilePaymentPayload,
   OrderFiscalConfig,
@@ -91,6 +93,10 @@ export type KioskOrderContextValue = {
   incrementLine: (lineId: string) => CartMutationResult;
   decrementLine: (lineId: string) => void;
   removeLine: (lineId: string) => void;
+  /** Price lock: reemplaza el precio base de las líneas con el que congeló el server. */
+  applyServerUnitPrices: (prices: Array<{ lineId: string; unitPrice: number }>) => void;
+  /** Totales para líneas arbitrarias con la config vigente (price lock sincrónico). */
+  computeTotalsFor: (lines: CartLine[]) => OrderTotals;
   resetOrder: () => void;
   getCheckoutSnapshot: () => KioskOrderCheckoutSnapshot;
   orderId?: string;
@@ -108,6 +114,15 @@ export type KioskOrderContextValue = {
   cardPaymentPayload: CardPaymentPayload | null;
   setCardPaymentPayload: (payload: CardPaymentPayload | null) => void;
   clearCardPaymentPayload: () => void;
+  /**
+   * Débito o crédito, elegido por el cliente después de "Punto de venta".
+   * Nexgo no documenta qué significa el `accountType` que devuelve el terminal
+   * (ver settlement.ts en Midaz-App-Pay), así que la única fuente confiable es
+   * lo que declara el cliente. Sin esto todo cobro con tarjeta se facturaba
+   * como débito (catalogo11 05) aunque se pagara con crédito.
+   */
+  cardKind: CardKind | null;
+  setCardKind: (kind: CardKind | null) => void;
   reservationId: string | null;
   setReservationId: (reservationId: string) => void;
   clearReservationId: () => void;
@@ -138,6 +153,7 @@ export function KioskOrderProvider({
     useState<MobilePaymentPayload | null>(null);
   const [paymentPayerDocumentId, setPaymentPayerDocumentIdState] =
     useState<string | null>(null);
+  const [cardKind, setCardKindState] = useState<CardKind | null>(null);
   const [cardPaymentPayload, setCardPaymentPayloadState] =
     useState<CardPaymentPayload | null>(null);
   const [reservationId, setReservationIdState] = useState<string | null>(null);
@@ -287,6 +303,20 @@ export function KioskOrderProvider({
     setLines((current) => current.filter((line) => line.lineId !== lineId));
   }, [clearReservationId]);
 
+  /**
+   * Aplica los precios congelados por el server al reservar (price lock). Se llama
+   * DESPUÉS de reservar y ANTES de cobrar: el catálogo local puede estar hasta 60 s
+   * viejo, y si se cobra con ese precio la factura —que el backend emite con el
+   * precio congelado— sale por otro monto. NO limpia el reservationId: la reserva
+   * recién hecha es justamente la que trae estos precios.
+   */
+  const applyServerUnitPrices = useCallback((prices: Array<{ lineId: string; unitPrice: number }>) => {
+    if (prices.length === 0) {
+      return;
+    }
+    setLines((current) => applyServerPricesToLines(current, prices));
+  }, []);
+
   const setPaymentMethodId = useCallback((methodId: string) => {
     setPaymentMethodIdState(methodId);
   }, []);
@@ -315,6 +345,10 @@ export function KioskOrderProvider({
     setCardPaymentPayloadState(payload);
   }, []);
 
+  const setCardKind = useCallback((kind: CardKind | null) => {
+    setCardKindState(kind);
+  }, []);
+
   const clearCardPaymentPayload = useCallback(() => {
     setCardPaymentPayloadState(null);
   }, []);
@@ -335,6 +369,7 @@ export function KioskOrderProvider({
     setMobilePaymentPayloadState(null);
     setPaymentPayerDocumentIdState(null);
     setCardPaymentPayloadState(null);
+    setCardKindState(null);
     setReservationIdState(null);
   }, []);
 
@@ -364,6 +399,20 @@ export function KioskOrderProvider({
     [lines, fiscalConfig, computeOptions, primaryCurrency],
   );
 
+  /**
+   * Totales para un set de líneas arbitrario, con la MISMA config que `totals`.
+   * Lo necesita el cobro con tarjeta: aplica el price lock y tiene que mandarle
+   * el monto corregido al POS en el mismo tick, sin esperar el re-render.
+   */
+  const computeTotalsFor = useCallback(
+    (targetLines: CartLine[]) =>
+      computeOrderTotals(targetLines, fiscalConfig, {
+        ...computeOptions,
+        primaryCurrency,
+      }),
+    [fiscalConfig, computeOptions, primaryCurrency],
+  );
+
   const getCheckoutSnapshot = useCallback(
     (): KioskOrderCheckoutSnapshot => ({
       lines,
@@ -389,6 +438,8 @@ export function KioskOrderProvider({
       incrementLine,
       decrementLine,
       removeLine,
+      applyServerUnitPrices,
+      computeTotalsFor,
       resetOrder,
       getCheckoutSnapshot,
       orderId,
@@ -402,6 +453,8 @@ export function KioskOrderProvider({
       paymentPayerDocumentId,
       setPaymentPayerDocumentId,
       clearPaymentPayerDocumentId,
+      cardKind,
+      setCardKind,
       cardPaymentPayload,
       setCardPaymentPayload,
       clearCardPaymentPayload,
@@ -422,6 +475,8 @@ export function KioskOrderProvider({
       incrementLine,
       decrementLine,
       removeLine,
+      applyServerUnitPrices,
+      computeTotalsFor,
       resetOrder,
       getCheckoutSnapshot,
       orderId,
@@ -435,6 +490,8 @@ export function KioskOrderProvider({
       paymentPayerDocumentId,
       setPaymentPayerDocumentId,
       clearPaymentPayerDocumentId,
+      cardKind,
+      setCardKind,
       cardPaymentPayload,
       setCardPaymentPayload,
       clearCardPaymentPayload,

@@ -57,6 +57,14 @@ export type KioskPagoMovilAccountLive = {
   holder: string;
 };
 
+export type KioskOrderTypeOptionLive = {
+  id?: string;
+  label?: string;
+  fulfillment?: string;
+  image?: string | null;
+  enabled?: boolean;
+};
+
 export type KioskConfigResponseLive = {
   id?: string;
   kioskDeviceId?: string;
@@ -68,6 +76,7 @@ export type KioskConfigResponseLive = {
   kioskInvoicingType?: string | null;
   appearance?: KioskConfigAppearanceLive;
   organization: KioskConfigOrganizationLive;
+  orderTypes?: KioskOrderTypeOptionLive[] | null;
   pagoMovilAccount?: KioskPagoMovilAccountLive | null;
   exchangeRates?: KioskExchangeRatesLive | null;
   rates?: KioskExchangeRatesLive | null;

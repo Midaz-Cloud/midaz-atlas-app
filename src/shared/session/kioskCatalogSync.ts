@@ -58,15 +58,15 @@ async function applyProductsResponse(
 
 async function fetchAndApplyProducts(
   force = false,
-): Promise<number> {
+): Promise<{ productCount: number; changed: boolean }> {
   const token = await loadAccessToken();
   const client = createKioskApiClient(token ?? undefined);
   const etag = force ? null : await loadProductsEtag();
   const productsResponse = await client.getProducts(etag);
   if (productsResponse.notModified && !force) {
-    return getCatalogProducts().length;
+    return { productCount: getCatalogProducts().length, changed: false };
   }
-  return applyProductsResponse(productsResponse);
+  return { productCount: await applyProductsResponse(productsResponse), changed: true };
 }
 
 export function startKioskCatalogSync(
@@ -85,6 +85,31 @@ export function startKioskCatalogSync(
   let productsRunning = false;
   let configTimer: ReturnType<typeof setInterval> | null = null;
   let productsTimer: ReturnType<typeof setInterval> | null = null;
+  /** Última config conocida, para poder emitir sin volver a pedirla por HTTP. */
+  let lastConfig: KioskConfigResponse | null = null;
+  let lastConfigEtag: string | null = null;
+
+  /**
+   * `catalogStore` no tiene suscriptores (la UI lo lee imperativamente en
+   * `useMenuScreen`), así que esta emisión es lo ÚNICO que repinta el menú tras
+   * un cambio de catálogo. Emitir solo cuando algo cambió de verdad: hacerlo en
+   * cada tick provocaba un re-render del árbol completo + `applyLanguagePolicy()`
+   * cada minuto, incluso con un cliente a mitad del checkout.
+   */
+  const emitSnapshot = (productCount: number) => {
+    if (!lastConfig) {
+      return;
+    }
+    callbacks.onConfigUpdated({
+      runtimeConfig: mapConfigToRuntime(lastConfig),
+      bootstrapSnapshot: buildBootstrapSnapshot(
+        lastConfig,
+        callbacks.deviceSerial,
+        productCount,
+        lastConfigEtag,
+      ),
+    });
+  };
 
   const pollConfig = async () => {
     if (configRunning) {
@@ -99,19 +124,14 @@ export function startKioskCatalogSync(
       if (result.etag) {
         await saveConfigEtag(result.etag);
       }
-      if (!result.notModified) {
-        void prefetchKioskConfigImages(result.config, resolveKioskImageUrl);
+      const isFirstConfig = lastConfig === null;
+      lastConfig = result.config;
+      lastConfigEtag = result.etag;
+      if (result.notModified && !isFirstConfig) {
+        return;
       }
-      const productCount = getCatalogProducts().length;
-      callbacks.onConfigUpdated({
-        runtimeConfig: mapConfigToRuntime(result.config),
-        bootstrapSnapshot: buildBootstrapSnapshot(
-          result.config,
-          callbacks.deviceSerial,
-          productCount,
-          result.etag,
-        ),
-      });
+      void prefetchKioskConfigImages(result.config, resolveKioskImageUrl);
+      emitSnapshot(getCatalogProducts().length);
     } catch {
       // Keep cached config on network errors
     } finally {
@@ -125,20 +145,13 @@ export function startKioskCatalogSync(
     }
     productsRunning = true;
     try {
-      const productCount = await fetchAndApplyProducts(force);
-      const token = await loadAccessToken();
-      const configEtag = await loadConfigEtag();
-      const configClient = createKioskApiClient(token ?? undefined);
-      const configResult = await configClient.getConfig(configEtag);
-      callbacks.onConfigUpdated({
-        runtimeConfig: mapConfigToRuntime(configResult.config),
-        bootstrapSnapshot: buildBootstrapSnapshot(
-          configResult.config,
-          callbacks.deviceSerial,
-          productCount,
-          configResult.etag,
-        ),
-      });
+      // Sin GET /kiosk/config acá: `pollConfig` corre en su propio intervalo y
+      // `lastConfig` alcanza para reconstruir el snapshot. Pedirla también acá
+      // duplicaba la request cada minuto sin aportar nada.
+      const { productCount, changed } = await fetchAndApplyProducts(force);
+      if (changed) {
+        emitSnapshot(productCount);
+      }
     } catch {
       // Ignore — catalog remains previous snapshot
     } finally {
@@ -184,7 +197,7 @@ export async function applyProductsToCatalogFromConfig(
   deviceSerial: string,
   configEtag: string | null,
 ): Promise<KioskBootstrapSnapshot> {
-  const productCount = await fetchAndApplyProducts(false);
+  const { productCount } = await fetchAndApplyProducts(false);
   return buildBootstrapSnapshot(config, deviceSerial, productCount, configEtag);
 }
 

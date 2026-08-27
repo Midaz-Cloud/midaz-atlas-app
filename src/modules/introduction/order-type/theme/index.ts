@@ -1,1 +1,1 @@
-export { orderTypeLayout, orderTypeShadows } from './orderTypeTheme';
+export { orderTypeLayout, orderTypeCompactLayout, orderTypeShadows } from './orderTypeTheme';

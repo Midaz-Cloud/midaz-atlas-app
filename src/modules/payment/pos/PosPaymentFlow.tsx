@@ -5,9 +5,12 @@ import { useKioskOrder } from '@shared/kiosk-order';
 
 import { PaymentChangeDocumentScreen } from '../PaymentChangeDocumentScreen';
 import { resolvePaymentPayerDocumentId } from '../utils/resolvePaymentPayerDocumentId';
+import { PosCardTypeScreen } from './PosCardTypeScreen';
 import { PosPaymentScreen } from './PosPaymentScreen';
 
-export type PosPaymentFlowStep = 'pos' | 'change-document';
+import type { CardKind } from '@shared/kiosk-order';
+
+export type PosPaymentFlowStep = 'card-type' | 'pos' | 'change-document';
 
 export type PosPaymentFlowProps = {
   onBack: () => void;
@@ -19,8 +22,18 @@ export function PosPaymentFlow({
   onContinue,
 }: PosPaymentFlowProps) {
   const { customer } = useKioskCustomer();
-  const { paymentPayerDocumentId, setPaymentPayerDocumentId } = useKioskOrder();
-  const [step, setStep] = useState<PosPaymentFlowStep>('pos');
+  const { paymentPayerDocumentId, setPaymentPayerDocumentId, cardKind, setCardKind } =
+    useKioskOrder();
+  // Arranca preguntando débito/crédito: el terminal no lo dice de forma fiable.
+  const [step, setStep] = useState<PosPaymentFlowStep>('card-type');
+
+  const handleSelectCardKind = useCallback(
+    (kind: CardKind) => {
+      setCardKind(kind);
+      setStep('pos');
+    },
+    [setCardKind],
+  );
 
   const effectivePayerDocumentId = resolvePaymentPayerDocumentId(
     paymentPayerDocumentId,
@@ -35,6 +48,16 @@ export function PosPaymentFlow({
     [setPaymentPayerDocumentId],
   );
 
+  if (step === 'card-type') {
+    return (
+      <PosCardTypeScreen
+        onBack={onBack}
+        onSelect={handleSelectCardKind}
+        selected={cardKind}
+      />
+    );
+  }
+
   if (step === 'change-document') {
     return (
       <PaymentChangeDocumentScreen
@@ -48,7 +71,7 @@ export function PosPaymentFlow({
 
   return (
     <PosPaymentScreen
-      onBack={onBack}
+      onBack={() => setStep('card-type')}
       onContinue={onContinue}
       onChangeDocument={() => setStep('change-document')}
     />
