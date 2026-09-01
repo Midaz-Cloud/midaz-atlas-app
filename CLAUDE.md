@@ -60,3 +60,7 @@ Payloads USB reales para tests van en `src/shared/peripherals/ecr/__fixtures__/`
 ## Docs
 
 `docs/KIOSK_BILLING_VS_PAYMENT_DOCUMENT.md` and `docs/usb-pos-transaccion.md` cover billing-vs-payment semantics and the USB POS transaction protocol. (README also cites `docs/KIOSK_DEVELOPER_GUIDE.md` / `ECR_NATIVE_MODULE.md` — those files don't exist in the repo.)
+
+## Pendiente: rotar credenciales expuestas (`.env.bak.20260827-dev`)
+
+Ese archivo (commit `cb0b65c`, mergeado a `develop` el 2026-09-01) trae `KIOSK_API_KEY` y `KIOSK_ADMIN_PASSCODE` en texto plano — quedó en la rama `feat/kiosk-order-types`, que hasta esa fecha era solo local y recién se pusheó a GitHub por primera vez. Rotar ambos valores cuando se pueda (no es urgente, repo privado) y, si se quiere sacar el archivo del historial, coordinarlo aparte — reescribir requiere force-push sobre `develop`.
