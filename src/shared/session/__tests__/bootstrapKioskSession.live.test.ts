@@ -89,7 +89,7 @@ describe('bootstrapKioskSession (live fixtures)', () => {
     expect(phases).toEqual(['login', 'config', 'products', 'images']);
     expect(mockSyncImages).toHaveBeenCalled();
     const call = mockSyncImages.mock.calls[0];
-    const opts = call?.[3] as { onProgress?: (p: { done: number }) => void };
+    const opts = call?.[3] as { onProgress?: (p: any) => void };
     opts?.onProgress?.({ done: 1, total: 2, skipped: 0, downloaded: 1, failed: 0, remaining: 1 });
     expect(progressEvents).toContain(1);
   });

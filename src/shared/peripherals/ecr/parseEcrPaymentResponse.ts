@@ -219,13 +219,7 @@ export function parseEcrPaymentResponse(raw: string): EcrPaymentParseResult {
       nestedErrorCode === '0' ||
       topErrorCode === '0';
 
-    if (
-      status === '00' ||
-      status === 'approved' ||
-      topSuccess === true ||
-      nestedSuccess === true ||
-      errorCodeZero
-    ) {
+    if (topSuccess === true || nestedSuccess === true || errorCodeZero) {
       return { approved: true, status, message };
     }
 
@@ -304,5 +298,5 @@ export function parseEcrPaymentResponse(raw: string): EcrPaymentParseResult {
     };
   }
 
-  return { approved: true };
+  return { approved: false, message: 'Respuesta de terminal no reconocida' };
 }

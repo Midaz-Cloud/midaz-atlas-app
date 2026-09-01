@@ -45,7 +45,7 @@
     "react-native-reanimated": "^4.3.1",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-svg": "^15.15.5",
-    "react-native-worklets": "^0.8.3",
+    "react-native-worklets": "^0.12.1",
     "xlsx": "^0.18.5",
     "xlsx-js-style": "^1.2.0"
   },
@@ -79,6 +79,6 @@
     "typescript": "^5.8.3"
   },
   "engines": {
-    "node": ">= 22.11.0"
+    "node": ">= 20.0.0"
   }
 }

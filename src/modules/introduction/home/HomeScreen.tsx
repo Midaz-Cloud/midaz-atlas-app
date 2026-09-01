@@ -23,6 +23,8 @@ import {
   LanguageIndicatorBadge,
   EcrConnectTestButton,
   EcrPaymentTestButton,
+  EcrSettlementTestButton,
+  EcrVersionCheckButton,
   PrinterTestButton,
   FiscalHealthTestButton,
   FiscalEmitTestButton,
@@ -189,6 +191,8 @@ export function HomeScreen({
                 <View style={styles.devToolsColumn}>
                   <EcrConnectTestButton />
                   <EcrPaymentTestButton />
+                  <EcrSettlementTestButton />
+                  <EcrVersionCheckButton />
                   <PrinterTestButton />
                   <FiscalHealthTestButton />
                   <FiscalEmitTestButton />

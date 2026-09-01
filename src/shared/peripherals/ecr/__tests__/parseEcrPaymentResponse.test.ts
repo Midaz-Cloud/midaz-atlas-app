@@ -25,6 +25,22 @@ const USER_REPORT_CORRUPTED_2026_07_21 = String.raw`{"success":truae,"type":"pym
 /** Corrupted JSON with errorCode 0 but no usable responseCode — plain-text completion. */
 const CORRUPTED_ERROR_CODE_ZERO_ONLY = String.raw`{"success":truae,"type":"pyment","data":{"amout":"100","errorCode":0}}`;
 
+/**
+ * Real incident 2026-08-31 (AF910 hardware test): PKUSB's trimmed response format
+ * (post SDK v3 rework) has no `errorCode`, so the outer envelope's always-`true`/`0`
+ * `success`/`result` (which only mean "PKUSB delivered a response", not "approved")
+ * were being read as the approval signal instead of the real outcome in `data`.
+ * This declined payment was persisted to the order as an approved one.
+ */
+const NEW_FORMAT_DECLINED_NO_CARD_PRESENTED =
+  '{"success":true,"type":"payment","result":0,"referenceNo":"REF-1788202208084",' +
+  '"data":{"datetime":"2026-08-31T14:50:27","responseMessage":"Failed","success":false}}';
+
+const NEW_FORMAT_APPROVED = String.raw`{"success":true,"type":"payment","result":0,"referenceNo":"REF-1756642891",
+"data":{"success":true,"responseMessage":"APPROVED","datetime":"2026-08-31T12:21:31","amount":"200",
+"authCode":"997009","RRN":"624316000383","traceNumber":"000383","referenceNumber":"000008",
+"batchNum":"000004","terminalID":"00001001","deviceSerial":"N620W306171","merchantID":"0087654729"}}`;
+
 describe('parseEcrPaymentResponse', () => {
   it('does not approve status alone without cascade signals', () => {
     expect(parseEcrPaymentResponse(JSON.stringify({ status: 'approved' })).approved).toBe(
@@ -57,6 +73,16 @@ describe('parseEcrPaymentResponse', () => {
 
   it('rejects corrupted terminal failure payload from logcat', () => {
     expect(parseEcrPaymentResponse(CORRUPTED_TERMINAL_FAILURE).approved).toBe(false);
+  });
+
+  it('rejects a declined new-format payment instead of reading the outer envelope as approved (2026-08-31 incident)', () => {
+    const result = parseEcrPaymentResponse(NEW_FORMAT_DECLINED_NO_CARD_PRESENTED);
+    expect(result.approved).toBe(false);
+    expect(result.message).toBe('Failed');
+  });
+
+  it('still approves a clean new-format approved payment', () => {
+    expect(parseEcrPaymentResponse(NEW_FORMAT_APPROVED).approved).toBe(true);
   });
 
   it('approves corrupted APPROVED USB payload from 2026-06-04 logcat', () => {

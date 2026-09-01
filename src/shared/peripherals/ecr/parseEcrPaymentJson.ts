@@ -450,6 +450,27 @@ function repairCorruptedJsonQuotes(raw: string): string {
   return cleaned;
 }
 
+/**
+ * PKUSB's outer envelope (`success`, `result`, `type`, `referenceNo`) only means
+ * "the message was delivered" — it's `success:true`/`result:0` even on a decline.
+ * The real outcome lives entirely inside `data`. So when `data` is present, it's
+ * authoritative for every business field: don't let a stale outer `result`/
+ * `success`/`responseCode` leak through just because `data` doesn't redefine it.
+ * Only `referenceNo` and `type` (pure transport metadata) carry over from root.
+ * See incident 2026-08-31: a declined payment (`data.success:false`) was
+ * persisted as approved because `{...root, ...data}` kept root's `result:0`.
+ */
+function mergeRootAndData(
+  root: Record<string, unknown>,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...(root.referenceNo !== undefined ? { referenceNo: root.referenceNo } : {}),
+    ...(root.type !== undefined ? { type: root.type } : {}),
+    ...data,
+  };
+}
+
 function parseEcrPaymentJsonStrict(raw: string): Record<string, unknown> | null {
   const trimmed = normalizeEcrJsonEnvelope(raw);
   if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
@@ -466,7 +487,7 @@ function parseEcrPaymentJsonStrict(raw: string): Record<string, unknown> | null 
     }
     const data = asRecord(root.data);
     if (data) {
-      return { ...root, ...data };
+      return mergeRootAndData(root, data);
     }
     return root;
   } catch {
@@ -483,7 +504,7 @@ function parseEcrPaymentJsonStrict(raw: string): Record<string, unknown> | null 
       }
       const data = asRecord(root.data);
       if (data) {
-        return { ...root, ...data };
+        return mergeRootAndData(root, data);
       }
       return root;
     } catch {

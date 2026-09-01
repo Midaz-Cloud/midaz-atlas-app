@@ -10,9 +10,20 @@ jest.mock('@shared/config/api', () => ({
 }));
 
 describe('kioskHomeImages', () => {
-  const config = mapLiveConfigToKioskConfigResponse(
+  const baseConfig = mapLiveConfigToKioskConfigResponse(
     liveConfigFixture as KioskConfigResponseLive,
   );
+  const config = {
+    ...baseConfig,
+    appearance: {
+      ...baseConfig.appearance,
+      coverImage: 'uploads/1779660683562-947537372.jpg',
+    },
+    organization: {
+      ...baseConfig.organization,
+      logo: 'uploads/1779638366098-305832616.png',
+    },
+  };
 
   it('builds cover URL from api base + appearance.coverImage', () => {
     expect(resolveHomeCoverImageUrl(config)).toBe(

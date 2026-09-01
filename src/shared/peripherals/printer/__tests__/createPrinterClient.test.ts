@@ -14,8 +14,9 @@ describe('createPrinterClient', () => {
   it('uses mock client when hardware is disabled', () => {
     jest.isolateModules(() => {
       const { createPrinterClient } = require('../createPrinterClient');
+      const { MockPrinterClient: IsolatedMockPrinterClient } = require('../MockPrinterClient');
       const client = createPrinterClient();
-      expect(client).toBeInstanceOf(MockPrinterClient);
+      expect(client).toBeInstanceOf(IsolatedMockPrinterClient);
     });
   });
 });

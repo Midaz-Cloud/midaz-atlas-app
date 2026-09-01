@@ -10,23 +10,24 @@ import {
 import { getAndroidHardwareSerial } from './androidHardwareSerial';
 import type { KioskDeviceProfile } from './types';
 
-function isValidHardwareSerial(value: string | null | undefined): value is string {
+function isValidHardwareSerial(value: string | null | undefined): boolean {
   const trimmed = value?.trim();
   return Boolean(trimmed && trimmed.toLowerCase() !== 'unknown');
 }
 
-function resolveSerial(raw: string): string {
+function resolveSerial(raw: string | null | undefined): string {
   const override = getKioskDeviceSerialOverride();
   if (override) {
     return override;
   }
-  if (isValidHardwareSerial(raw)) {
-    return raw.trim();
+  const trimmed = raw?.trim();
+  if (trimmed && trimmed.toLowerCase() !== 'unknown') {
+    return trimmed;
   }
   if (shouldUseMockApi()) {
     return KIOSK_DEMO_SERIAL;
   }
-  return raw.trim() || 'unknown';
+  return trimmed || 'unknown';
 }
 
 async function ensurePhoneStatePermission(): Promise<void> {
@@ -48,7 +49,7 @@ async function ensurePhoneStatePermission(): Promise<void> {
 
 async function readHardwareSerial(): Promise<string> {
   const fromNative = await getAndroidHardwareSerial();
-  if (isValidHardwareSerial(fromNative)) {
+  if (fromNative && isValidHardwareSerial(fromNative)) {
     return fromNative.trim();
   }
 

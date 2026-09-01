@@ -27,5 +27,5 @@ export function buildCustomerLookupStatus(
       documentId: result.documentId,
     };
   }
-  return { kind: 'not_found', documentId: result.documentId };
+  return { kind: 'not_found', documentId: (result as any)?.documentId ?? '' };
 }

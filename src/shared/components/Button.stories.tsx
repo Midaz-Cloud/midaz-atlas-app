@@ -72,6 +72,7 @@ const meta = {
   ],
   args: {
     onPress: fn(),
+    title: 'Button',
   },
 } satisfies Meta<typeof ContinueLabelButton>;
 
@@ -138,6 +139,7 @@ export const Sizes: Story = {
 export const Primary: Story = {
   args: {
     variant: 'primary',
+    title: 'Continue',
   },
 };
 

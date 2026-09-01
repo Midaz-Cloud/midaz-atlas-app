@@ -32,7 +32,7 @@ describe('customer register validation', () => {
         documentType: 'V',
         firstName: 'Ana',
         lastName: 'López',
-        phoneOperatorCode: '415',
+        phoneOperatorCode: '415' as any,
         phoneSubscriberNumber: '1234567',
       }),
     ).toBe(false);

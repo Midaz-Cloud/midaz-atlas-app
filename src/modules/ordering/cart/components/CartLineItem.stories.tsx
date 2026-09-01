@@ -26,6 +26,7 @@ const meta = {
   component: CartLineItem,
   decorators: [withI18nStorybook, (Story) => cartStoryCanvas(<Story />, 420)],
   args: {
+    line: {} as any,
     onIncrement: fn(),
     onDecrement: fn(),
     onRemove: fn(),

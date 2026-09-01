@@ -116,8 +116,7 @@ export function useCartScreen(lines: CartLine[], itemCount = 0) {
 
   const cartLines = useMemo((): CartLineViewModel[] => {
     const canIncrementSession = itemCount < KIOSK_CART_MAX_UNITS;
-    return lines
-      .map((line, index) => {
+    const mapped: (CartLineViewModel | null)[] = lines.map((line, index) => {
         const product = findMenuProduct(line.productId);
         if (!product) {
           return null;
@@ -154,8 +153,8 @@ export function useCartScreen(lines: CartLine[], itemCount = 0) {
           imageBackground,
           canIncrement,
         };
-      })
-      .filter((line): line is CartLineViewModel => line !== null);
+      });
+    return mapped.filter((line): line is CartLineViewModel => line !== null);
   }, [lines, itemCount, t]);
 
   return { cartLines };

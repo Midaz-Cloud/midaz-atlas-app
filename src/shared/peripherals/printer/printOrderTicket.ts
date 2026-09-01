@@ -21,6 +21,7 @@ function getErrorCode(error: unknown): string | undefined {
 
 export class OrderPrintError extends Error {
   readonly code?: string;
+  readonly cause?: unknown;
 
   constructor(message: string, options?: { cause?: unknown; code?: string }) {
     super(message);

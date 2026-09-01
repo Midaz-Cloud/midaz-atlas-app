@@ -1,9 +1,11 @@
 import { logKioskCheckoutPayload } from '@shared/api/kiosk/logKioskCheckoutPayload';
 import { shouldUseMockApi } from '@shared/config';
 import {
+  checkPosVersion,
   documentIdToEcrDocumentNumber,
   EcrDocumentNumberError,
   parseEcrPaymentResponse,
+  posVersionCheckMessage,
   resolvePosChargeAmountVes,
   toEcrTerminalAmount,
   type UseUsbECRReturn,
@@ -17,6 +19,7 @@ export type ExecutePosCardPaymentParams = {
 
 export type ExecutePosCardPaymentFailureReason =
   | 'not_connected'
+  | 'version_mismatch'
   | 'declined'
   | 'error';
 
@@ -60,6 +63,18 @@ export async function executePosCardPayment(
         reason: 'not_connected',
         message: 'Terminal POS no conectado',
       };
+    }
+
+    if (ecr.usesNativeUsb) {
+      const versionCheck = await checkPosVersion(ecr);
+      logKioskCheckoutPayload('POS version check', versionCheck);
+      if (!versionCheck.ok) {
+        return {
+          ok: false,
+          reason: 'version_mismatch',
+          message: posVersionCheckMessage(versionCheck),
+        };
+      }
     }
 
     const chargeVes = resolvePosChargeAmountVes(cartTotalVes);

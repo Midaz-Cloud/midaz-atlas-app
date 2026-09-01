@@ -32,6 +32,8 @@ export type UseUsbECRReturn = {
   /** @param amountVes Monto en bolívares (ej. 1 = 1.00 Bs → se envía 100 al terminal). */
   performPayment: (documentNumber: string, amountVes: number) => Promise<string>;
   performSettlement: () => Promise<string>;
+  /** Manda `{ type: 'version' }` y espera la respuesta cruda — ver `checkPosVersion.ts`. */
+  performVersionCheck: () => Promise<string>;
   forceCleanup: () => Promise<void>;
   checkConnection: () => Promise<boolean>;
 };
@@ -358,6 +360,18 @@ export function useUsbECR(): UseUsbECRReturn {
     });
   }, [sendAndWait]);
 
+  /** Consulta rápida de versión (PKUSB + veslc) — ver `checkPosVersion.ts`. */
+  const performVersionCheck = useCallback(async (): Promise<string> => {
+    return sendAndWait(
+      {
+        type: 'version',
+        referenceNo: `VERCHK-${Date.now()}`,
+        timestamp: Date.now(),
+      },
+      8000,
+    );
+  }, [sendAndWait]);
+
   return {
     isConnected,
     isConnecting,
@@ -371,6 +385,7 @@ export function useUsbECR(): UseUsbECRReturn {
     disconnect,
     performPayment,
     performSettlement,
+    performVersionCheck,
     forceCleanup,
     checkConnection,
   };

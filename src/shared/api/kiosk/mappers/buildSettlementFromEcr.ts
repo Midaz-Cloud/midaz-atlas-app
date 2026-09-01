@@ -41,6 +41,8 @@ export function buildSettlementDataFromFlat(
     totalCreditCardRefund: readString(flat, 'totalCreditCardRefund'),
     totalDebitCardRefund: readString(flat, 'totalDebitCardRefund'),
     totalExtraRefund: readString(flat, 'totalExtraRefund'),
+    totalVisaMasterDebitSale: readString(flat, 'totalVisaMasterDebitSale'),
+    totalVisaMasterDebitRefund: readString(flat, 'totalVisaMasterDebitRefund'),
     responseCode: readString(flat, 'responseCode', 'responseCdode'),
     responseMessage: readString(flat, 'responseMessage', 'responseMesages'),
     terminalID: readString(flat, 'terminalID', 'terinalID', 'ermtilnaID'),

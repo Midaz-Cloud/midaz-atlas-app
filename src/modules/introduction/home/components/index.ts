@@ -8,6 +8,8 @@ export { HomeImageLoadBanner } from './HomeImageLoadBanner';
 export { TouchToStartCta } from './TouchToStartCta';
 export { EcrConnectTestButton } from './EcrConnectTestButton';
 export { EcrPaymentTestButton } from './EcrPaymentTestButton';
+export { EcrSettlementTestButton } from './EcrSettlementTestButton';
+export { EcrVersionCheckButton } from './EcrVersionCheckButton';
 export { PrinterTestButton } from './PrinterTestButton';
 export { FiscalHealthTestButton } from './FiscalHealthTestButton';
 export { FiscalEmitTestButton } from './FiscalEmitTestButton';

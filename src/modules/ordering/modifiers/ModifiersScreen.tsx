@@ -20,7 +20,7 @@ import {
 import { useModifierGroupScreen } from './hooks/useModifierGroupScreen';
 import { getOptionsForGroup } from './data/mockToppings';
 import type { ModifierGroup, ModifierOption } from './types';
-import type { GroupSelection } from '../data/mockModifierFlows';
+import type { GroupSelection } from './data/mockModifierFlows';
 
 export type ModifiersScreenProps = {
   product: MenuProduct;

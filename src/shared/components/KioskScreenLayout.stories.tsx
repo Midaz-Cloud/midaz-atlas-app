@@ -16,6 +16,7 @@ const meta = {
     onBack: fn(),
     showPattern: true,
     contentAlign: 'top' as const,
+    children: null,
   },
 } satisfies Meta<typeof KioskScreenLayout>;
 

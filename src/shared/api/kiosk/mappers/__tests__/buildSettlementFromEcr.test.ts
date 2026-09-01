@@ -55,6 +55,57 @@ describe('buildSettlementFromEcr', () => {
     expect(result.request.settlementData?.referenceNumber).toBe('888000000601');
   });
 
+  it('maps a trimmed new-format (SDK v3) approved settlement, with no responseCode/errorCode at all', () => {
+    const result = buildSettlementFromEcr(
+      JSON.stringify({
+        success: true,
+        type: 'settlement',
+        result: 0,
+        referenceNo: 'REF-1756643221',
+        data: {
+          success: true,
+          responseMessage: 'APPROVED',
+          datetime: '2026-08-31T12:27:06',
+          deviceSerial: 'N620W306171',
+          terminalID: '00001001',
+          merchantID: '0087654729',
+          traceNumber: '000001',
+          referenceNumber: '888000000601',
+          CreditBatchNo: '000004',
+          DebitBatchNo: '000061',
+          ExtraBatchNo: '000001',
+          totalCreditCardSale: '0.00',
+          totalVisaMasterDebitSale: '5.00',
+        },
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(result.request.settlementData?.deviceSerial).toBe('N620W306171');
+    expect(result.request.settlementData?.CreditBatchNo).toBe('000004');
+  });
+
+  it('does not persist a declined trimmed new-format settlement as approved (2026-08-31 incident pattern)', () => {
+    const result = buildSettlementFromEcr(
+      JSON.stringify({
+        success: true,
+        type: 'settlement',
+        result: 0,
+        referenceNo: 'REF-1756643221',
+        data: {
+          success: false,
+          responseMessage: 'Failed',
+          datetime: '2026-08-31T12:27:06',
+        },
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+  });
+
   it('returns failure request with posSerial fallback when parse fails', () => {
     const result = buildSettlementFromEcr('not-json', {
       posSerialFallback: 'N620W322141',

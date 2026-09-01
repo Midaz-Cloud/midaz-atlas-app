@@ -1,4 +1,11 @@
 export type { EcrClient, EcrPaymentResult } from './EcrClient';
+export {
+  checkPosVersion,
+  posVersionCheckMessage,
+  EXPECTED_PKUSB_APP_VERSION_CODE,
+  EXPECTED_VESLC_VERSION_CODE,
+} from './checkPosVersion';
+export type { PosVersionCheck } from './checkPosVersion';
 export { createEcrClient, resetEcrClientForTests } from './createEcrClient';
 export { EcrConnectionProvider, useEcrConnection, useEcrConnectionOptional } from './EcrConnectionProvider';
 export {

@@ -17,11 +17,11 @@ describe('live config mappers', () => {
     const config = mapLiveConfigToKioskConfigResponse(
       liveConfigFixture as KioskConfigResponseLive,
     );
-    expect(config.appearance.title).toBe('Bienvenido');
-    expect(config.organization.name).toBe('Cochi Crunch');
-    expect(config.organization.primaryCurrency).toBe('USD');
-    expect(config.exchangeRates?.usd).toBe(36.5);
-    expect(config.enabledPaymentMethods).toEqual(['debito']);
+    expect(config.appearance.title).toBe('');
+    expect(config.organization.name).toBe('The Factory HKA');
+    expect(config.organization.primaryCurrency).toBe('VES');
+    expect(config.exchangeRates?.usd).toBe(639.7029);
+    expect(config.enabledPaymentMethods).toEqual(['debito', 'pago_movil', 'efectivo_ves']);
     expect(config.pagoMovilAccount).toBeNull();
   });
 
@@ -82,15 +82,15 @@ describe('live config mappers', () => {
 });
 
 describe('live product mappers', () => {
-  const firstProduct = (liveProductsFixture as KioskProductApiLive[])[0];
+  const firstProduct = (liveProductsFixture as unknown as KioskProductApiLive[])[0];
 
   it('maps live product price string without inventing priceVES', () => {
     const api = mapLiveProductToKioskProductApi(firstProduct, 'USD');
-    expect(api.price).toBe(2);
+    expect(api.price).toBe(1);
     expect(api.priceVES).toBeUndefined();
-    expect(api.category).toBe('Bebidas');
-    expect(api.taxRate).toBe(16);
-    expect(api.isExempt).toBe(false);
+    expect(api.category).toBe('Alimentos');
+    expect(api.taxRate).toBe(0);
+    expect(api.isExempt).toBe(true);
   });
 
   it('uses API priceVES when provided', () => {
@@ -101,15 +101,16 @@ describe('live product mappers', () => {
 
   it('maps live product to menu product', () => {
     const menu = mapLiveProductToMenuProduct(firstProduct, String(firstProduct.id), 'USD');
-    expect(menu.displayName).toBe('7UP 1 LT');
-    expect(menu.unitPrice).toBe(2);
+    expect(menu.displayName).toBe('Magnesio glicinato 60 caps');
+    expect(menu.unitPrice).toBe(1);
     expect(menu.unitPriceVes).toBeUndefined();
-    expect(menu.categoryDisplayName).toBe('Bebidas');
-    expect(menu.categoryId).toBe('b');
+    expect(menu.categoryDisplayName).toBe('Alimentos');
+    expect(menu.categoryId).toBe('a');
   });
 
   it('maps modifierGroups when present in fixture', () => {
-    const menu = mapLiveProductToMenuProduct(firstProduct, '62', 'USD');
+    const withMods = (liveProductsFixture as unknown as KioskProductApiLive[]).find((p) => (p.modifierGroups?.length ?? 0) > 0)!;
+    const menu = mapLiveProductToMenuProduct(withMods, String(withMods.id), 'USD');
     expect(menu.hasModifiers).toBe(true);
     expect(menu.modifierGroups?.[0]?.options.length).toBeGreaterThan(0);
   });
@@ -117,16 +118,16 @@ describe('live product mappers', () => {
   it('parses root array products response', () => {
     const parsed = parseKioskProductsResponse(liveProductsFixture, 'USD');
     expect(parsed.data.length).toBeGreaterThan(0);
-    expect(parsed.data[0].category).toBe('Bebidas');
-    expect(parsed.data[0].price).toBe(2);
+    expect(parsed.data[0].category).toBe('Alimentos');
+    expect(parsed.data[0].price).toBe(1);
     expect(parsed.data[0].priceVES).toBeUndefined();
   });
 
   it('preserves category.image as categoryImage when present', () => {
     const withCategoryImage = {
-      ...(liveProductsFixture as KioskProductApiLive[])[0],
+      ...(liveProductsFixture as unknown as KioskProductApiLive[])[0],
       category: {
-        ...(liveProductsFixture as KioskProductApiLive[])[0].category,
+        ...(liveProductsFixture as unknown as KioskProductApiLive[])[0].category,
         image: 'uploads/cat-bebidas.png',
       },
     };

@@ -15,6 +15,7 @@ declare module 'react-native-config' {
     KIOSK_POS_TEST_CHARGE_VES?: string;
     KIOSK_FISCAL_SERVICE_URL?: string;
     KIOSK_FISCAL_MOCK?: string;
+    KIOSK_PRINTER_MOCK?: string;
     KIOSK_SETTLEMENT_EXCEL_MAIL?: string;
     KIOSK_MAIL_MAILER?: string;
     KIOSK_MAIL_HOST?: string;

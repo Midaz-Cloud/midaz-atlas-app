@@ -11,9 +11,27 @@ jest.mock('@shared/config/api', () => ({
 
 describe('buildBootstrapSnapshot', () => {
   it('resolves appearance and organization image URLs', () => {
-    const config = mapLiveConfigToKioskConfigResponse(
+    const baseConfig = mapLiveConfigToKioskConfigResponse(
       liveConfigFixture as KioskConfigResponseLive,
     );
+    const config = {
+      ...baseConfig,
+      appearance: {
+        ...baseConfig.appearance,
+        title: 'Bienvenido',
+        coverImage: 'uploads/1779660683562-947537372.jpg',
+        titleColor: '#FFF1E1',
+        languages: ['es', 'en'],
+      },
+      organization: {
+        ...baseConfig.organization,
+        name: 'Cochi Crunch',
+        logo: 'uploads/1779638366098-305832616.png',
+        primaryCurrency: 'USD',
+      },
+      exchangeRates: { usd: 36.5, eur: 40.0, date: '2026-05-24' },
+      enabledPaymentMethods: ['debito' as const],
+    };
     const snapshot = buildBootstrapSnapshot(config, 'AF910S202550915004', 38, '"etag-1"');
 
     expect(snapshot.deviceSerial).toBe('AF910S202550915004');

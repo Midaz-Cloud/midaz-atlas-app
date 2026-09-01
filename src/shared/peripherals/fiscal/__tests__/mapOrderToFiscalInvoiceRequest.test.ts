@@ -286,7 +286,7 @@ describe('mapOrderToFiscalInvoiceRequest', () => {
       price: 1.5,
       quantity: 1,
     });
-    expect(request?.lines.some((row) => row.description.includes('Fresas'))).toBe(
+    expect(request?.lines.some((row) => row.description?.includes('Fresas'))).toBe(
       false,
     );
   });

@@ -325,6 +325,9 @@ export type KioskSettlementData = {
   totalCreditCardRefund?: string;
   totalDebitCardRefund?: string;
   totalExtraRefund?: string;
+  /** Nuevo en el SDK v3 del datáfono (PKUSB) — ventas/reembolsos débito Visa/Mastercard. */
+  totalVisaMasterDebitSale?: string;
+  totalVisaMasterDebitRefund?: string;
   responseCode?: string;
   responseMessage?: string;
   terminalID?: string;

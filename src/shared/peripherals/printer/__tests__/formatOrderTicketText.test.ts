@@ -27,7 +27,7 @@ describe('formatOrderTicketText', () => {
       lines,
       totals,
       usdToVesRate: 50,
-      orderType: 'take_out',
+      orderType: 'takeOut',
       declaresTaxes: true,
     });
 
@@ -61,7 +61,7 @@ describe('formatOrderTicketText', () => {
       totals: vesTotals,
       usdToVesRate: 36.5,
       primaryCurrency: 'VES',
-      orderType: 'take_out',
+      orderType: 'takeOut',
       declaresTaxes: true,
     });
 
@@ -84,7 +84,7 @@ describe('formatOrderTicketText', () => {
         totalVes: 500,
       },
       usdToVesRate: 50,
-      orderType: 'take_out',
+      orderType: 'takeOut',
       declaresTaxes: false,
     });
 

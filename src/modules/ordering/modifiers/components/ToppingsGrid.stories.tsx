@@ -9,25 +9,23 @@ import { ToppingsGrid } from './ToppingsGrid';
 
 function ToppingsGridDemo() {
   const toppings = getToppingsForGroup('cup-large-toppings');
-  const [selectedIds, setSelectedIds] = useState<string[]>(['oreo', 'gomitas']);
+  const [quantities, setQuantities] = useState<Record<string, number>>({ oreo: 1, gomitas: 1 });
   const max = 4;
+  const slotsUsed = Object.values(quantities).reduce((a, b) => a + b, 0);
 
   return (
     <ToppingsGrid
       toppings={toppings}
-      isSelected={(id) => selectedIds.includes(id)}
-      canSelectMore={selectedIds.length < max}
-      onToggle={(id) => {
-        setSelectedIds((current) => {
-          if (current.includes(id)) {
-            return current.filter((item) => item !== id);
-          }
-          if (current.length >= max) {
-            return current;
-          }
-          return [...current, id];
-        });
-      }}
+      getQuantity={(id: string) => quantities[id] ?? 0}
+      canSelectMore={slotsUsed < max}
+      maxSelections={max}
+      slotsUsed={slotsUsed}
+      onIncrement={(id: string) =>
+        setQuantities((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }))
+      }
+      onDecrement={(id: string) =>
+        setQuantities((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) - 1) }))
+      }
     />
   );
 }
@@ -36,6 +34,15 @@ const meta = {
   title: 'Modules/Ordering/Modifiers/ToppingsGrid',
   component: ToppingsGrid,
   decorators: [withI18nStorybook, (Story) => modifiersStoryCanvas(<Story />, 1600)],
+  args: {
+    toppings: [],
+    getQuantity: () => 0,
+    canSelectMore: true,
+    maxSelections: 4,
+    slotsUsed: 0,
+    onIncrement: () => {},
+    onDecrement: () => {},
+  },
 } satisfies Meta<typeof ToppingsGrid>;
 
 export default meta;

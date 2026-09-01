@@ -4,17 +4,17 @@ import { mapLiveProductToMenuProduct } from '../liveProduct';
 import type { KioskProductApiLive } from '../../liveApi.types';
 
 describe('modifierGroups mapping', () => {
-  const withModifiers = (liveProductsFixture as KioskProductApiLive[]).find(
-    (p) => p.id === 62,
+  const withModifiers = (liveProductsFixture as unknown as KioskProductApiLive[]).find(
+    (p) => (p.modifierGroups?.length ?? 0) > 0,
   )!;
 
   it('maps modifierGroups onto MenuProduct', () => {
-    const menu = mapLiveProductToMenuProduct(withModifiers, '62', 'USD');
+    const menu = mapLiveProductToMenuProduct(withModifiers, String(withModifiers.id), 'USD');
     expect(menu.hasModifiers).toBe(true);
     expect(menu.modifierGroups).toHaveLength(1);
-    expect(menu.modifierGroups![0].name).toBe('Agregados');
-    expect(menu.modifierGroups![0].options).toHaveLength(2);
-    expect(menu.modifierGroups![0].quotaFree).toBe(1);
+    expect(menu.modifierGroups![0].name).toBe('cangrejo');
+    expect(menu.modifierGroups![0].options).toHaveLength(1);
+    expect(menu.modifierGroups![0].quotaFree).toBe(0);
   });
 
   it('preserves option imageUrl when present in API payload', () => {

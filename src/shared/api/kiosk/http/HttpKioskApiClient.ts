@@ -54,7 +54,7 @@ export class HttpKioskApiClient implements KioskApiClient {
     return getKioskApiUrl(path);
   }
 
-  private headers(extra?: HeadersInit): HeadersInit {
+  private headers(extra?: Record<string, string>): Record<string, string> {
     const base: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(extra as Record<string, string> | undefined),
