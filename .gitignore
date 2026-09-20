@@ -68,6 +68,12 @@ yarn-error.log
 .env.local
 .env.*.local
 .env.qa
+# Respaldos: `.env.bak.20260827-dev` se coló al repo porque ninguno de los
+# patrones de arriba matchea un .bak, y quedó con credenciales de desarrollo
+# adentro. Cualquier copia del .env queda fuera, se llame como se llame.
+.env.bak*
+.env.*.bak
+*.env.backup
 
 # react-native-config codegen
 ios/tmp.xcconfig
