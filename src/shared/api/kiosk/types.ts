@@ -255,6 +255,8 @@ export type KioskPosResponse = {
   batchNum: string;
   amount: string;
   referenceNo?: string;
+  /** Código de autorización del adquirente (backend → pos_transactions.authorizationCode). */
+  authCode?: string;
 };
 
 export type CreateKioskOrderRequest = {
