@@ -556,6 +556,18 @@ export function parseEcrPaymentJson(
     flat = { ...flat, amount: String(options.amountSentCents) };
   }
 
+  // El formato PKUSB sin `responseCode` siempre cae al heurístico, que arma una
+  // lista fija de campos y dejaba afuera el código de autorización (venta real
+  // 2026-09-24, authCode 912571 perdido). Tomarlo del JSON estricto o del texto.
+  if (flat != null && flat.authCode == null) {
+    const authCode =
+      (typeof strict?.authCode === 'string' && strict.authCode.trim()) ||
+      focused.match(/authCode"\s*:\s*"(\w{4,12})"/i)?.[1];
+    if (authCode) {
+      flat = { ...flat, authCode };
+    }
+  }
+
   logKioskCheckoutPayload('POS JSON parse', {
     strictJsonValid: strict != null,
     flat,
