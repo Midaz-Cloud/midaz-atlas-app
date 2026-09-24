@@ -115,7 +115,10 @@ export function mapApiProductToMenuProduct(
     barcode: api.barcode ?? null,
     image: localImage ?? (remoteUri ? { uri: remoteUri } : undefined),
     soldOut: options?.soldOut ?? isProductSoldOut(api),
-    available: resolveProductAvailable(api),
+    // null en ambos = sin límite (COMBO/KIT, servicios): el backend lo resuelve por
+    // componentes. Colapsarlo a 0 bloqueaba "Agregar" aunque isAvailable fuera true.
+    available:
+      api.available == null && api.stock == null ? undefined : resolveProductAvailable(api),
     modifierGroups: options?.modifierGroups ?? api.modifierGroups,
     hasModifiers:
       options?.hasModifiers ??
