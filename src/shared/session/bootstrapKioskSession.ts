@@ -1,7 +1,10 @@
 import {
   createKioskApiClient,
   KioskApiError,
-  mapSellableKioskApiProductsToCatalog,
+  isKioskNetworkError,
+  loadAccessTokenRaw,
+  loadCachedProductsBody,
+  parseKioskProductsResponse,
   mapConfigToRuntime,
   saveAccessToken,
   saveConfigEtag,
@@ -11,7 +14,6 @@ import {
   isMockKioskConfig,
   loadCachedConfigBody,
   mapCachedConfigBody,
-  buildCategoriesFromProducts,
   resolveKioskImageUrl,
   type KioskRuntimeConfig,
 } from '@shared/api/kiosk';
@@ -20,13 +22,15 @@ import {
   getMockConfig,
   syncMockCatalogFromMenuMocks,
 } from '@shared/api/kiosk/mock/buildMockFixtures';
-import { getCatalogCategories, getCatalogProducts, setCatalog } from '@shared/catalog/catalogStore';
+import { getCatalogCategories, getCatalogProducts } from '@shared/catalog/catalogStore';
 import { getKioskApiKey, shouldUseMockApi } from '@shared/config/api';
+import { markKioskOffline } from '@shared/connectivity';
 import { getKioskDeviceProfile } from '@shared/device';
 
 import { syncKioskSessionImages } from '@shared/images/prefetchKioskImages';
 import type { ImageSyncProgress } from '@shared/images/kioskImageTypes';
 
+import { applyProductsToCatalog } from './applyProductsToCatalog';
 import {
   buildBootstrapSnapshot,
   type KioskBootstrapPhase,
@@ -38,9 +42,13 @@ export type BootstrapKioskSessionOptions = {
   onImageProgress?: (progress: ImageSyncProgress) => void;
 };
 
+/** `offline`: arrancó sin backend con la config y el catálogo de la última sesión. */
+export type KioskSessionMode = 'online' | 'offline';
+
 export type BootstrapKioskSessionResult =
   | {
       status: 'ready';
+      mode: KioskSessionMode;
       accessToken: string;
       runtimeConfig: KioskRuntimeConfig;
       bootstrapSnapshot: KioskBootstrapSnapshot;
@@ -96,10 +104,7 @@ export async function bootstrapKioskSession(
     if (shouldUseMockApi()) {
       syncMockCatalogFromMenuMocks();
     } else {
-      const sellable = productsResult.products.data.filter((api) => api.isForSale !== false);
-      const { menuProducts, idMap } = mapSellableKioskApiProductsToCatalog(sellable);
-      const categories = buildCategoriesFromProducts(menuProducts);
-      setCatalog(categories, menuProducts, idMap);
+      applyProductsToCatalog(productsResult.products);
     }
 
     onPhase?.('images');
@@ -133,6 +138,7 @@ export async function bootstrapKioskSession(
 
     return {
       status: 'ready',
+      mode: 'online',
       accessToken: login.accessToken,
       runtimeConfig,
       bootstrapSnapshot,
@@ -163,6 +169,7 @@ export async function bootstrapKioskSession(
       }
       return {
         status: 'ready',
+        mode: 'online',
         accessToken: `mock-jwt-${Date.now()}`,
         runtimeConfig,
         bootstrapSnapshot: buildBootstrapSnapshot(
@@ -174,6 +181,13 @@ export async function bootstrapKioskSession(
         imageSyncFailed,
       };
     }
+    if (isBackendUnreachable(err)) {
+      const offline = await bootstrapFromCache(onPhase);
+      if (offline) {
+        markKioskOffline('bootstrap: backend unreachable, using cache');
+        return offline;
+      }
+    }
     const message =
       err instanceof KioskApiError
         ? err.message
@@ -181,5 +195,50 @@ export async function bootstrapKioskSession(
           ? err.message
           : 'Error al iniciar el kiosco';
     return { status: 'auth_error', message };
+  }
+}
+
+/** Red caída o gateway/servicio sin responder: se puede vender con lo cacheado. 401/403 no. */
+function isBackendUnreachable(err: unknown): boolean {
+  if (isKioskNetworkError(err)) {
+    return true;
+  }
+  return err instanceof KioskApiError && err.statusCode >= 500;
+}
+
+/**
+ * Arranque sin backend: config y catálogo de la última sesión en línea. Sin caché
+ * (kiosko recién instalado) no hay nada que vender y se muestra el error normal.
+ */
+async function bootstrapFromCache(
+  onPhase?: (phase: KioskBootstrapPhase) => void,
+): Promise<BootstrapKioskSessionResult | null> {
+  try {
+    const [cachedConfigBody, cachedProductsBody, device] = await Promise.all([
+      loadCachedConfigBody(),
+      loadCachedProductsBody(),
+      getKioskDeviceProfile(),
+    ]);
+    const config = mapCachedConfigBody(cachedConfigBody);
+    if (!config || isMockKioskConfig(config) || !cachedProductsBody) {
+      return null;
+    }
+    onPhase?.('products');
+    const primaryCurrency = config.organization?.primaryCurrency ?? 'USD';
+    const products = parseKioskProductsResponse(cachedProductsBody, primaryCurrency);
+    applyProductsToCatalog(products);
+    return {
+      status: 'ready',
+      mode: 'offline',
+      accessToken: (await loadAccessTokenRaw())?.token ?? '',
+      runtimeConfig: mapConfigToRuntime(config),
+      bootstrapSnapshot: buildBootstrapSnapshot(config, device.serialNumber, products.data.length),
+      deviceSerial: device.serialNumber,
+    };
+  } catch (error) {
+    if (__DEV__) {
+      console.warn('[bootstrapKioskSession] offline bootstrap from cache failed', error);
+    }
+    return null;
   }
 }

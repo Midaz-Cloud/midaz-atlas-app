@@ -73,7 +73,8 @@
       "ticketPrinted": "Receipt printed successfully.",
       "pickupInstructions": "Pick up your order when you see your number on the screen.",
       "orderLabel": "Your order number",
-      "ticketSlotHint": "Please take your printed receipt and invoice from the slot below the kiosk."
+      "ticketSlotHint": "Please take your printed receipt and invoice from the slot below the kiosk.",
+      "offlineQueued": "Order saved on the kiosk. It will be sent to the system when the connection is back."
     },
     "fiscalError": {
       "title": "Fiscal printer error",

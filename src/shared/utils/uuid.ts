@@ -25,3 +25,28 @@ const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9
 export function isUuidV4(value: unknown): value is string {
   return typeof value === 'string' && UUID_V4_RE.test(value);
 }
+
+/**
+ * uuid con forma v4 derivado de un texto: la misma entrada da siempre el mismo id.
+ * Para ventas viejas sin clientOrderId (reintento manual de failed_payments): cada
+ * reintento de la misma fila manda el mismo id y el backend no duplica la orden.
+ */
+export function deterministicUuidV4(seed: string): string {
+  const bytes = new Uint8Array(16);
+  // 4 FNV-1a de 32 bits con offsets distintos → 128 bits.
+  for (let part = 0; part < 4; part += 1) {
+    let hash = (0x811c9dc5 ^ (part * 0x9e3779b9)) >>> 0;
+    for (let i = 0; i < seed.length; i += 1) {
+      hash ^= seed.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    bytes[part * 4] = hash >>> 24;
+    bytes[part * 4 + 1] = (hash >>> 16) & 0xff;
+    bytes[part * 4 + 2] = (hash >>> 8) & 0xff;
+    bytes[part * 4 + 3] = hash & 0xff;
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useKioskOrder } from '@shared/kiosk-order';
 
 import { getEnabledPaymentMethods } from '../../data/getEnabledPaymentMethods';
+import { useOfflinePaymentOptions } from '../../data/useOfflinePaymentOptions';
 import type { PaymentMethodId } from '../../types';
 import { useKioskSession } from '@shared/session';
 
@@ -11,13 +12,16 @@ export function usePaymentMethodScreen(onSelectMethod: (methodId: PaymentMethodI
   const { t } = useTranslation('payment');
   const { paymentMethodId, setPaymentMethodId } = useKioskOrder();
   const { runtimeConfig } = useKioskSession();
+  const { offline, offlineCashAllowed } = useOfflinePaymentOptions();
 
   const methods = useMemo(
     () =>
       getEnabledPaymentMethods(runtimeConfig?.enabledPaymentMethods, {
         pagoMovilAccount: runtimeConfig?.raw.pagoMovilAccount,
+        offline,
+        offlineCashAllowed,
       }),
-    [runtimeConfig?.enabledPaymentMethods, runtimeConfig?.raw.pagoMovilAccount],
+    [runtimeConfig?.enabledPaymentMethods, runtimeConfig?.raw.pagoMovilAccount, offline, offlineCashAllowed],
   );
 
   const methodLabels = useMemo(

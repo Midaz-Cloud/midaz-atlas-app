@@ -18,3 +18,4 @@ export { AdminPasscodeModal } from './AdminPasscodeModal';
 export { AdminDashboardScreen } from './AdminDashboardScreen';
 export { FailedPaymentsListScreen } from './FailedPaymentsListScreen';
 export { FailedPaymentDetailScreen } from './FailedPaymentDetailScreen';
+export { PendingSyncOrdersScreen } from './PendingSyncOrdersScreen';

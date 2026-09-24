@@ -47,6 +47,7 @@ jest.mock('@shared/session', () => {
     KioskSessionProvider: ({ children }) => children,
     useKioskSession: () => ({
       status: 'ready',
+      sessionMode: 'online',
       runtimeConfig: {
         orderTypeSelectionEnabled: true,
         enabledPaymentMethods: ['debito', 'pago_movil'],
