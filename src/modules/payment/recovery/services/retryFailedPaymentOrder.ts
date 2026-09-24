@@ -2,8 +2,7 @@ import type { OrderType } from '@modules/introduction/types';
 import type { PaymentMethodId } from '@modules/payment/types';
 
 import {
-  createKioskApiClient,
-  loadAccessToken,
+  withKioskAuth,
   mapCartToCreateOrderRequest,
 } from '@shared/api/kiosk';
 import { buildPosPaymentFromEcr } from '@shared/api/kiosk/mappers/cardPaymentFromEcr';
@@ -396,9 +395,7 @@ export async function retryFailedPaymentOrder(
     let displayOrderNumber = existingOrderNumber ?? '';
     let fromShortCode = existingShortCode;
     if (request) {
-      const token = await loadAccessToken();
-      const client = createKioskApiClient(token ?? undefined);
-      const response = await client.createOrder(request);
+      const response = await withKioskAuth((client) => client.createOrder(request));
       displayOrderNumber = response.displayOrderNumber;
       fromShortCode = response.shortCode?.trim() || null;
     } else if (__DEV__ && issuedFiscalInvoiceNumber != null) {

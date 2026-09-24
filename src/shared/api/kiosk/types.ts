@@ -282,6 +282,12 @@ export type CreateKioskOrderRequest = {
    * No pad, no `invoiceData`, no COO.
    */
   fiscalInvoiceNumber?: number;
+  /**
+   * uuid generado por el kiosko, uno por venta (no por reintento). El backend lo
+   * usa para que un reintento o una venta sincronizada tarde devuelva la misma
+   * orden en vez de crear otra. También viaja en el header Idempotency-Key.
+   */
+  clientOrderId?: string;
 };
 
 export type KioskOrderTaxBreakdownItem = {

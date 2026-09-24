@@ -35,6 +35,21 @@ export async function loadAccessToken(): Promise<string | null> {
   return token;
 }
 
+/**
+ * Token guardado aunque haya vencido (no lo borra). Sin red no se puede re-loguear
+ * y el kiosko igual tiene que arrancar en modo offline con lo que tiene.
+ */
+export async function loadAccessTokenRaw(): Promise<{ token: string; expiresAt: number } | null> {
+  const [[, token], [, expiresAtRaw]] = await AsyncStorage.multiGet([
+    ACCESS_TOKEN_KEY,
+    ACCESS_TOKEN_EXPIRES_KEY,
+  ]);
+  if (!token) {
+    return null;
+  }
+  return { token, expiresAt: expiresAtRaw ? Number(expiresAtRaw) : 0 };
+}
+
 export async function clearAccessToken(): Promise<void> {
   await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, ACCESS_TOKEN_EXPIRES_KEY]);
 }

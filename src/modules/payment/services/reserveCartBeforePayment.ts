@@ -1,6 +1,5 @@
 import {
-  createKioskApiClient,
-  loadAccessToken,
+  withKioskAuth,
   type CartReserveItemResult,
 } from '@shared/api/kiosk';
 import { getCatalogEntryByLineProductId } from '@shared/catalog/catalogStore';
@@ -35,9 +34,9 @@ export async function reserveCartBeforePayment(
     throw new Error('No se pudo mapear el carrito para reservar stock');
   }
 
-  const token = await loadAccessToken();
-  const client = createKioskApiClient(token ?? undefined);
-  const response = await client.reserveCart({ items, ttlMinutes: DEFAULT_TTL_MINUTES });
+  const response = await withKioskAuth((client) =>
+    client.reserveCart({ items, ttlMinutes: DEFAULT_TTL_MINUTES }),
+  );
 
   if (response.allReserved && response.reservationId) {
     // Price lock: el server ya congeló estos precios contra el reservationId y con

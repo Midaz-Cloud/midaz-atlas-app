@@ -20,6 +20,7 @@ import { kioskScreenColors, kioskScreenLayout } from '@shared/theme';
 import { displayTextStyle } from '@shared/theme';
 
 import { shouldUseMockApi } from '@shared/config/api';
+import { startKioskConnectivityMonitor } from '@shared/connectivity';
 import { useSessionLocale } from '@shared/i18n';
 import { resolveKioskLanguagePolicy } from '@shared/i18n/resolveKioskLanguagePolicy';
 
@@ -128,6 +129,10 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
   useEffect(() => {
     void runBootstrap();
   }, [runBootstrap, bootstrapKey]);
+
+  // Conectividad con el gateway: vive toda la sesión (también durante el arranque),
+  // así el checkout y el badge saben si hay backend sin esperar a que falle una venta.
+  useEffect(() => startKioskConnectivityMonitor(), []);
 
   useEffect(() => {
     if (status !== 'ready' || shouldUseMockApi() || !deviceSerial) {

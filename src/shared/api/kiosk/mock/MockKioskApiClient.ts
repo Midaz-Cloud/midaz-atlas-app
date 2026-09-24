@@ -165,8 +165,24 @@ export class MockKioskApiClient implements KioskApiClient {
     });
   }
 
-  async createOrder(request: CreateKioskOrderRequest): Promise<CreateKioskOrderResponse> {
+  /** Igual que el backend real: el mismo clientOrderId devuelve la misma orden. */
+  private readonly ordersByClientId = new Map<string, CreateKioskOrderResponse>();
+
+  async getOrderByClientId(clientOrderId: string): Promise<CreateKioskOrderResponse | null> {
+    await delay(100);
+    return this.ordersByClientId.get(clientOrderId) ?? null;
+  }
+
+  async createOrder(
+    request: CreateKioskOrderRequest,
+    options?: { idempotencyKey?: string },
+  ): Promise<CreateKioskOrderResponse> {
     logKioskCheckoutPayload('POST /kiosk/orders request (mock)', request);
+    const clientOrderId = options?.idempotencyKey ?? request.clientOrderId;
+    const existing = clientOrderId ? this.ordersByClientId.get(clientOrderId) : undefined;
+    if (existing) {
+      return existing;
+    }
     if (
       (request.paymentMethod === 'debito' || request.paymentMethod === 'credito') &&
       !request.posResponse
@@ -193,6 +209,9 @@ export class MockKioskApiClient implements KioskApiClient {
       kioskDeviceId: 'mock-device-id',
     };
     logKioskCheckoutPayload('POST /kiosk/orders response (mock)', response);
+    if (clientOrderId) {
+      this.ordersByClientId.set(clientOrderId, response);
+    }
     return response;
   }
 

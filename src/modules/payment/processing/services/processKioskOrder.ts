@@ -2,10 +2,9 @@ import type { OrderType } from '@modules/introduction/types';
 import type { PaymentMethodId } from '@modules/payment/types';
 
 import {
-  createKioskApiClient,
   KioskApiError,
   mapCartToCreateOrderRequest,
-  loadAccessToken,
+  withKioskAuth,
 } from '@shared/api/kiosk';
 import type { FulfillmentType } from '@shared/api/kiosk';
 import type {
@@ -57,6 +56,11 @@ export type ProcessKioskOrderParams = {
   /** Same source as Z close (`organization.effectiveInvoicingType`). */
   effectiveInvoicingType?: string | null;
   reservationId?: string | null;
+  /**
+   * uuid de la venta (uno por pedido). Hace idempotente POST /kiosk/orders: un
+   * reintento devuelve la orden ya creada en vez de otra con otra factura.
+   */
+  clientOrderId?: string;
   /**
    * Customer fiscal retry: do not short-circuit demo `fiscal_error`.
    * Payment already succeeded; retry must actually emit (mock or HkaApp).
@@ -203,9 +207,7 @@ export async function processKioskOrder(
       }
 
       try {
-        const token = await loadAccessToken();
-        const client = createKioskApiClient(token ?? undefined);
-        const request = mapCartToCreateOrderRequest({
+        const mapped = mapCartToCreateOrderRequest({
           lines: params.lines,
           orderType: params.orderType,
           fulfillment: params.fulfillment,
@@ -218,7 +220,12 @@ export async function processKioskOrder(
           reservationId: params.reservationId,
           fiscalInvoiceNumber,
         });
-        const response = await client.createOrder(request);
+        const request = params.clientOrderId
+          ? { ...mapped, clientOrderId: params.clientOrderId }
+          : mapped;
+        const response = await withKioskAuth((client) =>
+          client.createOrder(request, { idempotencyKey: params.clientOrderId }),
+        );
         displayOrderNumber = response.displayOrderNumber;
         // UPDATE-14: QR solo con shortCode real. Efectivo / sin cocina → shortCode null → sin QR.
         const fromShortCode = response.shortCode?.trim() || null;

@@ -16,6 +16,8 @@ jest.mock('@shared/api/kiosk', () => {
   return {
     ...actual,
     loadAccessToken: jest.fn(async () => 'test-token'),
+    withKioskAuth: (run: (client: unknown) => unknown) =>
+      run({ createOrder: (request: unknown) => mockCreateOrder(request) }),
     createKioskApiClient: jest.fn(() => ({
       createOrder: (request: unknown) => mockCreateOrder(request),
     })),

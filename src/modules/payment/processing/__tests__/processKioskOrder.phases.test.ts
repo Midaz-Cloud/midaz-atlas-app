@@ -12,6 +12,8 @@ jest.mock('@shared/api/kiosk', () => ({
     createOrder: (...args: unknown[]) => mockCreateOrder(...args),
   }),
   loadAccessToken: jest.fn().mockResolvedValue('token'),
+  withKioskAuth: (run: (client: unknown) => unknown) =>
+    run({ createOrder: (...args: unknown[]) => mockCreateOrder(...args) }),
   mapCartToCreateOrderRequest: jest.fn().mockReturnValue({ items: [] }),
   KioskApiError: class KioskApiError extends Error {
     statusCode: number;

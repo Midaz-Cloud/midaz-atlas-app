@@ -3,7 +3,7 @@ import {
   createKioskApiClient,
   mapConfigToRuntime,
   mapSellableKioskApiProductsToCatalog,
-  loadAccessToken,
+  withKioskAuth,
   loadConfigEtag,
   saveConfigEtag,
   loadProductsEtag,
@@ -59,10 +59,8 @@ async function applyProductsResponse(
 async function fetchAndApplyProducts(
   force = false,
 ): Promise<{ productCount: number; changed: boolean }> {
-  const token = await loadAccessToken();
-  const client = createKioskApiClient(token ?? undefined);
   const etag = force ? null : await loadProductsEtag();
-  const productsResponse = await client.getProducts(etag);
+  const productsResponse = await withKioskAuth((client) => client.getProducts(etag));
   if (productsResponse.notModified && !force) {
     return { productCount: getCatalogProducts().length, changed: false };
   }
@@ -117,10 +115,8 @@ export function startKioskCatalogSync(
     }
     configRunning = true;
     try {
-      const token = await loadAccessToken();
-      const client = createKioskApiClient(token ?? undefined);
       const etag = await loadConfigEtag();
-      const result = await client.getConfig(etag);
+      const result = await withKioskAuth((client) => client.getConfig(etag));
       if (result.etag) {
         await saveConfigEtag(result.etag);
       }
