@@ -8,6 +8,10 @@ import { ECR_PAYMENT_TIMEOUT_MS } from './ecrPaymentTimeoutMs';
 import { ecrErrorFromPaymentResponse } from './ecrTransactionError';
 import { extractLastBalancedJson } from './extractLastBalancedJson';
 import { formatEcrDocumentNumber } from './formatEcrDocumentNumber';
+import {
+  isResponseForPendingEcrRequest,
+  type PendingEcrRequest,
+} from './isResponseForPendingEcrRequest';
 import { isTransientEcrResponse } from './isTransientEcrResponse';
 import { getUsbSerialModule } from './usbSerialModule';
 import { toEcrTerminalAmount } from './toEcrTerminalAmount';
@@ -16,6 +20,7 @@ type PendingTx = {
   resolve: (value: string) => void;
   reject: (reason?: unknown) => void;
   timeoutId?: ReturnType<typeof setTimeout>;
+  request?: PendingEcrRequest;
 };
 
 export type UseUsbECRReturn = {
@@ -85,6 +90,16 @@ export function useUsbECR(): UseUsbECRReturn {
 
       const balanced = extractLastBalancedJson(payload);
       const settledPayload = balanced ?? payload;
+
+      if (pending.request && !isResponseForPendingEcrRequest(settledPayload, pending.request)) {
+        if (__DEV__) {
+          console.warn('[useUsbECR] respuesta ajena al pedido pendiente, ignorada', {
+            expected: pending.request,
+            payload: settledPayload,
+          });
+        }
+        return;
+      }
 
       setReceivedMessages((prev) => [...prev, settledPayload]);
       setLastTransactionResponse(settledPayload);
@@ -316,7 +331,13 @@ export function useUsbECR(): UseUsbECRReturn {
             ),
           );
         }, timeoutMs);
-        pendingTransaction.current = { resolve, reject, timeoutId };
+        const { referenceNo, type } = payload as { referenceNo?: string; type?: string };
+        pendingTransaction.current = {
+          resolve,
+          reject,
+          timeoutId,
+          ...(referenceNo && type ? { request: { referenceNo, type } } : {}),
+        };
       });
 
       try {
