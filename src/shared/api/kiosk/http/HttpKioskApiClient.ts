@@ -33,6 +33,7 @@ import type {
   RegisterKioskCustomerRequest,
   ValidateMobilePaymentRequest,
   ValidateMobilePaymentResponse,
+  KioskHeartbeatRequest,
   KioskSettlementRequest,
   KioskSettlementResponse,
   KioskZReportRequest,
@@ -268,6 +269,16 @@ export class HttpKioskApiClient implements KioskApiClient {
     }
     await throwIfNotOk(response, '/kiosk/orders/by-client-id');
     return parseCreateKioskOrderResponse(await response.json());
+  }
+
+  async sendHeartbeat(body: KioskHeartbeatRequest): Promise<void> {
+    const response = await fetchWithTimeout(this.apiUrl('/kiosk/heartbeat'), {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify(body),
+    }, KIOSK_TIMEOUTS.default, '/kiosk/heartbeat');
+    await throwIfNotOk(response, '/kiosk/heartbeat');
+    await drainResponseBody(response);
   }
 
   async submitSettlement(request: KioskSettlementRequest): Promise<KioskSettlementResponse> {

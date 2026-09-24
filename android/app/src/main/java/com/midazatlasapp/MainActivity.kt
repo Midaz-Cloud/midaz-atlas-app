@@ -14,6 +14,15 @@ class MainActivity : ReactActivity() {
   override fun getMainComponentName(): String = "MidazAtlasApp"
 
   /**
+   * Pantalla siempre encendida: el kiosko sirve las comandas por LAN desde JS y un
+   * apagado de pantalla puede suspender la app y dejar a cocina sin pedidos.
+   */
+  override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+  }
+
+  /**
    * Returns the instance of the [ReactActivityDelegate]. We use [DefaultReactActivityDelegate]
    * which allows you to enable New Architecture with a single boolean flags [fabricEnabled]
    */

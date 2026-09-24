@@ -93,6 +93,12 @@ export type KioskConfigResponse = {
   lanComanda?: KioskLanComandaConfig | null;
 };
 
+export type KioskHeartbeatRequest = {
+  lanIp?: string;
+  appVersion?: string;
+  pendingSync?: number;
+};
+
 export type KioskLanComandaConfig = {
   enabled: boolean;
   sharedKey: string | null;

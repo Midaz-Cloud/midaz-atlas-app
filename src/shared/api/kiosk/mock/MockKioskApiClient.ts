@@ -168,6 +168,10 @@ export class MockKioskApiClient implements KioskApiClient {
   /** Igual que el backend real: el mismo clientOrderId devuelve la misma orden. */
   private readonly ordersByClientId = new Map<string, CreateKioskOrderResponse>();
 
+  async sendHeartbeat(): Promise<void> {
+    await delay(50);
+  }
+
   async getOrderByClientId(clientOrderId: string): Promise<CreateKioskOrderResponse | null> {
     await delay(100);
     return this.ordersByClientId.get(clientOrderId) ?? null;

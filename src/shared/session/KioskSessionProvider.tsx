@@ -26,6 +26,7 @@ import {
   subscribeKioskConnectivity,
 } from '@shared/connectivity';
 import { startOrderSyncWorker } from '@shared/sync';
+import { startLanComandaServer } from '@shared/lan';
 import { useSessionLocale } from '@shared/i18n';
 import { resolveKioskLanguagePolicy } from '@shared/i18n/resolveKioskLanguagePolicy';
 
@@ -194,6 +195,17 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
       },
     });
   }, [status]);
+
+  // Servidor LAN de comandas: encendido toda la sesión (online u offline) para que
+  // la Comandera tenga de dónde leer si se cae el backend.
+  const lanKey = runtimeConfig?.raw.lanComanda?.enabled ? runtimeConfig.raw.lanComanda.sharedKey : null;
+  const lanPort = runtimeConfig?.raw.lanComanda?.port ?? null;
+  useEffect(() => {
+    if (status !== 'ready' || shouldUseMockApi() || !lanKey || !lanPort) {
+      return;
+    }
+    return startLanComandaServer({ port: lanPort, sharedKey: lanKey, deviceSerial });
+  }, [status, lanKey, lanPort, deviceSerial]);
 
   useEffect(() => {
     if (status !== 'ready' || sessionMode !== 'online' || shouldUseMockApi() || !deviceSerial) {
