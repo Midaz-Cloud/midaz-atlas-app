@@ -27,6 +27,7 @@ import {
 } from '@shared/connectivity';
 import { startOrderSyncWorker } from '@shared/sync';
 import { startLanComandaServer } from '@shared/lan';
+import { startKioskCustomerSync } from '@shared/customer/syncKioskCustomers';
 import { useSessionLocale } from '@shared/i18n';
 import { resolveKioskLanguagePolicy } from '@shared/i18n/resolveKioskLanguagePolicy';
 
@@ -195,6 +196,14 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
       },
     });
   }, [status]);
+
+  // Caché de clientes para vender sin red: se baja en línea (incremental).
+  useEffect(() => {
+    if (status !== 'ready' || sessionMode !== 'online') {
+      return;
+    }
+    return startKioskCustomerSync();
+  }, [status, sessionMode]);
 
   // Servidor LAN de comandas: encendido toda la sesión (online u offline) para que
   // la Comandera tenga de dónde leer si se cae el backend.

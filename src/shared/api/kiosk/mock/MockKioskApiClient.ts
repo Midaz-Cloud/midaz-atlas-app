@@ -9,6 +9,7 @@ import {
 } from '@shared/config';
 
 import type {
+  KioskCustomerSyncPage,
   CartReserveRequest,
   CartReserveResponse,
   CreateKioskOrderRequest,
@@ -167,6 +168,10 @@ export class MockKioskApiClient implements KioskApiClient {
 
   /** Igual que el backend real: el mismo clientOrderId devuelve la misma orden. */
   private readonly ordersByClientId = new Map<string, CreateKioskOrderResponse>();
+
+  async syncCustomers(): Promise<KioskCustomerSyncPage> {
+    return { data: [], nextCursor: null };
+  }
 
   async sendHeartbeat(): Promise<void> {
     await delay(50);

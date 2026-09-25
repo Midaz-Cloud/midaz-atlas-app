@@ -34,6 +34,7 @@ import type {
   ValidateMobilePaymentRequest,
   ValidateMobilePaymentResponse,
   KioskHeartbeatRequest,
+  KioskCustomerSyncPage,
   KioskSettlementRequest,
   KioskSettlementResponse,
   KioskZReportRequest,
@@ -269,6 +270,20 @@ export class HttpKioskApiClient implements KioskApiClient {
     }
     await throwIfNotOk(response, '/kiosk/orders/by-client-id');
     return parseCreateKioskOrderResponse(await response.json());
+  }
+
+  async syncCustomers(cursor: string | null): Promise<KioskCustomerSyncPage> {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    const response = await fetchWithTimeout(this.apiUrl(`/kiosk/customers/sync${query}`), {
+      method: 'GET',
+      headers: this.headers(),
+    }, KIOSK_TIMEOUTS.customers, '/kiosk/customers/sync');
+    await throwIfNotOk(response, '/kiosk/customers/sync');
+    const body = (await response.json()) as Partial<KioskCustomerSyncPage>;
+    return {
+      data: Array.isArray(body.data) ? body.data : [],
+      nextCursor: typeof body.nextCursor === 'string' ? body.nextCursor : null,
+    };
   }
 
   async sendHeartbeat(body: KioskHeartbeatRequest): Promise<void> {

@@ -1,4 +1,5 @@
 import type {  KioskHeartbeatRequest,
+  KioskCustomerSyncPage,
 
   CartReserveRequest,
   CartReserveResponse,
@@ -39,6 +40,8 @@ export interface KioskApiClient {
   getOrderByClientId(clientOrderId: string): Promise<CreateKioskOrderResponse | null>;
   /** Kiosko vivo + IP en la LAN (la Comandera la descubre por sucursal). */
   sendHeartbeat(body: KioskHeartbeatRequest): Promise<void>;
+  /** Caché de clientes para vender sin red (descarga incremental). */
+  syncCustomers(cursor: string | null): Promise<KioskCustomerSyncPage>;
   submitSettlement(request: KioskSettlementRequest): Promise<KioskSettlementResponse>;
   submitZReport(request: KioskZReportRequest): Promise<KioskZReportResponse>;
 }
