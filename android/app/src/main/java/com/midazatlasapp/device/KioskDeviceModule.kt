@@ -1,6 +1,8 @@
 package com.midazatlasapp.device
 
 import android.annotation.SuppressLint
+import android.content.ComponentName
+import android.content.Intent
 import android.os.Build
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -15,6 +17,44 @@ class KioskDeviceModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext) {
 
   override fun getName(): String = "KioskDeviceModule"
+
+  /**
+   * Pide a HkaApp que arranque su servicio fiscal (API :8765) y se conecte sola a
+   * la impresora, sin abrirla ni sacar al kiosko de primer plano. Broadcast
+   * explícito al receiver de HkaApp; FLAG_INCLUDE_STOPPED_PACKAGES para que llegue
+   * aunque HkaApp nunca se haya abierto desde que se encendió el equipo.
+   * Resuelve false si HkaApp no está instalada.
+   */
+  @ReactMethod
+  fun startFiscalService(promise: Promise) {
+    try {
+      val context = reactApplicationContext
+      val installed = try {
+        context.packageManager.getPackageInfo(HKA_PACKAGE, 0)
+        true
+      } catch (_: Exception) {
+        false
+      }
+      if (!installed) {
+        promise.resolve(false)
+        return
+      }
+      val intent = Intent(HKA_START_ACTION).apply {
+        component = ComponentName(HKA_PACKAGE, HKA_START_RECEIVER)
+        addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+      }
+      context.sendBroadcast(intent)
+      promise.resolve(true)
+    } catch (e: Exception) {
+      promise.reject("FISCAL_START_ERROR", e.message, e)
+    }
+  }
+
+  companion object {
+    private const val HKA_PACKAGE = "com.thefactory.demoPP9"
+    private const val HKA_START_ACTION = "com.thefactory.demoPP9.action.START_FISCAL_SERVICE"
+    private const val HKA_START_RECEIVER = "com.thefactory.demoPP9.service.FiscalServiceStartReceiver"
+  }
 
   @ReactMethod
   fun getHardwareSerial(promise: Promise) {

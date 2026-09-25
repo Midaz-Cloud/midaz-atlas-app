@@ -28,6 +28,7 @@ import {
 import { startOrderSyncWorker } from '@shared/sync';
 import { startLanComandaServer } from '@shared/lan';
 import { startKioskCustomerSync } from '@shared/customer/syncKioskCustomers';
+import { startHkaFiscalService } from '@shared/peripherals/fiscal/ensureFiscalReady';
 import { useSessionLocale } from '@shared/i18n';
 import { resolveKioskLanguagePolicy } from '@shared/i18n/resolveKioskLanguagePolicy';
 
@@ -195,6 +196,15 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
         void catalogSyncRef.current?.refreshProductsNow();
       },
     });
+  }, [status]);
+
+  // HkaApp (servicio fiscal) arranca y se conecta sola a la impresora: se le
+  // avisa al iniciar el kiosko, así tras un reinicio no hay que abrirla a mano.
+  useEffect(() => {
+    if (status !== 'ready' || shouldUseMockApi()) {
+      return;
+    }
+    void startHkaFiscalService();
   }, [status]);
 
   // Caché de clientes para vender sin red: se baja en línea (incremental).
