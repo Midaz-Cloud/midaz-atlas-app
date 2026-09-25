@@ -29,6 +29,8 @@ import { startOrderSyncWorker } from '@shared/sync';
 import { startLanComandaServer } from '@shared/lan';
 import { startKioskCustomerSync } from '@shared/customer/syncKioskCustomers';
 import { startHkaFiscalService } from '@shared/peripherals/fiscal/ensureFiscalReady';
+import { shouldUsePhysicalFiscalPrinter } from '@shared/api/kiosk/utils/invoicingType';
+import { startKioskTelemetryHeartbeat } from '@shared/telemetry';
 import { useSessionLocale } from '@shared/i18n';
 import { resolveKioskLanguagePolicy } from '@shared/i18n/resolveKioskLanguagePolicy';
 
@@ -98,6 +100,8 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
   const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null);
   const [bootstrapKey, setBootstrapKey] = useState(0);
   const catalogSyncRef = useRef<KioskCatalogSyncController | null>(null);
+  /** Evita re-aplicar la política de idioma en cada tick de config si `appearance.languages` no cambió. */
+  const lastLanguagesConfigRef = useRef<string | null>(null);
 
   const refreshCatalogAfterPurchase = useCallback(async () => {
     if (shouldUseMockApi()) {
@@ -226,6 +230,20 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
     return startLanComandaServer({ port: lanPort, sharedKey: lanKey, deviceSerial });
   }, [status, lanKey, lanPort, deviceSerial]);
 
+  // Telemetría (RAM/disco/red/fiscal/sync) para el panel de kioskos del
+  // portal — INDEPENDIENTE del servidor LAN: antes solo se reportaba si
+  // lanComanda.enabled, dejando kioskos "sin reportar" para siempre si esa
+  // opción estaba apagada.
+  const requiresFiscalPrinter = shouldUsePhysicalFiscalPrinter(
+    bootstrapSnapshot?.organization.effectiveInvoicingType,
+  );
+  useEffect(() => {
+    if (status !== 'ready' || shouldUseMockApi()) {
+      return;
+    }
+    return startKioskTelemetryHeartbeat({ requiresFiscalPrinter, sessionMode });
+  }, [status, requiresFiscalPrinter, sessionMode]);
+
   useEffect(() => {
     if (status !== 'ready' || sessionMode !== 'online' || shouldUseMockApi() || !deviceSerial) {
       catalogSyncRef.current = null;
@@ -236,6 +254,11 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
       onConfigUpdated: async ({ runtimeConfig: nextRuntime, bootstrapSnapshot: nextSnapshot }) => {
         setRuntimeConfig(nextRuntime);
         setBootstrapSnapshot(nextSnapshot);
+        const languagesRaw = JSON.stringify(nextRuntime.raw.appearance.languages);
+        if (languagesRaw === lastLanguagesConfigRef.current) {
+          return;
+        }
+        lastLanguagesConfigRef.current = languagesRaw;
         const languagePolicy = resolveKioskLanguagePolicy(
           nextRuntime.raw.appearance.languages,
         );

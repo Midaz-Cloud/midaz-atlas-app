@@ -111,6 +111,19 @@ export type KioskHeartbeatRequest = {
   lanIp?: string;
   appVersion?: string;
   pendingSync?: number;
+  failedSync?: number;
+  openFailedPayments?: number;
+  device?: {
+    memTotalMb?: number | null;
+    memAvailableMb?: number | null;
+    diskFreeMb?: number | null;
+    diskTotalMb?: number | null;
+  };
+  network?: { status: 'unknown' | 'online' | 'degraded' | 'offline' };
+  fiscal?: { healthy: boolean } | null;
+  lan?: { running: boolean };
+  catalog?: { products: number };
+  sessionMode?: 'online' | 'offline';
 };
 
 export type KioskLanComandaConfig = {

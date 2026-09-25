@@ -1,6 +1,5 @@
 import DeviceInfo from 'react-native-device-info';
 
-import { withKioskAuth } from '@shared/api/kiosk';
 import {
   getKioskConnectivity,
   isKioskOffline,
@@ -13,6 +12,7 @@ import {
   updateLocalComandaStatus,
 } from '@shared/persistence';
 import { getOrderSyncSnapshot } from '@shared/sync';
+import { requestKioskHeartbeatNow, setKioskTelemetryLanIp } from '@shared/telemetry';
 
 import { handleLanRequest, type LanRouterDeps } from './lanComandaRouter';
 import {
@@ -129,6 +129,10 @@ export function startLanComandaServer(options: StartLanComandaServerOptions): ()
     return pickLanIp(addresses);
   };
 
+  // El heartbeat en sí (HTTP + RAM/disco/fiscal/etc.) vive en
+  // `@shared/telemetry` — es la MISMA fuente que usa el heartbeat periódico
+  // independiente del servidor LAN (`startKioskTelemetryHeartbeat`), para no
+  // tener dos payloads distintos reportando cosas distintas al backend.
   const sendHeartbeat = async (force = false) => {
     const lanIp = await refreshAddresses();
     if (stopped || isKioskOffline()) {
@@ -140,20 +144,11 @@ export function startLanComandaServer(options: StartLanComandaServerOptions): ()
         return;
       }
     }
-    try {
-      await withKioskAuth((client) =>
-        client.sendHeartbeat({
-          lanIp: lanIp ?? undefined,
-          appVersion: appVersion ?? undefined,
-          pendingSync: getOrderSyncSnapshot().pending,
-        }),
-      );
+    setKioskTelemetryLanIp(lanIp, true);
+    const ok = await requestKioskHeartbeatNow();
+    if (ok) {
       lastAnnouncedIp = lanIp;
       setStatus({ lastHeartbeatAt: new Date().toISOString() });
-    } catch (error) {
-      if (__DEV__) {
-        console.warn('[LanComandaServer] heartbeat failed', error);
-      }
     }
   };
 
@@ -190,6 +185,7 @@ export function startLanComandaServer(options: StartLanComandaServerOptions): ()
     subscription.remove();
     void native.stop().catch(() => undefined);
     setStatus({ running: false, port: null });
+    setKioskTelemetryLanIp(null, false);
   };
 }
 

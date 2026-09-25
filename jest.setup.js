@@ -21,6 +21,10 @@ jest.mock('react-native-device-info', () => ({
   getSystemVersion: jest.fn(() => Promise.resolve('11')),
   getVersion: jest.fn(() => Promise.resolve('0.0.1')),
   getBuildNumber: jest.fn(() => Promise.resolve('1')),
+  getTotalMemory: jest.fn(() => Promise.resolve(2 * 1024 * 1024 * 1024)),
+  getUsedMemory: jest.fn(() => Promise.resolve(1 * 1024 * 1024 * 1024)),
+  getFreeDiskStorage: jest.fn(() => Promise.resolve(4 * 1024 * 1024 * 1024)),
+  getTotalDiskCapacity: jest.fn(() => Promise.resolve(16 * 1024 * 1024 * 1024)),
 }));
 
 jest.mock('react-native-blob-util', () => ({
