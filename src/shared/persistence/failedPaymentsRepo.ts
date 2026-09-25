@@ -268,3 +268,25 @@ export async function pruneFailedPayments(options: {
   );
   return result.rowsAffected ?? 0;
 }
+
+/**
+ * Guarda el número de factura fiscal ya emitido en la fila. Sin esto, un
+ * reintento de registro después de facturar volvía a emitir otra factura por el
+ * mismo cobro (retryFailedPaymentOrder salta la emisión solo si lo encuentra aquí).
+ */
+export async function setFailedPaymentFiscalInvoiceNumber(
+  id: number,
+  fiscalInvoiceNumber: number,
+): Promise<void> {
+  const record = await getFailedPayment(id);
+  if (!record) {
+    return;
+  }
+  const order = { ...(record.order ?? {}), fiscalInvoiceNumber } as FailedPaymentOrderSnapshot;
+  const db = await getKioskSqliteDb();
+  await db.execute(`UPDATE failed_payments SET order_json = ?, status_updated_at = ? WHERE id = ?;`, [
+    safeJsonStringify(order) ?? 'null',
+    new Date().toISOString(),
+    id,
+  ]);
+}

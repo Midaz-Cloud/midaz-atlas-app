@@ -35,6 +35,7 @@ export {
 export {
   clearFailedPayments,
   pruneFailedPayments,
+  setFailedPaymentFiscalInvoiceNumber,
   deleteFailedPayment,
   getFailedPayment,
   listFailedPaymentRecordsByStatus,
