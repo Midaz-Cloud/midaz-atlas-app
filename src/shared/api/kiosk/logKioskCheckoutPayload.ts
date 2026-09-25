@@ -1,4 +1,6 @@
-const MAX_STRING_CHARS = 6000;
+import { isVerboseKioskLogging } from '@shared/config/env';
+
+const MAX_STRING_CHARS = 2000;
 
 function isJestRuntime(): boolean {
   return process.env.JEST_WORKER_ID != null;
@@ -16,16 +18,17 @@ function previewValue(value: unknown): unknown {
 
 /**
  * Traces checkout payloads in Metro / Android logcat (`ReactNativeJS`), similar to POS USB logs.
- * Skipped under Jest to keep test output clean.
+ * Gated by `isVerboseKioskLogging()` (see logFiscal.ts) and emitted via `console.warn`
+ * so it survives `transform-remove-console` in release. Skipped under Jest.
  */
 export function logKioskCheckoutPayload(label: string, payload: unknown): void {
-  if (isJestRuntime()) {
+  if (isJestRuntime() || !isVerboseKioskLogging()) {
     return;
   }
 
   try {
-    console.log(`[KioskCheckout] ${label}`, previewValue(payload));
+    console.warn(`[KioskCheckout] ${label}`, previewValue(payload));
   } catch {
-    console.log(`[KioskCheckout] ${label}`, String(payload));
+    console.warn(`[KioskCheckout] ${label}`, String(payload));
   }
 }

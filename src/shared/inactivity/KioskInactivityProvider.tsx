@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -139,11 +140,14 @@ export function KioskInactivityProvider({
     }
   }, [warningVisible, secondsRemaining, onSessionExpire]);
 
-  const contextValue: KioskInactivityContextValue = {
-    registerActivity,
-    pauseInactivity,
-    resumeInactivity,
-  };
+  const contextValue = useMemo<KioskInactivityContextValue>(
+    () => ({
+      registerActivity,
+      pauseInactivity,
+      resumeInactivity,
+    }),
+    [registerActivity, pauseInactivity, resumeInactivity],
+  );
 
   return (
     <KioskInactivityContext.Provider value={contextValue}>

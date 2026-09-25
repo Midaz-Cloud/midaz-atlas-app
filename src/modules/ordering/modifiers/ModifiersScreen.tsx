@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { ProductModifierGroup } from '../menu/modifierTypes';
 import { kioskScreenLayout, useKioskScreenColors } from '@shared/theme';
+import { showKioskDevUi } from '@shared/config';
 import type { UnitModifierSelections } from '@shared/modifiers/modifierSelectionTypes';
 import { optionQuantitiesToRecord } from '@shared/modifiers/modifierSelectionTypes';
 
@@ -132,12 +133,14 @@ export function ModifiersScreen({
           productName={productName}
         />
         <ModifiersHeader title={title} subtitle={subtitle} />
-        <ModifiersApiDebugPanel
-          product={product}
-          groupIndex={groupIndex}
-          apiModifierGroup={apiModifierGroup}
-          uiOptions={options}
-        />
+        {showKioskDevUi() ? (
+          <ModifiersApiDebugPanel
+            product={product}
+            groupIndex={groupIndex}
+            apiModifierGroup={apiModifierGroup}
+            uiOptions={options}
+          />
+        ) : null}
         <ToppingsGrid
           toppings={options}
           getQuantity={getQuantity}

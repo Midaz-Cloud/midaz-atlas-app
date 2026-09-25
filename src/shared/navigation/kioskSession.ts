@@ -23,8 +23,11 @@ export async function resetKioskSession({
 }: ResetKioskSessionOptions): Promise<void> {
   resetOrder?.();
   clearCustomer?.();
-  await resetLocale();
+  // El catálogo/menú se desmonta ANTES de tocar el idioma: si `resetLocale`
+  // corre primero, el menú todavía montado repinta con el idioma viejo por
+  // una fracción de segundo antes de volver a introduction.
   setFlowStep('introduction');
+  await resetLocale();
 }
 
 export function getInitialFlowStep(): KioskFlowStep {
