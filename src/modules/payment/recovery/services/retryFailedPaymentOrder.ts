@@ -14,6 +14,12 @@ import type {
 } from '@shared/kiosk-order/types';
 import { defaultOrderFiscalConfig } from '@shared/kiosk-order';
 import { deterministicUuidV4 } from '@shared/utils/uuid';
+import { KioskApiError, isKioskNetworkError } from '@shared/api/kiosk/errors';
+import { markKioskOffline } from '@shared/connectivity';
+import type { KioskCustomer } from '@shared/customer';
+import { getKioskDeviceProfile } from '@shared/device';
+import { registerOrderLocally } from '@modules/payment/processing/services/registerOrderLocally';
+import { OFFLINE_TICKET_FOOTER_NOTE } from '@modules/payment/processing/services/processKioskOrder';
 import {
   emitOrderFiscalInvoice,
   shouldEmitFiscalInvoice,
@@ -24,6 +30,7 @@ import { OrderPrintError, printOrderTicket } from '@shared/peripherals/printer';
 import {
   deleteFailedPayment,
   getFailedPayment,
+  setFailedPaymentFiscalInvoiceNumber,
   updateFailedPaymentStatus,
   type FailedPaymentRecord,
   type FailedPaymentStatus,
@@ -47,6 +54,25 @@ const NETWORKISH_PATTERNS = [
   'failed to fetch',
   'tiempo',
 ];
+
+/** Red caída o backend con problemas (5xx/429): se puede dejar en la cola local. */
+function isBackendUnavailable(error: unknown): boolean {
+  if (isKioskNetworkError(error)) return true;
+  return error instanceof KioskApiError && (error.statusCode >= 500 || error.statusCode === 429);
+}
+
+function snapshotToKioskCustomer(record: FailedPaymentRecord): KioskCustomer | null {
+  const snap = record.customer;
+  if (!snap?.documentId) return null;
+  return {
+    id: snap.customerId ?? null,
+    documentId: snap.documentId,
+    firstName: snap.firstName ?? '',
+    lastName: snap.lastName ?? '',
+    phone: snap.phone ?? '',
+    email: snap.email ?? '',
+  };
+}
 
 export function classifyRetryDuplicateRisk(
   record: Pick<FailedPaymentRecord, 'errorMessage' | 'rawJson' | 'stage'>,
@@ -378,6 +404,9 @@ export async function retryFailedPaymentOrder(
           if (request) {
             request.fiscalInvoiceNumber = issued;
           }
+          // Ya hay factura: si el registro de abajo falla, el próximo reintento
+          // NO debe volver a emitir otra por el mismo cobro.
+          await setFailedPaymentFiscalInvoiceNumber(record.id, issued).catch(() => undefined);
         }
       } catch (error) {
         const message =
@@ -395,14 +424,55 @@ export async function retryFailedPaymentOrder(
     // No PATCH for fiscalInvoiceNumber exists on the kiosk API.
     let displayOrderNumber = existingOrderNumber ?? '';
     let fromShortCode = existingShortCode;
+    let registeredLocally = false;
     if (request) {
       // Id estable por fila: reintentar la misma fila nunca crea una segunda orden.
       const clientOrderId = deterministicUuidV4(`failed-payment:${record.id}:${record.createdAt}`);
-      const response = await withKioskAuth((client) =>
-        client.createOrder({ ...request, clientOrderId }, { idempotencyKey: clientOrderId }),
-      );
-      displayOrderNumber = response.displayOrderNumber;
-      fromShortCode = response.shortCode?.trim() || null;
+      try {
+        const response = await withKioskAuth((client) =>
+          client.createOrder({ ...request, clientOrderId }, { idempotencyKey: clientOrderId }),
+        );
+        displayOrderNumber = response.displayOrderNumber;
+        fromShortCode = response.shortCode?.trim() || null;
+      } catch (error) {
+        if (!isBackendUnavailable(error)) {
+          throw error;
+        }
+        // Cobrado y facturado, pero sin backend: igual que una venta offline,
+        // queda en la cola con número local y comanda para cocina por LAN; el
+        // worker la sincroniza sola (mismo clientOrderId → sin duplicado).
+        const device = await getKioskDeviceProfile();
+        const local = await registerOrderLocally({
+          request,
+          clientOrderId,
+          deviceSerial: device.serialNumber,
+          lines,
+          paidAt: record.createdAt,
+          exchangeRate: usdToVesRate,
+          grandTotalVES: totals.totalVes,
+          customer: snapshotToKioskCustomer(record),
+          customerName: customerDisplayName(record),
+          origin: 'register_failed',
+          ticket: {
+            displayOrderNumber: '',
+            lines,
+            totals,
+            usdToVesRate,
+            primaryCurrency: params.primaryCurrency,
+            orderType,
+            tableNumber,
+            organizationName: params.organizationName,
+            organizationLegalName: params.organizationLegalName,
+            declaresTaxes: params.declaresTaxes,
+          },
+          fiscalInvoiceNumber: issuedFiscalInvoiceNumber,
+          posReference: payload?.posReference ?? null,
+        });
+        displayOrderNumber = local.localNumber;
+        fromShortCode = null;
+        registeredLocally = true;
+        markKioskOffline(error instanceof Error ? error.message : 'createOrder failed');
+      }
     } else if (__DEV__ && issuedFiscalInvoiceNumber != null) {
       console.info(
         '[retryFailedPaymentOrder] skipped createOrder; order already exists',
@@ -417,7 +487,12 @@ export async function retryFailedPaymentOrder(
       Boolean(fromShortCode);
 
     // Order exists → clear local failed row before print (print is best-effort).
-    await deleteFailedPayment(record.id);
+    // Registrada en la cola local: la fila queda como resuelta (el outbox la sincroniza).
+    if (registeredLocally) {
+      await updateFailedPaymentStatus(record.id, 'retried_ok', { expectedStatus: 'retry_pending' });
+    } else {
+      await deleteFailedPayment(record.id);
+    }
 
     // 3) Print ticket (same as processKioskOrder printing phase)
     try {
@@ -434,6 +509,7 @@ export async function retryFailedPaymentOrder(
         printQrEnabled: shouldPrintQr,
         trackShortCode: shouldPrintQr ? fromShortCode : null,
         declaresTaxes: params.declaresTaxes,
+        footerNote: registeredLocally ? OFFLINE_TICKET_FOOTER_NOTE : undefined,
       });
       return { ok: true, displayOrderNumber, shortCode: fromShortCode };
     } catch (error) {

@@ -6,6 +6,7 @@ import type {
 import type {
   FulfillmentType,
   KioskConfigResponse,
+  KioskLanComandaConfig,
   KioskOrderTypeOption,
   KioskPagoMovilAccount,
   PaymentMethodApi,
@@ -82,6 +83,25 @@ export function mapLiveConfigToKioskConfigResponse(
     pagoMovilAccount: mapPagoMovilAccount(live.pagoMovilAccount),
     exchangeRates: live.exchangeRates ?? live.rates ?? null,
     orderTypes: mapOrderTypes(live.orderTypes),
+    lanComanda: mapLanComanda(live.lanComanda),
+  };
+}
+
+/** Puerto fijo del servidor LAN (el backend lo manda igual; se tolera ausente). */
+export const DEFAULT_LAN_COMANDA_PORT = 8790;
+
+/** Sin clave no hay servidor LAN: la Comandera no tendría cómo autenticarse. */
+function mapLanComanda(live: KioskConfigResponseLive['lanComanda']): KioskLanComandaConfig | null {
+  const sharedKey = typeof live?.sharedKey === 'string' ? live.sharedKey.trim() : '';
+  if (!live || !sharedKey) {
+    return null;
+  }
+  const port = Number(live.port);
+  return {
+    enabled: live.enabled !== false,
+    sharedKey,
+    port: Number.isInteger(port) && port > 0 ? port : DEFAULT_LAN_COMANDA_PORT,
+    allowCashOffline: live.allowCashOffline === true,
   };
 }
 

@@ -83,6 +83,8 @@ type PaymentRoute =
       name: 'payment-error';
       methodId: PaymentMethodId;
       posReference?: string;
+      /** No se cobró: la impresora fiscal no estaba lista. */
+      fiscalUnavailable?: boolean;
     }
 
   | { name: 'assistance'; reason: CashierAssistanceReason }
@@ -413,6 +415,10 @@ export function PaymentNavigator({
         setRoute({ name: 'stock-shortage', shortages: result.shortages });
         return;
       }
+      if (result.kind === 'fiscal-unavailable') {
+        setRoute({ name: 'payment-error', methodId: 'pos', fiscalUnavailable: true });
+        return;
+      }
       setRoute({ name: 'payment-error', methodId: 'pos' });
     },
     [goToProcessing],
@@ -725,6 +731,8 @@ export function PaymentNavigator({
         methodId={route.methodId}
 
         posReference={route.posReference}
+
+        fiscalUnavailable={route.fiscalUnavailable}
 
 
         onBack={onBackToCart}

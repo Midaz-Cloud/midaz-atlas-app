@@ -29,6 +29,8 @@ import {
   pruneFailedPayments,
 } from '@shared/persistence';
 import { drainOrderOutbox, useOrderSyncStatus } from '@shared/sync';
+import { pickLanIp, useLanComandaServerStatus } from '@shared/lan';
+import { useKioskConnectivity } from '@shared/connectivity';
 import { useEcrConnection } from '@shared/peripherals/ecr';
 import { createFiscalClient } from '@shared/peripherals/fiscal';
 import {
@@ -74,6 +76,8 @@ export function AdminDashboardScreen({
   onOpenPendingSync,
 }: AdminDashboardScreenProps) {
   const syncStatus = useOrderSyncStatus();
+  const lanStatus = useLanComandaServerStatus();
+  const connectivity = useKioskConnectivity();
   const { t } = useTranslation('introduction');
   const colors = useKioskScreenColors();
   const appearance = useKioskAppearance();
@@ -664,6 +668,14 @@ export function AdminDashboardScreen({
           <Text style={styles.title}>Panel de Superusuario</Text>
           <Text style={styles.subtitle}>
             Desde esta seccion puedes realizar operaciones administrativas en el kiosco.
+          </Text>
+          <Text style={styles.subtitle} testID="admin-lan-status">
+            {lanStatus.running
+              ? `Comandas LAN: ${pickLanIp(lanStatus.addresses) ?? 'sin IP'}:${lanStatus.port}`
+              : `Comandas LAN: apagado${lanStatus.error ? ` (${lanStatus.error})` : ''}`}
+            {' · '}
+            {connectivity.status === 'offline' ? 'Sin conexión con el servidor' : 'Servidor conectado'}
+            {syncStatus.pending > 0 ? ` · ${syncStatus.pending} por sincronizar` : ''}
           </Text>
 
           <TouchableOpacity

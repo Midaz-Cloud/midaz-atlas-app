@@ -16,7 +16,9 @@ import {
   recordSuccessfulPosTransactionSafe,
   type FailedPaymentKioskContext,
 } from '@shared/persistence';
-import { useKioskSession } from '@shared/session';
+import { useKioskOrganization, useKioskSession } from '@shared/session';
+import { parseDeclaresTaxes } from '@shared/api/kiosk/utils/declaresTaxes';
+import { ensureFiscalReady, shouldEmitFiscalInvoice } from '@shared/peripherals/fiscal';
 
 import { reserveCartOrSkipOffline } from '../../services/reserveCartOrSkipOffline';
 import { resolvePaymentPayerDocumentId } from '../../utils/resolvePaymentPayerDocumentId';
@@ -63,6 +65,8 @@ type ChargeDeps = {
   setCardPaymentPayload: ReturnType<typeof useKioskOrder>['setCardPaymentPayload'];
   setPhase: (phase: PosChargePhase) => void;
   isPhaseAlive: () => boolean;
+  /** La venta emite factura en la impresora fiscal (HkaApp) después del cobro. */
+  requiresFiscalPrinter: boolean;
 };
 
 async function runPosCharge(deps: ChargeDeps): Promise<PosChargeResult> {
@@ -84,7 +88,18 @@ async function runPosCharge(deps: ChargeDeps): Promise<PosChargeResult> {
     setCardPaymentPayload,
     setPhase,
     isPhaseAlive,
+    requiresFiscalPrinter,
   } = deps;
+
+  // La factura fiscal se emite DESPUÉS del cobro: si HkaApp no está lista, el
+  // cliente pagaría sin factura. Se verifica (y se le pide a HkaApp que arranque y
+  // se reconecte) antes de reservar y cobrar; si no responde, no se cobra.
+  if (requiresFiscalPrinter) {
+    const fiscal = await ensureFiscalReady();
+    if (!fiscal.ready) {
+      return { ok: false, kind: 'fiscal-unavailable', message: fiscal.message };
+    }
+  }
 
   const payerDocumentId = resolvePaymentPayerDocumentId(
     paymentPayerDocumentId,
@@ -242,7 +257,13 @@ export function usePosChargeProcessing({
     mobilePaymentPayload,
   } = useKioskOrder();
   const { customer } = useKioskCustomer();
-  const { orderType, tableNumber } = useKioskSession();
+  const { orderType, tableNumber, runtimeConfig } = useKioskSession();
+  const organization = useKioskOrganization();
+  const requiresFiscalPrinter = shouldEmitFiscalInvoice(
+    parseDeclaresTaxes(organization?.declaresTaxes ?? runtimeConfig?.raw.organization.declaresTaxes),
+    'pos',
+    organization?.effectiveInvoicingType,
+  );
   const ecr = useEcrConnection();
   const [phase, setPhase] = useState<PosChargePhase>('waiting_pos');
   const onCompleteRef = useRef(onComplete);
@@ -284,6 +305,7 @@ export function usePosChargeProcessing({
           setCardPaymentPayload,
           setPhase,
           isPhaseAlive: () => phaseAliveRef.current,
+          requiresFiscalPrinter,
         }),
       };
     }

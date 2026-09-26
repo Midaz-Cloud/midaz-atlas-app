@@ -112,6 +112,11 @@
       "retryCta": "Retry registering order",
       "blockedMessage": "You have exceeded the maximum number of registration attempts. Please contact an employee.",
       "helpCta": "Request help"
+    },
+    "fiscalUnavailable": {
+      "titleLine1": "Fiscal printer",
+      "titleLine2": "unavailable",
+      "subtitle": "You were not charged. Please try again in a moment or call the cashier."
     }
   },
   "assistance": {

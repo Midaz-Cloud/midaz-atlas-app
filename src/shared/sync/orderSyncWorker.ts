@@ -19,6 +19,7 @@ import {
   markOrderOutboxRetry,
   markOrderOutboxSynced,
   nextQueuedOrderOutbox,
+  pruneSyncedOrderOutbox,
   releaseStaleSyncingOrderOutbox,
   setLocalComandaSynced,
   type OrderOutboxPendingCounts,
@@ -270,6 +271,8 @@ export function startOrderSyncWorker(options?: { onSynced?: () => void }): () =>
   void (async () => {
     // Filas que quedaron `syncing` porque la app murió a mitad del envío.
     await releaseStaleSyncingOrderOutbox().catch(() => 0);
+    // Lo ya sincronizado se guarda 30 días (reimpresión / auditoría) y después se borra.
+    await pruneSyncedOrderOutbox(30).catch(() => 0);
     const counts = await refreshOrderSyncCounts();
     if (!stopped && counts && counts.queued > 0) {
       void drainOrderOutbox();

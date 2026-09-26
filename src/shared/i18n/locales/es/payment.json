@@ -112,6 +112,11 @@
       "retryCta": "Reintentar registrar pedido",
       "blockedMessage": "Has superado el límite de intentos de envío. Por favor, contacta a un empleado.",
       "helpCta": "Solicitar ayuda"
+    },
+    "fiscalUnavailable": {
+      "titleLine1": "Impresora fiscal",
+      "titleLine2": "no disponible",
+      "subtitle": "No se realizó ningún cobro. Intenta de nuevo en un momento o llama al cajero."
     }
   },
   "assistance": {

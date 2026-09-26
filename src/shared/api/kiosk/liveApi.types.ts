@@ -80,6 +80,12 @@ export type KioskConfigResponseLive = {
   pagoMovilAccount?: KioskPagoMovilAccountLive | null;
   exchangeRates?: KioskExchangeRatesLive | null;
   rates?: KioskExchangeRatesLive | null;
+  lanComanda?: {
+    enabled?: boolean;
+    sharedKey?: string | null;
+    port?: number;
+    allowCashOffline?: boolean;
+  } | null;
   createdAt?: string;
   updatedAt?: string;
 };

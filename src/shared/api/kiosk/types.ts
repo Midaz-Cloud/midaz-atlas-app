@@ -93,6 +93,26 @@ export type KioskConfigResponse = {
   lanComanda?: KioskLanComandaConfig | null;
 };
 
+/** GET /kiosk/customers/sync: página del caché de clientes (cursor `<updatedAt>|<id>`). */
+export type KioskCustomerSyncRow = {
+  id: number;
+  typeIdentification: string | null;
+  identificationNumber: string | null;
+  name: string | null;
+  billingName: string | null;
+  phoneNumber: string | null;
+  email: string | null;
+  updatedAt: string;
+};
+
+export type KioskCustomerSyncPage = { data: KioskCustomerSyncRow[]; nextCursor: string | null };
+
+export type KioskHeartbeatRequest = {
+  lanIp?: string;
+  appVersion?: string;
+  pendingSync?: number;
+};
+
 export type KioskLanComandaConfig = {
   enabled: boolean;
   sharedKey: string | null;
