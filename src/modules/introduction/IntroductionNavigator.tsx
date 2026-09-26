@@ -12,6 +12,7 @@ import {
   AdminDashboardScreen,
   FailedPaymentDetailScreen,
   FailedPaymentsListScreen,
+  PendingSyncOrdersScreen,
 } from './home/components';
 import { LanguageSelectionScreen } from './language-selection/LanguageSelectionScreen';
 import { OrderTypeScreen } from './order-type/OrderTypeScreen';
@@ -109,8 +110,13 @@ export function IntroductionNavigator({ onComplete }: IntroductionNavigatorProps
       <AdminDashboardScreen
         onBack={goBackToHome}
         onOpenFailedPayments={openFailedPayments}
+        onOpenPendingSync={() => setStep('pendingSync')}
       />
     );
+  }
+
+  if (step === 'pendingSync') {
+    return <PendingSyncOrdersScreen onBack={() => setStep('admin')} />;
   }
 
   if (step === 'failedPayments') {

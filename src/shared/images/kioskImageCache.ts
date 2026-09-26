@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { isVerboseKioskLogging } from '@shared/config/env';
 import { getBlobUtilModule, isKioskImageDiskCacheAvailable } from './blobUtilLazy';
 import { isLocalCachedUri, isRemoteHttpUri, normalizeImageUri } from './kioskImageSource';
 import type {
@@ -37,6 +38,19 @@ let indexWriteChain: Promise<void> = Promise.resolve();
 const memoryUriByRemote = new Map<string, string>();
 const kindByRemote = new Map<string, ImageCacheKind>();
 const inFlight = new Map<string, Promise<string>>();
+
+/**
+ * Progress/trace logs for the image cache: gated by `isVerboseKioskLogging()`
+ * (see logFiscal.ts) and emitted via `console.warn` so it survives
+ * `transform-remove-console` in release. FAIL/STALE/SYNC-failed logs stay on
+ * plain `console.warn` unconditionally — those are actionable in the field.
+ */
+function debugLog(...args: unknown[]): void {
+  if (!isVerboseKioskLogging()) {
+    return;
+  }
+  console.warn(...args);
+}
 
 function setIndexSnapshot(index: CacheIndex): CacheIndex {
   indexSnapshot = index;
@@ -202,7 +216,7 @@ async function downloadUrlToPath(url: string, destPath: string): Promise<string>
 
     const base64 = arrayBufferToBase64(buffer);
     await blobUtil.fs.writeFile(destPath, base64, 'base64');
-    console.info(
+    debugLog(
       '[KioskImages] DOWNLOAD wrote',
       `bytes=${buffer.byteLength}`,
       `ms=${Date.now() - startedAt}`,
@@ -263,7 +277,7 @@ export async function getImagesRootDir(): Promise<string> {
     await ensureDir(`${root}/${kind}`);
   }
   imagesRootPath = root;
-  console.info('[KioskImages] root', root);
+  debugLog('[KioskImages] root', root);
   return root;
 }
 
@@ -430,7 +444,7 @@ export async function ensureLocalImage(entry: ImageSyncEntry): Promise<ImageEnsu
       if (!indexed || indexed.path !== preferredPath || indexed.kind !== kind) {
         await updateIndexEntry(url, preferredPath, kind);
       }
-      console.info(
+      debugLog(
         '[KioskImages] SKIP cached',
         `kind=${kind}`,
         `file=${fileName}`,
@@ -445,7 +459,7 @@ export async function ensureLocalImage(entry: ImageSyncEntry): Promise<ImageEnsu
       await unlinkQuietly(indexed.path);
     }
 
-    console.info(
+    debugLog(
       '[KioskImages] DOWNLOAD start',
       `kind=${kind}`,
       `file=${fileName}`,
@@ -460,7 +474,7 @@ export async function ensureLocalImage(entry: ImageSyncEntry): Promise<ImageEnsu
     for (let attempt = 0; attempt <= DOWNLOAD_TIMEOUT_RETRIES; attempt += 1) {
       try {
         if (attempt > 0) {
-          console.info('[KioskImages] RETRY', `kind=${kind}`, `attempt=${attempt + 1}`, url);
+          debugLog('[KioskImages] RETRY', `kind=${kind}`, `attempt=${attempt + 1}`, url);
           await unlinkQuietly(preferredPath);
         }
         savedPath = await downloadUrlToPath(url, preferredPath);
@@ -480,7 +494,7 @@ export async function ensureLocalImage(entry: ImageSyncEntry): Promise<ImageEnsu
 
     await updateIndexEntry(url, savedPath, kind);
     const localUri = rememberRemoteMapping(url, savedPath);
-    console.info(
+    debugLog(
       '[KioskImages] DOWNLOAD ok',
       `kind=${kind}`,
       `file=${fileNameFromPath(savedPath)}`,
@@ -523,7 +537,7 @@ export async function syncKioskImagesStrict(
   let done = 0;
   const failedUrls: string[] = [];
 
-  console.info(
+  debugLog(
     '[KioskImages] SYNC start',
     `total=${total}`,
     `concurrency=${DOWNLOAD_CONCURRENCY}`,
@@ -545,7 +559,7 @@ export async function syncKioskImagesStrict(
   emit();
 
   await mapPool(list, DOWNLOAD_CONCURRENCY, async (entry, index) => {
-    console.info(
+    debugLog(
       '[KioskImages] SYNC item',
       `${index + 1}/${total}`,
       `kind=${entry.kind}`,
@@ -567,7 +581,7 @@ export async function syncKioskImagesStrict(
   // Flush any pending index writes before finishing.
   await indexWriteChain.catch(() => undefined);
 
-  console.info(
+  debugLog(
     '[KioskImages] SYNC done',
     `total=${total}`,
     `skipped=${skipped}`,
@@ -711,7 +725,7 @@ export async function reconcileKioskImageCache(
       removals.push(entry.path);
       memoryUriByRemote.delete(remote);
       kindByRemote.delete(remote);
-      console.info(
+      debugLog(
         '[KioskImages] RECONCILE unlink',
         `kind=${entry.kind}`,
         entry.path,
@@ -721,7 +735,7 @@ export async function reconcileKioskImageCache(
   }
 
   if (removals.length > 0) {
-    console.info(
+    debugLog(
       '[KioskImages] RECONCILE',
       `kinds=${kindsFilter ? [...kindsFilter].join(',') : 'all'}`,
       `removed=${removals.length}`,

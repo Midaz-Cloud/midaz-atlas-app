@@ -1,4 +1,6 @@
-import type {
+import type {  KioskHeartbeatRequest,
+  KioskCustomerSyncPage,
+
   CartReserveRequest,
   CartReserveResponse,
   CreateKioskOrderRequest,
@@ -36,6 +38,10 @@ export interface KioskApiClient {
   ): Promise<CreateKioskOrderResponse>;
   /** null = la venta todavía no existe en el backend. */
   getOrderByClientId(clientOrderId: string): Promise<CreateKioskOrderResponse | null>;
+  /** Kiosko vivo + IP en la LAN (la Comandera la descubre por sucursal). */
+  sendHeartbeat(body: KioskHeartbeatRequest): Promise<void>;
+  /** Caché de clientes para vender sin red (descarga incremental). */
+  syncCustomers(cursor: string | null): Promise<KioskCustomerSyncPage>;
   submitSettlement(request: KioskSettlementRequest): Promise<KioskSettlementResponse>;
   submitZReport(request: KioskZReportRequest): Promise<KioskZReportResponse>;
 }

@@ -17,6 +17,8 @@ import type { CashierAssistanceReason } from './assistance/services/requestCashi
 import { CallCashierScreen } from './assistance/CallCashierScreen';
 
 import { getEnabledPaymentMethods } from './data/getEnabledPaymentMethods';
+import { useOfflinePaymentOptions } from './data/useOfflinePaymentOptions';
+import { setCheckoutBusy } from '@shared/sync';
 import { useKioskSession, useKioskOrganization } from '@shared/session';
 import { shouldSimulatePosFailure } from '@shared/config';
 
@@ -49,7 +51,7 @@ import { ZellePaymentScreen } from './zelle/ZellePaymentScreen';
 import type { CartReserveItemResult } from '@shared/api/kiosk';
 import { CartStockShortageScreen } from '@modules/ordering/stock/CartStockShortageScreen';
 import { adjustCartForStockShortages } from '@modules/ordering/stock/adjustCartForStockShortages';
-import { reserveCartBeforePayment } from './services/reserveCartBeforePayment';
+import { reserveCartOrSkipOffline } from './services/reserveCartOrSkipOffline';
 import { isPaymentRouteLockedAfterCheckoutStart } from './paymentRouteGuards';
 
 import type { PaymentMethodId, TransferPaymentMethodId } from './types';
@@ -70,13 +72,19 @@ type PaymentRoute =
 
   | { name: 'pos-charging' }
 
-  | { name: 'outcome'; variant: OrderOutcomeVariant; shortCode?: string | null }
+  | {
+      name: 'outcome';
+      variant: OrderOutcomeVariant;
+      shortCode?: string | null;
+      registeredOffline?: boolean;
+    }
 
   | {
       name: 'payment-error';
       methodId: PaymentMethodId;
       posReference?: string;
-      orderRegistrationFailed?: boolean;
+      /** No se cobró: la impresora fiscal no estaba lista. */
+      fiscalUnavailable?: boolean;
     }
 
   | { name: 'assistance'; reason: CashierAssistanceReason }
@@ -130,24 +138,27 @@ export function PaymentNavigator({
     primaryCurrency,
     setConfirmedOrder,
     confirmedOrder,
+    ensureClientOrderId,
   } = useKioskOrder();
   const { customer } = useKioskCustomer();
-  const { runtimeConfig, refreshCatalogAfterPurchase, orderType, tableNumber } =
+  const { runtimeConfig, refreshCatalogAfterPurchase, orderType, tableNumber, deviceSerial } =
     useKioskSession();
   const organization = useKioskOrganization();
   const [reserveBusy, setReserveBusy] = useState(false);
+  const { offline, offlineCashAllowed } = useOfflinePaymentOptions();
 
   const enabledMethods = useMemo(
     () =>
       getEnabledPaymentMethods(runtimeConfig?.enabledPaymentMethods, {
         pagoMovilAccount: runtimeConfig?.raw.pagoMovilAccount,
+        offline,
+        offlineCashAllowed,
       }),
-    [runtimeConfig?.enabledPaymentMethods, runtimeConfig?.raw.pagoMovilAccount],
+    [runtimeConfig?.enabledPaymentMethods, runtimeConfig?.raw.pagoMovilAccount, offline, offlineCashAllowed],
   );
 
   const [route, setRoute] = useState<PaymentRoute>({ name: 'method-select' });
   const [lastPaymentMethodId, setLastPaymentMethodId] = useState<PaymentMethodId>('pos');
-  const [orderRetryCount, setOrderRetryCount] = useState(0);
   const [fiscalFailedPaymentId, setFiscalFailedPaymentId] = useState<number | null>(
     null,
   );
@@ -208,7 +219,7 @@ export function PaymentNavigator({
           }
           setReserveBusy(true);
           try {
-            const result = await reserveCartBeforePayment(lines);
+            const result = await reserveCartOrSkipOffline(lines);
             if (isPaymentRouteLockedAfterCheckoutStart(routeRef.current.name)) {
               return;
             }
@@ -253,6 +264,13 @@ export function PaymentNavigator({
     });
   }, [enabledMethods, failedPaymentContext, lines, setPaymentMethodId, setReservationId]);
 
+  // Mientras se cobra o se registra la venta, el worker de sync no compite por la red.
+  useEffect(() => {
+    const busy = route.name === 'pos-charging' || route.name === 'processing';
+    setCheckoutBusy(busy);
+    return () => setCheckoutBusy(false);
+  }, [route.name]);
+
   useEffect(() => {
     if (route.name === 'flow') {
       setPaymentMethodId(route.methodId);
@@ -281,7 +299,7 @@ export function PaymentNavigator({
     async (onSuccess: () => void, methodId: PaymentMethodId = lastPaymentMethodId) => {
       setReserveBusy(true);
       try {
-        const result = await reserveCartBeforePayment(lines);
+        const result = await reserveCartOrSkipOffline(lines);
         if (result.ok) {
           setReservationId(result.reservationId);
           // Price lock: el backend factura con el precio congelado al reservar.
@@ -397,6 +415,10 @@ export function PaymentNavigator({
         setRoute({ name: 'stock-shortage', shortages: result.shortages });
         return;
       }
+      if (result.kind === 'fiscal-unavailable') {
+        setRoute({ name: 'payment-error', methodId: 'pos', fiscalUnavailable: true });
+        return;
+      }
       setRoute({ name: 'payment-error', methodId: 'pos' });
     },
     [goToProcessing],
@@ -482,6 +504,7 @@ export function PaymentNavigator({
           name: 'outcome',
           variant: result.status === 'ok' ? 'success' : 'ticket_print_failed',
           shortCode: result.status === 'ticket_print_failed' ? result.shortCode : undefined,
+          registeredOffline: result.registeredLocally === true,
         });
         return;
       }
@@ -508,41 +531,6 @@ export function PaymentNavigator({
         return;
       }
 
-      if (result.status === 'order_registration_failed') {
-        recordFailedPaymentSafe(
-          buildFailedPaymentInput(failedPaymentContext(), {
-            stage: 'order_register',
-            errorReason: 'order_registration_failed',
-            errorMessage:
-              result.message ?? 'Fallo al registrar la orden en el servidor',
-            posReference: result.posReference,
-            mobileReference: result.mobileReference,
-            rawJson: result.rawJson ?? null,
-            fiscalInvoiceNumber: result.fiscalInvoiceNumber,
-          }),
-        );
-        setOrderRetryCount((prev) => {
-          const next = prev + 1;
-          setRoute({
-            name: 'payment-error',
-            methodId: lastPaymentMethodId,
-            posReference: result.posReference ?? result.mobileReference,
-            orderRegistrationFailed: true,
-          });
-          return next;
-        });
-        return;
-      }
-
-      if (result.status === 'reservation_expired') {
-        // If we already left processing for outcome, never send user back to cart.
-        if (routeRef.current.name === 'outcome' || routeRef.current.name === 'cash') {
-          return;
-        }
-        onBackToCart();
-        return;
-      }
-
       if (result.status === 'failed') {
         recordFailedPaymentSafe(
           buildFailedPaymentInput(failedPaymentContext(), {
@@ -562,7 +550,6 @@ export function PaymentNavigator({
       confirmedOrder?.displayOrderNumber,
       failedPaymentContext,
       lastPaymentMethodId,
-      onBackToCart,
       refreshCatalogAfterPurchase,
       setOrderId,
     ],
@@ -609,7 +596,10 @@ export function PaymentNavigator({
             organization?.legalName ?? runtimeConfig?.raw.organization.legalName,
           declaresTaxes,
           effectiveInvoicingType,
-          customerId: customer?.id,
+          customerId: customer?.id ?? undefined,
+          customer,
+          deviceSerial,
+          clientOrderId: ensureClientOrderId(),
           customerDocumentId: customer?.documentId,
           customerName: customer
             ? `${customer.firstName} ${customer.lastName}`.trim()
@@ -646,6 +636,7 @@ export function PaymentNavigator({
           variant: result.status === 'ok' ? 'success' : 'ticket_print_failed',
           shortCode:
             result.status === 'ticket_print_failed' ? result.shortCode : undefined,
+          registeredOffline: result.registeredLocally === true,
         });
         return;
       }
@@ -656,6 +647,8 @@ export function PaymentNavigator({
     cardPaymentPayload,
     confirmedOrder?.displayOrderNumber,
     customer,
+    deviceSerial,
+    ensureClientOrderId,
     fiscalConfig.usdToVesRate,
     fiscalFailedPaymentId,
     fiscalRetryBusy,
@@ -737,19 +730,15 @@ export function PaymentNavigator({
 
         methodId={route.methodId}
 
-        orderRegistrationFailed={route.orderRegistrationFailed}
-
         posReference={route.posReference}
 
-        retryCount={orderRetryCount}
+        fiscalUnavailable={route.fiscalUnavailable}
+
 
         onBack={onBackToCart}
 
         onRetry={() => {
-          if (
-            route.orderRegistrationFailed ||
-            route.methodId === 'cash'
-          ) {
+          if (route.methodId === 'cash') {
             goToProcessing();
           } else {
             setRoute({ name: 'flow', methodId: route.methodId });
@@ -757,11 +746,7 @@ export function PaymentNavigator({
         }}
 
         onChangeMethod={() => {
-          if (route.orderRegistrationFailed) {
-            handleRequestHelp();
-          } else {
-            setRoute({ name: 'method-select' });
-          }
+          setRoute({ name: 'method-select' });
         }}
 
       />
@@ -781,6 +766,8 @@ export function PaymentNavigator({
         variant={route.variant}
 
         shortCode={route.shortCode}
+
+        registeredOffline={route.registeredOffline}
 
         onCallCashier={handleCallCashier}
 

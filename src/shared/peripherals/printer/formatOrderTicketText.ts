@@ -24,6 +24,8 @@ export type FormatOrderTicketParams = {
   organizationName?: string;
   organizationLegalName?: string;
   declaresTaxes?: boolean;
+  /** Aviso al pie (ej. venta registrada sin conexión, se sincroniza después). */
+  footerNote?: string;
 };
 
 function roundTicketMoney(amount: number): number {
@@ -77,7 +79,7 @@ export function formatTicketExchangeRateLine(usdToVesRate: number): string {
   return `Tasa: ${value}`;
 }
 
-function resolveProductLabel(productId: string): string {
+export function resolveProductLabel(productId: string): string {
   const product = findCatalogProduct(productId);
   if (product?.displayName) {
     return product.displayName;
@@ -142,6 +144,11 @@ export function formatOrderTicketText(params: FormatOrderTicketParams): string {
   }
 
   lines.push(padTicketLine('Total:', formatTicketVes(totalsVes.totalVes)));
+
+  if (params.footerNote?.trim()) {
+    lines.push('--------------------------------');
+    lines.push(params.footerNote.trim());
+  }
 
   return lines.join('\n');
 }

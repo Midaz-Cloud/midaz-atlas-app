@@ -57,7 +57,7 @@ export function isCneLookupResponse(body: unknown): body is CedulaLookupCneApi {
   );
 }
 
-function splitOrgCustomerDisplayName(
+export function splitOrgCustomerDisplayName(
   name: string | undefined | null,
   billingName: string | undefined | null,
 ): { firstName: string; lastName: string } {

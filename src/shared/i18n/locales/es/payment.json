@@ -73,7 +73,8 @@
       "ticketPrinted": "Ticket impreso correctamente.",
       "pickupInstructions": "Retira tu pedido cuando veas tu número en pantalla.",
       "orderLabel": "Tu número de pedido",
-      "ticketSlotHint": "Por favor, toma tu ticket impreso y factura en la ranura inferior del kiosco."
+      "ticketSlotHint": "Por favor, toma tu ticket impreso y factura en la ranura inferior del kiosco.",
+      "offlineQueued": "Pedido guardado en el kiosco. Se enviará al sistema al recuperar la conexión."
     },
     "fiscalError": {
       "title": "Error en la impresora fiscal",
@@ -111,6 +112,11 @@
       "retryCta": "Reintentar registrar pedido",
       "blockedMessage": "Has superado el límite de intentos de envío. Por favor, contacta a un empleado.",
       "helpCta": "Solicitar ayuda"
+    },
+    "fiscalUnavailable": {
+      "titleLine1": "Impresora fiscal",
+      "titleLine2": "no disponible",
+      "subtitle": "No se realizó ningún cobro. Intenta de nuevo en un momento o llama al cajero."
     }
   },
   "assistance": {

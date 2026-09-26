@@ -49,7 +49,7 @@ export function useOrderProcessing({ enabled, onComplete }: UseOrderProcessingPa
     ensureClientOrderId,
   } = useKioskOrder();
   const { customer } = useKioskCustomer();
-  const { orderType, orderSelection, tableNumber, runtimeConfig } = useKioskSession();
+  const { orderType, orderSelection, tableNumber, runtimeConfig, deviceSerial } = useKioskSession();
   const organization = useKioskOrganization();
   const declaresTaxes = parseDeclaresTaxes(
     organization?.declaresTaxes ?? runtimeConfig?.raw.organization.declaresTaxes,
@@ -80,7 +80,9 @@ export function useOrderProcessing({ enabled, onComplete }: UseOrderProcessingPa
       organization?.legalName ?? runtimeConfig?.raw.organization.legalName,
     declaresTaxes,
     effectiveInvoicingType,
-    customerId: customer?.id,
+    customerId: customer?.id ?? undefined,
+    customer,
+    deviceSerial,
     customerDocumentId: customer?.documentId,
     customerName: customer
       ? `${customer.firstName} ${customer.lastName}`.trim()

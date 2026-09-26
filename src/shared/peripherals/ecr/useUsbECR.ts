@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NativeEventEmitter } from 'react-native';
 
 import { shouldUseMockApi } from '@shared/config';
@@ -393,21 +393,43 @@ export function useUsbECR(): UseUsbECRReturn {
     );
   }, [sendAndWait]);
 
-  return {
-    isConnected,
-    isConnecting,
-    isProcessing,
-    error,
-    lastTransactionResponse,
-    receivedMessages,
-    usesNativeUsb,
-    initialize,
-    connect,
-    disconnect,
-    performPayment,
-    performSettlement,
-    performVersionCheck,
-    forceCleanup,
-    checkConnection,
-  };
+  // Los callbacks ya son estables (useCallback); memoizar el objeto de retorno
+  // evita que EcrConnectionProvider empuje un `value` de Context nuevo (y
+  // re-renderice a todos sus consumidores) en cada render en que nada cambió.
+  return useMemo<UseUsbECRReturn>(
+    () => ({
+      isConnected,
+      isConnecting,
+      isProcessing,
+      error,
+      lastTransactionResponse,
+      receivedMessages,
+      usesNativeUsb,
+      initialize,
+      connect,
+      disconnect,
+      performPayment,
+      performSettlement,
+      performVersionCheck,
+      forceCleanup,
+      checkConnection,
+    }),
+    [
+      isConnected,
+      isConnecting,
+      isProcessing,
+      error,
+      lastTransactionResponse,
+      receivedMessages,
+      usesNativeUsb,
+      initialize,
+      connect,
+      disconnect,
+      performPayment,
+      performSettlement,
+      performVersionCheck,
+      forceCleanup,
+      checkConnection,
+    ],
+  );
 }

@@ -14,17 +14,27 @@ import { useTranslation } from 'react-i18next';
 import type { OrderType } from '@modules/introduction/types';
 
 import type { KioskOrderTypeChoice, KioskRuntimeConfig } from '@shared/api/kiosk';
-import { fulfillmentToOrderType } from '@shared/api/kiosk';
+import { fulfillmentToOrderType, reloginKiosk } from '@shared/api/kiosk';
 import { syncMockCatalogFromMenuMocks } from '@shared/api/kiosk/mock/buildMockFixtures';
 import { kioskScreenColors, kioskScreenLayout } from '@shared/theme';
 import { displayTextStyle } from '@shared/theme';
 
 import { shouldUseMockApi } from '@shared/config/api';
-import { startKioskConnectivityMonitor } from '@shared/connectivity';
+import {
+  getKioskConnectivity,
+  startKioskConnectivityMonitor,
+  subscribeKioskConnectivity,
+} from '@shared/connectivity';
+import { startOrderSyncWorker } from '@shared/sync';
+import { startLanComandaServer } from '@shared/lan';
+import { startKioskCustomerSync } from '@shared/customer/syncKioskCustomers';
+import { startHkaFiscalService } from '@shared/peripherals/fiscal/ensureFiscalReady';
+import { shouldUsePhysicalFiscalPrinter } from '@shared/api/kiosk/utils/invoicingType';
+import { startKioskTelemetryHeartbeat } from '@shared/telemetry';
 import { useSessionLocale } from '@shared/i18n';
 import { resolveKioskLanguagePolicy } from '@shared/i18n/resolveKioskLanguagePolicy';
 
-import { bootstrapKioskSession } from './bootstrapKioskSession';
+import { bootstrapKioskSession, type KioskSessionMode } from './bootstrapKioskSession';
 import { KioskBootstrapLoadingScreen } from './KioskBootstrapLoadingScreen';
 import { startKioskCatalogSync, type KioskCatalogSyncController } from './kioskCatalogSync';
 import type { KioskBootstrapPhase, KioskBootstrapSnapshot } from './kioskBootstrapState';
@@ -34,6 +44,11 @@ export type KioskSessionStatus = 'loading' | 'ready' | 'auth_error';
 
 export type KioskSessionContextValue = {
   status: KioskSessionStatus;
+  /**
+   * `offline`: la sesión arrancó sin backend (config y catálogo en caché). Pasa a
+   * `online` sola cuando vuelve la conexión, sin desmontar la app.
+   */
+  sessionMode: KioskSessionMode;
   runtimeConfig: KioskRuntimeConfig | null;
   bootstrapSnapshot: KioskBootstrapSnapshot | null;
   bootstrapPhase: KioskBootstrapPhase | null;
@@ -65,6 +80,7 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
   const { t } = useTranslation('session');
   const { applyLanguagePolicy } = useSessionLocale();
   const [status, setStatus] = useState<KioskSessionStatus>('loading');
+  const [sessionMode, setSessionMode] = useState<KioskSessionMode>('online');
   const [runtimeConfig, setRuntimeConfig] = useState<KioskRuntimeConfig | null>(null);
   const [bootstrapSnapshot, setBootstrapSnapshot] = useState<KioskBootstrapSnapshot | null>(
     null,
@@ -84,6 +100,8 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
   const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null);
   const [bootstrapKey, setBootstrapKey] = useState(0);
   const catalogSyncRef = useRef<KioskCatalogSyncController | null>(null);
+  /** Evita re-aplicar la política de idioma en cada tick de config si `appearance.languages` no cambió. */
+  const lastLanguagesConfigRef = useRef<string | null>(null);
 
   const refreshCatalogAfterPurchase = useCallback(async () => {
     if (shouldUseMockApi()) {
@@ -108,6 +126,7 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
       onImageProgress: (progress) => setImageProgress(progress),
     });
     if (result.status === 'ready') {
+      setSessionMode(result.mode);
       setRuntimeConfig(result.runtimeConfig);
       setBootstrapSnapshot(result.bootstrapSnapshot);
       setDeviceSerial(result.deviceSerial);
@@ -134,8 +153,99 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
   // así el checkout y el badge saben si hay backend sin esperar a que falle una venta.
   useEffect(() => startKioskConnectivityMonitor(), []);
 
+  // Arrancó sin backend: al volver la conexión se re-loguea y pasa a online; el
+  // sync de catálogo (abajo) arranca solo y refresca config y productos.
   useEffect(() => {
-    if (status !== 'ready' || shouldUseMockApi() || !deviceSerial) {
+    if (status !== 'ready' || sessionMode !== 'offline') {
+      return;
+    }
+    let busy = false;
+    let cancelled = false;
+    const tryGoOnline = () => {
+      const current = getKioskConnectivity().status;
+      if (busy || cancelled || (current !== 'online' && current !== 'degraded')) {
+        return;
+      }
+      busy = true;
+      void reloginKiosk()
+        .then((token) => {
+          if (token && !cancelled) {
+            setSessionMode('online');
+          }
+        })
+        .catch((error) => {
+          if (__DEV__) {
+            console.warn('[KioskSessionProvider] relogin after reconnect failed', error);
+          }
+        })
+        .finally(() => {
+          busy = false;
+        });
+    };
+    tryGoOnline();
+    const unsubscribe = subscribeKioskConnectivity(tryGoOnline);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [status, sessionMode]);
+
+  // Ventas guardadas sin backend: se envían solas al volver la red.
+  useEffect(() => {
+    if (status !== 'ready') {
+      return;
+    }
+    return startOrderSyncWorker({
+      onSynced: () => {
+        void catalogSyncRef.current?.refreshProductsNow();
+      },
+    });
+  }, [status]);
+
+  // HkaApp (servicio fiscal) arranca y se conecta sola a la impresora: se le
+  // avisa al iniciar el kiosko, así tras un reinicio no hay que abrirla a mano.
+  useEffect(() => {
+    if (status !== 'ready' || shouldUseMockApi()) {
+      return;
+    }
+    void startHkaFiscalService();
+  }, [status]);
+
+  // Caché de clientes para vender sin red: se baja en línea (incremental).
+  useEffect(() => {
+    if (status !== 'ready' || sessionMode !== 'online') {
+      return;
+    }
+    return startKioskCustomerSync();
+  }, [status, sessionMode]);
+
+  // Servidor LAN de comandas: encendido toda la sesión (online u offline) para que
+  // la Comandera tenga de dónde leer si se cae el backend.
+  const lanKey = runtimeConfig?.raw.lanComanda?.enabled ? runtimeConfig.raw.lanComanda.sharedKey : null;
+  const lanPort = runtimeConfig?.raw.lanComanda?.port ?? null;
+  useEffect(() => {
+    if (status !== 'ready' || shouldUseMockApi() || !lanKey || !lanPort) {
+      return;
+    }
+    return startLanComandaServer({ port: lanPort, sharedKey: lanKey, deviceSerial });
+  }, [status, lanKey, lanPort, deviceSerial]);
+
+  // Telemetría (RAM/disco/red/fiscal/sync) para el panel de kioskos del
+  // portal — INDEPENDIENTE del servidor LAN: antes solo se reportaba si
+  // lanComanda.enabled, dejando kioskos "sin reportar" para siempre si esa
+  // opción estaba apagada.
+  const requiresFiscalPrinter = shouldUsePhysicalFiscalPrinter(
+    bootstrapSnapshot?.organization.effectiveInvoicingType,
+  );
+  useEffect(() => {
+    if (status !== 'ready' || shouldUseMockApi()) {
+      return;
+    }
+    return startKioskTelemetryHeartbeat({ requiresFiscalPrinter, sessionMode });
+  }, [status, requiresFiscalPrinter, sessionMode]);
+
+  useEffect(() => {
+    if (status !== 'ready' || sessionMode !== 'online' || shouldUseMockApi() || !deviceSerial) {
       catalogSyncRef.current = null;
       return;
     }
@@ -144,6 +254,11 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
       onConfigUpdated: async ({ runtimeConfig: nextRuntime, bootstrapSnapshot: nextSnapshot }) => {
         setRuntimeConfig(nextRuntime);
         setBootstrapSnapshot(nextSnapshot);
+        const languagesRaw = JSON.stringify(nextRuntime.raw.appearance.languages);
+        if (languagesRaw === lastLanguagesConfigRef.current) {
+          return;
+        }
+        lastLanguagesConfigRef.current = languagesRaw;
         const languagePolicy = resolveKioskLanguagePolicy(
           nextRuntime.raw.appearance.languages,
         );
@@ -155,7 +270,7 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
       controller.stop();
       catalogSyncRef.current = null;
     };
-  }, [status, deviceSerial, applyLanguagePolicy]);
+  }, [status, sessionMode, deviceSerial, applyLanguagePolicy]);
 
   const retryBootstrap = useCallback(() => {
     setBootstrapKey((k) => k + 1);
@@ -164,6 +279,7 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
   const value = useMemo(
     (): KioskSessionContextValue => ({
       status,
+      sessionMode,
       runtimeConfig,
       bootstrapSnapshot,
       bootstrapPhase,
@@ -180,6 +296,7 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
     }),
     [
       status,
+      sessionMode,
       runtimeConfig,
       bootstrapSnapshot,
       bootstrapPhase,

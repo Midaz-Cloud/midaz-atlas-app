@@ -4,7 +4,11 @@ export type { KioskSessionStatus, KioskSessionContextValue } from './KioskSessio
 export { bootstrapKioskSession } from './bootstrapKioskSession';
 export { startKioskCatalogSync, forceRefreshKioskCatalogProducts } from './kioskCatalogSync';
 export type { KioskCatalogSyncController } from './kioskCatalogSync';
-export type { BootstrapKioskSessionResult, BootstrapKioskSessionOptions } from './bootstrapKioskSession';
+export type {
+  BootstrapKioskSessionResult,
+  BootstrapKioskSessionOptions,
+  KioskSessionMode,
+} from './bootstrapKioskSession';
 export { KioskBootstrapLoadingScreen } from './KioskBootstrapLoadingScreen';
 export {
   buildBootstrapSnapshot,

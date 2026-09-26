@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { kioskConfig } from '@shared/config/kiosk';
@@ -57,6 +57,9 @@ type OrderingRoute =
   | { name: 'out-of-stock'; productId: string };
 
 type ModifiersSession = Extract<OrderingRoute, { name: 'modifiers' }>;
+
+/** Identidad estable: evita recrear un handler no-op en cada render (rompe memo). */
+function noop(): void {}
 
 type SimilarProductsFilter = {
   excludeProductId: string;
@@ -164,6 +167,14 @@ export function OrderingNavigator({
     decrementLine,
     removeLine,
   } = useKioskOrder();
+  /**
+   * Copia por ref para las validaciones de límite dentro de callbacks estables
+   * (handleAddProduct, handleProductDetailPrimary, startModifierWizard): estos
+   * se pasan a MenuScreen/ProductCard, así que su identidad no debe cambiar en
+   * cada línea de carrito agregada o el memo de la Fase 2 no sirve de nada.
+   */
+  const itemCountRef = useRef(itemCount);
+  itemCountRef.current = itemCount;
   const [sessionLimitVisible, setSessionLimitVisible] = useState(false);
 
   const consumeResumeCartCheckout = useCallback(() => {
@@ -317,7 +328,7 @@ export function OrderingNavigator({
   }, [goToMenu]);
 
   const startModifierWizard = useCallback((product: MenuProduct, quantity: number) => {
-    if (wouldExceedCartLimit(itemCount, quantity)) {
+    if (wouldExceedCartLimit(itemCountRef.current, quantity)) {
       showSessionLimit();
       return;
     }
@@ -334,7 +345,7 @@ export function OrderingNavigator({
     setDetailProduct(product);
     setModifiersSession(session);
     setRoute(session);
-  }, [itemCount, showSessionLimit]);
+  }, [showSessionLimit]);
 
   const handleAddProduct = useCallback(
     (product: MenuProduct) => {
@@ -342,7 +353,7 @@ export function OrderingNavigator({
         openOutOfStock(product);
         return;
       }
-      if (wouldExceedCartLimit(itemCount, 1)) {
+      if (wouldExceedCartLimit(itemCountRef.current, 1)) {
         showSessionLimit();
         return;
       }
@@ -358,7 +369,7 @@ export function OrderingNavigator({
         menuProductAddOptions(product),
       );
     },
-    [tryAddProduct, openOutOfStock, startModifierWizard, itemCount, showSessionLimit],
+    [tryAddProduct, openOutOfStock, startModifierWizard, showSessionLimit],
   );
 
   const handleProductDetailPrimary = useCallback(
@@ -367,7 +378,7 @@ export function OrderingNavigator({
         openOutOfStock(product);
         return;
       }
-      if (wouldExceedCartLimit(itemCount, quantity)) {
+      if (wouldExceedCartLimit(itemCountRef.current, quantity)) {
         showSessionLimit();
         return;
       }
@@ -384,7 +395,7 @@ export function OrderingNavigator({
       );
       goToMenu();
     },
-    [tryAddProduct, openOutOfStock, startModifierWizard, goToMenu, itemCount, showSessionLimit],
+    [tryAddProduct, openOutOfStock, startModifierWizard, goToMenu, showSessionLimit],
   );
 
   const finishModifiersWizard = useCallback(
@@ -507,6 +518,19 @@ export function OrderingNavigator({
       ? route.product
       : detailProduct;
 
+  const apiGroupForModifiers =
+    modifiersLive && modifiersLive.source === 'api'
+      ? getApiModifierGroup(modifiersLive.product, modifiersLive.groupIndex)
+      : undefined;
+  // `apiGroup` mantiene identidad entre renders (viene del mismo array
+  // product.modifierGroups) — memoizar por esa referencia evita reconstruir
+  // el array de opciones (con resolveKioskImageUrl por cada una) en cada
+  // render del navigator mientras el wizard de modificadores está abierto.
+  const apiModifierOptionsLive = useMemo(
+    () => (apiGroupForModifiers ? apiModifierOptionsForGroup(apiGroupForModifiers) : undefined),
+    [apiGroupForModifiers],
+  );
+
   let modifiersNode: ReactNode = null;
   if (modifiersLive && layers.modifiers !== 'unmounted') {
     const product = modifiersLive.product;
@@ -520,7 +544,7 @@ export function OrderingNavigator({
     );
 
     if (modifiersLive.source === 'api') {
-      const apiGroup = getApiModifierGroup(product, modifiersLive.groupIndex);
+      const apiGroup = apiGroupForModifiers;
       const groupCount = getApiModifierGroupCount(product);
       if (apiGroup && groupCount > 0) {
         modifiersNode = (
@@ -528,7 +552,7 @@ export function OrderingNavigator({
             key={`modifiers-${modifiersLive.productId}`}
             product={product}
             group={apiModifierGroupToUiGroup(apiGroup)}
-            modifierOptions={apiModifierOptionsForGroup(apiGroup)}
+            modifierOptions={apiModifierOptionsLive}
             groupIndex={modifiersLive.groupIndex}
             groupCount={groupCount}
             unitIndex={modifiersLive.unitIndex}
@@ -579,11 +603,11 @@ export function OrderingNavigator({
         <MenuScreen
           itemCount={itemCount}
           totalUsd={totalUsd}
-          onBack={onExit ?? (() => {})}
+          onBack={onExit ?? noop}
           onProductPress={handleProductPress}
           onAddProduct={handleAddProduct}
           onCartPress={goToCart}
-          onCartNext={() => {}}
+          onCartNext={noop}
           excludeProductId={similarFilter?.excludeProductId}
           initialCategoryId={similarFilter?.categoryId}
         />
