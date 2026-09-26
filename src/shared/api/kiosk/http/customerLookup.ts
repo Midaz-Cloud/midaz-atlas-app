@@ -12,6 +12,7 @@ import {
   mapOrgCustomerToKioskCustomer,
 } from '../mappers/lookupCedula';
 import type { CustomerRegisterPrefill } from '../types/customerLookup';
+import { fetchWithTimeout, KIOSK_TIMEOUTS } from './fetchWithTimeout';
 
 export type LiveLookupCedulaResult =
   | { status: 'found'; customer: KioskCustomer; source: 'org' }
@@ -22,7 +23,8 @@ export type LiveLookupCedulaResult =
       source: 'cne';
     }
   | { status: 'not_found'; documentId: string }
-  | { status: 'error'; message: string; documentId: string };
+  /** `networkError`: no hubo respuesta del servidor (sin red / timeout), no un rechazo. */
+  | { status: 'error'; message: string; documentId: string; networkError?: true };
 
 export async function lookupCustomerByCedulaLive(
   documentId: string,
@@ -50,14 +52,14 @@ export async function lookupCustomerByCedulaLive(
 
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await fetchWithTimeout(url, {
       method: 'GET',
       headers: { Accept: 'application/json' },
-    });
+    }, KIOSK_TIMEOUTS.customerLookup, '/customers/lookup-cedula');
   } catch (cause) {
     const message =
       cause instanceof Error ? cause.message : 'Error de red al consultar la cédula';
-    return { status: 'error', message, documentId };
+    return { status: 'error', message, documentId, networkError: true };
   }
 
   if (response.status === 404) {

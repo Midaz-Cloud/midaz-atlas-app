@@ -2,11 +2,13 @@ import {
   createContext,
   useCallback,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 
 import type { ProductModifierGroup } from '@modules/ordering/menu/modifierTypes';
+import { generateUuidV4 } from '@shared/utils/uuid';
 
 import { resolveAppliedModifiersFromSelections } from '@shared/modifiers/resolveAppliedModifiers';
 import { getCatalogEntryByLineProductId } from '@shared/catalog/catalogStore';
@@ -126,6 +128,12 @@ export type KioskOrderContextValue = {
   reservationId: string | null;
   setReservationId: (reservationId: string) => void;
   clearReservationId: () => void;
+  /**
+   * Identidad de la venta para el backend (uuid). Una por pedido: todos los
+   * reintentos de registro usan la misma, así `POST /kiosk/orders` devuelve la
+   * orden existente en vez de crear otra. `resetOrder` la descarta.
+   */
+  ensureClientOrderId: () => string;
 };
 
 export const KioskOrderContext = createContext<KioskOrderContextValue | null>(null);
@@ -157,6 +165,16 @@ export function KioskOrderProvider({
   const [cardPaymentPayload, setCardPaymentPayloadState] =
     useState<CardPaymentPayload | null>(null);
   const [reservationId, setReservationIdState] = useState<string | null>(null);
+  // ref y no state: se lee y se fija en el mismo tick (antes de mandar la orden),
+  // y no debe provocar re-render.
+  const clientOrderIdRef = useRef<string | null>(null);
+
+  const ensureClientOrderId = useCallback((): string => {
+    if (!clientOrderIdRef.current) {
+      clientOrderIdRef.current = generateUuidV4();
+    }
+    return clientOrderIdRef.current;
+  }, []);
 
   const clearReservationId = useCallback(() => {
     setReservationIdState(null);
@@ -371,6 +389,7 @@ export function KioskOrderProvider({
     setCardPaymentPayloadState(null);
     setCardKindState(null);
     setReservationIdState(null);
+    clientOrderIdRef.current = null;
   }, []);
 
   const itemCount = useMemo(
@@ -461,6 +480,7 @@ export function KioskOrderProvider({
       reservationId,
       setReservationId,
       clearReservationId,
+      ensureClientOrderId,
     }),
     [
       lines,
@@ -498,6 +518,7 @@ export function KioskOrderProvider({
       reservationId,
       setReservationId,
       clearReservationId,
+      ensureClientOrderId,
     ],
   );
 

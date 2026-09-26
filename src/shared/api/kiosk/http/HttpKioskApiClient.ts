@@ -3,6 +3,7 @@ import { getKioskApiUrl } from '@shared/config/api';
 import type { KioskApiClient } from '../client';
 import { logKioskCheckoutPayload } from '../logKioskCheckoutPayload';
 import { KioskApiError, throwIfNotOk, type KioskApiErrorBody } from '../errors';
+import { fetchWithTimeout, KIOSK_TIMEOUTS } from './fetchWithTimeout';
 import { mapCachedConfigBody } from '../configCache';
 import { parseCartReserveResponse } from '../mappers/parseCartReserveResponse';
 import {
@@ -66,11 +67,11 @@ export class HttpKioskApiClient implements KioskApiClient {
   }
 
   async login(request: KioskLoginRequest): Promise<KioskLoginResponse> {
-    const response = await fetch(this.apiUrl('/auth/kiosk/login'), {
+    const response = await fetchWithTimeout(this.apiUrl('/auth/kiosk/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
-    });
+    }, KIOSK_TIMEOUTS.login, '/auth/kiosk/login');
     await throwIfNotOk(response, '/auth/kiosk/login');
     return (await response.json()) as KioskLoginResponse;
   }
@@ -83,10 +84,10 @@ export class HttpKioskApiClient implements KioskApiClient {
     const url = ifNoneMatch
       ? this.apiUrl('/kiosk/config')
       : this.apiUrl(`/kiosk/config?_t=${Date.now()}`);
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method: 'GET',
       headers: this.headers(headers),
-    });
+    }, KIOSK_TIMEOUTS.config, '/kiosk/config');
     if (response.status === 304) {
       await drainResponseBody(response);
       const cached = await loadCachedConfigBody();
@@ -111,10 +112,10 @@ export class HttpKioskApiClient implements KioskApiClient {
   }
 
   async getBanks(): Promise<KioskBank[]> {
-    const response = await fetch(this.apiUrl('/kiosk/banks'), {
+    const response = await fetchWithTimeout(this.apiUrl('/kiosk/banks'), {
       method: 'GET',
       headers: this.headers(),
-    });
+    }, KIOSK_TIMEOUTS.banks, '/kiosk/banks');
     await throwIfNotOk(response, '/kiosk/banks');
     const body = await response.json();
     if (!Array.isArray(body)) {
@@ -127,11 +128,11 @@ export class HttpKioskApiClient implements KioskApiClient {
     request: ValidateMobilePaymentRequest,
   ): Promise<ValidateMobilePaymentResponse> {
     logKioskCheckoutPayload('POST /kiosk/validate-payment request', request);
-    const response = await fetch(this.apiUrl('/kiosk/validate-payment'), {
+    const response = await fetchWithTimeout(this.apiUrl('/kiosk/validate-payment'), {
       method: 'POST',
       headers: this.headers(),
       body: JSON.stringify(request),
-    });
+    }, KIOSK_TIMEOUTS.validatePayment, '/kiosk/validate-payment');
     const rawText = await response.text();
     let body: ValidateMobilePaymentResponse | null = null;
     try {
@@ -171,10 +172,10 @@ export class HttpKioskApiClient implements KioskApiClient {
     const url = ifNoneMatch
       ? this.apiUrl('/kiosk/products')
       : this.apiUrl(`/kiosk/products?_t=${Date.now()}`);
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method: 'GET',
       headers: this.headers(headers),
-    });
+    }, KIOSK_TIMEOUTS.products, '/kiosk/products');
     if (response.status === 304) {
       await drainResponseBody(response);
       const cached = await loadCachedProductsBody();
@@ -202,11 +203,11 @@ export class HttpKioskApiClient implements KioskApiClient {
 
   async reserveCart(request: CartReserveRequest): Promise<CartReserveResponse> {
     logKioskCheckoutPayload('POST /kiosk/cart/reserve request', request);
-    const response = await fetch(this.apiUrl('/kiosk/cart/reserve'), {
+    const response = await fetchWithTimeout(this.apiUrl('/kiosk/cart/reserve'), {
       method: 'POST',
       headers: this.headers(),
       body: JSON.stringify(request),
-    });
+    }, KIOSK_TIMEOUTS.reserve, '/kiosk/cart/reserve');
     await throwIfNotOk(response, '/kiosk/cart/reserve');
     const body = await response.json();
     const parsed = parseCartReserveResponse(body);
@@ -217,32 +218,36 @@ export class HttpKioskApiClient implements KioskApiClient {
   /** TODO: confirm path with backend — expected GET /kiosk/customers?documentId= */
   async findCustomerByDocument(documentId: string): Promise<KioskCustomerApi> {
     const query = new URLSearchParams({ documentId });
-    const response = await fetch(this.apiUrl(`/kiosk/customers?${query.toString()}`), {
+    const response = await fetchWithTimeout(this.apiUrl(`/kiosk/customers?${query.toString()}`), {
       method: 'GET',
       headers: this.headers(),
-    });
+    }, KIOSK_TIMEOUTS.customers, '/kiosk/customers');
     await throwIfNotOk(response, '/kiosk/customers');
     return (await response.json()) as KioskCustomerApi;
   }
 
   /** POST /kiosk/customers — live register uses createCustomerLive (full org body). */
   async registerCustomer(request: RegisterKioskCustomerRequest): Promise<KioskCustomerApi> {
-    const response = await fetch(this.apiUrl('/kiosk/customers'), {
+    const response = await fetchWithTimeout(this.apiUrl('/kiosk/customers'), {
       method: 'POST',
       headers: this.headers(),
       body: JSON.stringify(request),
-    });
+    }, KIOSK_TIMEOUTS.customers, '/kiosk/customers');
     await throwIfNotOk(response, '/kiosk/customers');
     return (await response.json()) as KioskCustomerApi;
   }
 
-  async createOrder(request: CreateKioskOrderRequest): Promise<CreateKioskOrderResponse> {
+  async createOrder(
+    request: CreateKioskOrderRequest,
+    options?: { idempotencyKey?: string },
+  ): Promise<CreateKioskOrderResponse> {
     logKioskCheckoutPayload('POST /kiosk/orders request', request);
-    const response = await fetch(this.apiUrl('/kiosk/orders'), {
+    const idempotencyKey = options?.idempotencyKey ?? request.clientOrderId;
+    const response = await fetchWithTimeout(this.apiUrl('/kiosk/orders'), {
       method: 'POST',
-      headers: this.headers(),
+      headers: this.headers(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined),
       body: JSON.stringify(request),
-    });
+    }, KIOSK_TIMEOUTS.createOrder, '/kiosk/orders');
     await throwIfNotOk(response, '/kiosk/orders');
     const body = await response.json();
     const parsed = parseCreateKioskOrderResponse(body);
@@ -250,15 +255,30 @@ export class HttpKioskApiClient implements KioskApiClient {
     return parsed;
   }
 
+  /** null = la venta todavía no existe en el backend (404). */
+  async getOrderByClientId(clientOrderId: string): Promise<CreateKioskOrderResponse | null> {
+    const path = `/kiosk/orders/by-client-id/${encodeURIComponent(clientOrderId)}`;
+    const response = await fetchWithTimeout(this.apiUrl(path), {
+      method: 'GET',
+      headers: this.headers(),
+    }, KIOSK_TIMEOUTS.default, '/kiosk/orders/by-client-id');
+    if (response.status === 404) {
+      await drainResponseBody(response);
+      return null;
+    }
+    await throwIfNotOk(response, '/kiosk/orders/by-client-id');
+    return parseCreateKioskOrderResponse(await response.json());
+  }
+
   async submitSettlement(request: KioskSettlementRequest): Promise<KioskSettlementResponse> {
     // Gateway kiosk JWT route (forwards to notifications POST /api/pos/settlements).
     const settlementPath = '/kiosk/settlement';
     logKioskCheckoutPayload(`POST ${settlementPath} request`, request);
-    const response = await fetch(this.apiUrl(settlementPath), {
+    const response = await fetchWithTimeout(this.apiUrl(settlementPath), {
       method: 'POST',
       headers: this.headers(),
       body: JSON.stringify(request),
-    });
+    }, KIOSK_TIMEOUTS.settlement, settlementPath);
     await throwIfNotOk(response, settlementPath);
     const body = (await response.json()) as KioskSettlementResponse;
     logKioskCheckoutPayload(`POST ${settlementPath} response`, body);
@@ -268,11 +288,11 @@ export class HttpKioskApiClient implements KioskApiClient {
   async submitZReport(request: KioskZReportRequest): Promise<KioskZReportResponse> {
     const path = '/kiosk/z-reports';
     logKioskCheckoutPayload(`POST ${path} request`, request);
-    const response = await fetch(this.apiUrl(path), {
+    const response = await fetchWithTimeout(this.apiUrl(path), {
       method: 'POST',
       headers: this.headers(),
       body: JSON.stringify(request),
-    });
+    }, KIOSK_TIMEOUTS.settlement, path);
     await throwIfNotOk(response, path);
     const body = (await response.json()) as KioskZReportResponse;
     logKioskCheckoutPayload(`POST ${path} response`, body);

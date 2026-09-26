@@ -46,6 +46,7 @@ export function useOrderProcessing({ enabled, onComplete }: UseOrderProcessingPa
     setConfirmedOrder,
     reservationId,
     clearReservationId,
+    ensureClientOrderId,
   } = useKioskOrder();
   const { customer } = useKioskCustomer();
   const { orderType, orderSelection, tableNumber, runtimeConfig } = useKioskSession();
@@ -88,6 +89,7 @@ export function useOrderProcessing({ enabled, onComplete }: UseOrderProcessingPa
     cardPayment: paymentMethodId === 'pos' ? cardPaymentPayload : undefined,
     printQrEnabled: paymentMethodId !== 'cash',
     reservationId,
+    clientOrderId: ensureClientOrderId(),
     onReservationExpired: clearReservationId,
     onOrderRegistered: (displayOrderNumber, grandTotalVES, grandTotalCurrency, currencyCode) => {
       setConfirmedOrder({

@@ -5,9 +5,8 @@ import { useTranslation } from 'react-i18next';
 
 import {
   buildSettlementFromEcr,
-  createKioskApiClient,
   isSettlementApprovedPlainText,
-  loadAccessToken,
+  withKioskAuth,
   loadLastPosSerial,
   salvageSettlementDataForPrint,
   saveLastPosSerial,
@@ -404,12 +403,13 @@ export function AdminDashboardScreen({
       if (printsFiscalZ) {
         setStepState('fiscal_z', 'active');
         try {
-          const token = await loadAccessToken();
-          const zResult = await runFiscalZClose({
-            effectiveInvoicingType: organization?.effectiveInvoicingType,
-            fiscal: createFiscalClient(),
-            kiosk: createKioskApiClient(token ?? undefined),
-          });
+          const zResult = await withKioskAuth((kiosk) =>
+            runFiscalZClose({
+              effectiveInvoicingType: organization?.effectiveInvoicingType,
+              fiscal: createFiscalClient(),
+              kiosk,
+            }),
+          );
           if (zResult.persisted) {
             setStepState('fiscal_z', 'done');
           } else {
@@ -434,10 +434,7 @@ export function AdminDashboardScreen({
       );
       if (persistSettlementRequest) {
         try {
-          const token = await loadAccessToken();
-          await createKioskApiClient(token ?? undefined).submitSettlement(
-            persistSettlementRequest,
-          );
+          await withKioskAuth((client) => client.submitSettlement(persistSettlementRequest));
         } catch (settleErr) {
           if (!(settleErr instanceof KioskApiError && settleErr.statusCode === 409)) {
             console.warn('[AdminDashboard] Error al registrar el cierre POS:', settleErr);

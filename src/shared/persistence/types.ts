@@ -158,3 +158,118 @@ export type SuccessfulPosTransactionRecord = {
   rawJson: string | null;
   posDateTime: string | null;
 };
+
+// ── Kiosko offline ──────────────────────────────────────────────────────
+
+/** `offline`: se cerró sin backend. `register_failed`: había red pero POST /kiosk/orders falló. */
+export type OrderOutboxOrigin = 'offline' | 'register_failed';
+
+export type OrderOutboxStatus = 'queued' | 'syncing' | 'synced' | 'failed';
+
+/** Estado local de la comanda (el que marca la Comandera por LAN). */
+export type LocalComandaStatus = 'pending' | 'in_progress' | 'ready';
+
+export type OrderOutboxInput = {
+  clientOrderId: string;
+  localNumber: string;
+  localSeq: number;
+  /** Hora del cobro (ISO). null = efectivo aún no cobrado. */
+  paidAt: string | null;
+  paymentMethod: string;
+  origin: OrderOutboxOrigin;
+  /** Request completo de POST /kiosk/orders + snapshots; se reenvía tal cual al sincronizar. */
+  payload: unknown;
+  fiscalInvoiceNumber?: number | null;
+  posReference?: string | null;
+  /** `failed` cuando el backend ya rechazó la venta (4xx) y requiere revisión. */
+  initialStatus?: 'queued' | 'failed';
+  lastError?: string | null;
+  lastErrorStatus?: number | null;
+};
+
+export type OrderOutboxRecord = {
+  id: number;
+  clientOrderId: string;
+  localNumber: string;
+  localSeq: number;
+  createdAt: string;
+  paidAt: string | null;
+  paymentMethod: string;
+  origin: OrderOutboxOrigin;
+  payload: unknown;
+  status: OrderOutboxStatus;
+  attempts: number;
+  nextAttemptAt: string | null;
+  lastError: string | null;
+  lastErrorStatus: number | null;
+  syncedAt: string | null;
+  syncedOrderId: number | null;
+  syncedDisplayNumber: string | null;
+  syncedShortCode: string | null;
+  comandaStatusLocal: LocalComandaStatus;
+  fiscalInvoiceNumber: number | null;
+  posReference: string | null;
+};
+
+export type OrderOutboxPendingCounts = { queued: number; syncing: number; failed: number };
+
+export type LocalCustomerRecord = {
+  documentId: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string | null;
+  /** id del cliente en el backend, si ya se conoce. */
+  backendId: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LocalComandaItem = {
+  productId: number | null;
+  name: string;
+  quantity: number;
+  notes: string | null;
+  selections?: {
+    modifiers?: Array<{
+      groupId?: string;
+      groupName?: string;
+      optionId?: string;
+      optionName: string;
+      quantity: number;
+      priceDelta?: number;
+    }>;
+  };
+};
+
+export type LocalComandaInput = {
+  clientOrderId: string;
+  localNumber: string;
+  localSeq: number;
+  tableNumber: string | null;
+  fulfillmentType: string;
+  paymentMethod: string;
+  paymentStatus: 'paid' | 'unpaid';
+  customerName: string | null;
+  items: LocalComandaItem[];
+};
+
+export type LocalComandaRecord = {
+  id: string;
+  clientOrderId: string;
+  localNumber: string;
+  localSeq: number;
+  shortCode: string;
+  tableNumber: string | null;
+  fulfillmentType: string;
+  paymentMethod: string;
+  paymentStatus: 'paid' | 'unpaid';
+  customerName: string | null;
+  items: LocalComandaItem[];
+  status: LocalComandaStatus;
+  createdAt: string;
+  updatedAt: string;
+  readyAt: string | null;
+  syncedComandaId: string | null;
+  syncedOrderId: number | null;
+};
