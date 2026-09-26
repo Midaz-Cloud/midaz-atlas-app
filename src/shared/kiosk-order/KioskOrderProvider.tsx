@@ -126,7 +126,7 @@ export type KioskOrderContextValue = {
   cardKind: CardKind | null;
   setCardKind: (kind: CardKind | null) => void;
   reservationId: string | null;
-  setReservationId: (reservationId: string) => void;
+  setReservationId: (reservationId: string | null) => void;
   clearReservationId: () => void;
   /**
    * Identidad de la venta para el backend (uuid). Una por pedido: todos los
@@ -180,7 +180,7 @@ export function KioskOrderProvider({
     setReservationIdState(null);
   }, []);
 
-  const setReservationId = useCallback((id: string) => {
+  const setReservationId = useCallback((id: string | null) => {
     setReservationIdState(id);
   }, []);
 

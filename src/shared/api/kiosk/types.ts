@@ -89,6 +89,16 @@ export type KioskConfigResponse = {
   organization: KioskConfigOrganization;
   pagoMovilAccount: KioskPagoMovilAccount | null;
   exchangeRates: KioskExchangeRates | null;
+  /** Servidor LAN de comandas del kiosko (sin backend la Comandera lee de aquí). */
+  lanComanda?: KioskLanComandaConfig | null;
+};
+
+export type KioskLanComandaConfig = {
+  enabled: boolean;
+  sharedKey: string | null;
+  port: number;
+  /** Efectivo también sin backend (por defecto solo tarjeta). */
+  allowCashOffline: boolean;
 };
 
 export type KioskProductModifierOption = {
@@ -200,6 +210,12 @@ export type KioskOrderItemRequest = {
   isExempt: boolean;
   notes?: string;
   selections?: KioskOrderItemSelections;
+  /**
+   * Precio base unitario (moneda primaria) con el que el kiosko cobró. El backend
+   * solo lo honra en ventas `offline` (lo que se imprimió manda); en línea usa el
+   * catálogo o el price-lock de la reserva.
+   */
+  unitPrice?: number;
 };
 
 export type KioskCustomerApi = {
@@ -288,6 +304,29 @@ export type CreateKioskOrderRequest = {
    * orden en vez de crear otra. También viaja en el header Idempotency-Key.
    */
   clientOrderId?: string;
+  /** La venta se cerró sin backend: precios, tasa y hora vienen del kiosko. */
+  offline?: true;
+  /** ISO: hora real del cobro aprobado (o del cierre de la venta). */
+  paidAt?: string;
+  /** Tasa con la que el kiosko cobró e imprimió. */
+  exchangeRate?: number;
+  /** Total impreso en Bs; el backend solo lo compara. */
+  grandTotalVES?: number;
+  /** Número local impreso en ticket y comanda LAN (ej. K040-0042). */
+  localOrderNumber?: string;
+  /** Estado que cocina marcó por LAN antes de sincronizar. */
+  comandaStatus?: 'pending' | 'in_progress' | 'ready';
+  comandaReadyAt?: string;
+  /** Cliente registrado sin red (sin customerId): el backend lo busca o lo crea. */
+  customer?: KioskCustomerSnapshotRequest;
+};
+
+export type KioskCustomerSnapshotRequest = {
+  typeIdentification: string;
+  identificationNumber: string;
+  name: string;
+  phoneNumber?: string;
+  email?: string;
 };
 
 export type KioskOrderTaxBreakdownItem = {

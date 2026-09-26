@@ -163,6 +163,7 @@ function mapLineToItem(line: CartLine, declaresTaxes: boolean): KioskOrderItemRe
     quantity: line.quantity,
     ...taxFields,
     selections: modifiers?.length ? { modifiers } : undefined,
+    unitPrice: line.unitPrice,
   };
 }
 

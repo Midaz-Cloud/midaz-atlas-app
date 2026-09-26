@@ -13,6 +13,7 @@ import type {
   OrderTotals,
 } from '@shared/kiosk-order/types';
 import { defaultOrderFiscalConfig } from '@shared/kiosk-order';
+import { deterministicUuidV4 } from '@shared/utils/uuid';
 import {
   emitOrderFiscalInvoice,
   shouldEmitFiscalInvoice,
@@ -395,7 +396,11 @@ export async function retryFailedPaymentOrder(
     let displayOrderNumber = existingOrderNumber ?? '';
     let fromShortCode = existingShortCode;
     if (request) {
-      const response = await withKioskAuth((client) => client.createOrder(request));
+      // Id estable por fila: reintentar la misma fila nunca crea una segunda orden.
+      const clientOrderId = deterministicUuidV4(`failed-payment:${record.id}:${record.createdAt}`);
+      const response = await withKioskAuth((client) =>
+        client.createOrder({ ...request, clientOrderId }, { idempotencyKey: clientOrderId }),
+      );
       displayOrderNumber = response.displayOrderNumber;
       fromShortCode = response.shortCode?.trim() || null;
     } else if (__DEV__ && issuedFiscalInvoiceNumber != null) {

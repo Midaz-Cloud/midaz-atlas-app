@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { BackButton } from '@shared/components';
 import { kioskScreenLayout, useKioskScreenColors } from '@shared/theme';
+import { KioskConnectivityBadge } from '@shared/ui/KioskConnectivityBadge';
 
 export type CartScreenHeaderProps = {
   paddingTop: number;
@@ -17,7 +18,9 @@ export function CartScreenHeader({ paddingTop, onBack }: CartScreenHeaderProps) 
       StyleSheet.create({
         wrap: {
           backgroundColor: colors.screenBackground,
-          justifyContent: 'center',
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
           minHeight: kioskScreenLayout.backButtonSize + kioskScreenLayout.menuHeaderPaddingTop,
         },
       }),
@@ -35,6 +38,7 @@ export function CartScreenHeader({ paddingTop, onBack }: CartScreenHeaderProps) 
       ]}
       testID="cart-screen-header">
       <BackButton onPress={onBack} testID="cart-back" />
+      <KioskConnectivityBadge />
     </View>
   );
 }

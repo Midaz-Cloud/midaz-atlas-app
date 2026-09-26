@@ -18,7 +18,7 @@ import {
 } from '@shared/persistence';
 import { useKioskSession } from '@shared/session';
 
-import { reserveCartBeforePayment } from '../../services/reserveCartBeforePayment';
+import { reserveCartOrSkipOffline } from '../../services/reserveCartOrSkipOffline';
 import { resolvePaymentPayerDocumentId } from '../../utils/resolvePaymentPayerDocumentId';
 import { executePosCardPayment } from '../services/executePosCardPayment';
 import type { PosChargePhase, PosChargeResult } from '../types';
@@ -117,7 +117,7 @@ async function runPosCharge(deps: ChargeDeps): Promise<PosChargeResult> {
   }
 
   try {
-    const reserveResult = await reserveCartBeforePayment(lines);
+    const reserveResult = await reserveCartOrSkipOffline(lines);
     if (!reserveResult.ok) {
       return {
         ok: false,

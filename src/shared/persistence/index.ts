@@ -34,6 +34,7 @@ export {
 } from './failedPaymentMappers';
 export {
   clearFailedPayments,
+  pruneFailedPayments,
   deleteFailedPayment,
   getFailedPayment,
   listFailedPaymentRecordsByStatus,

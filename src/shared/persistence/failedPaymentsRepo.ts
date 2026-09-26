@@ -83,7 +83,7 @@ function mapRow(row: Record<string, unknown>): FailedPaymentRecord {
   };
 }
 
-async function pruneFailedPayments(): Promise<void> {
+async function capFailedPaymentsRows(): Promise<void> {
   const db = await getKioskSqliteDb();
   await db.execute(
     `
@@ -139,7 +139,7 @@ export async function recordFailedPayment(
     displayRef,
     id,
   ]);
-  await pruneFailedPayments();
+  await capFailedPaymentsRows();
   return id;
 }
 
@@ -245,5 +245,26 @@ export async function deleteFailedPayment(id: number): Promise<boolean> {
 export async function clearFailedPayments(): Promise<number> {
   const db = await getKioskSqliteDb();
   const result = await db.execute(`DELETE FROM failed_payments;`);
+  return result.rowsAffected ?? 0;
+}
+
+/**
+ * Cierre de lote: borra solo lo ya resuelto y viejo. Un cobro sin orden todavía
+ * abierto es evidencia de dinero sin registrar y sobrevive al cierre.
+ */
+export async function pruneFailedPayments(options: {
+  statuses: FailedPaymentStatus[];
+  olderThanDays: number;
+}): Promise<number> {
+  if (options.statuses.length === 0) {
+    return 0;
+  }
+  const db = await getKioskSqliteDb();
+  const cutoff = new Date(Date.now() - options.olderThanDays * 24 * 60 * 60 * 1000).toISOString();
+  const placeholders = options.statuses.map(() => '?').join(', ');
+  const result = await db.execute(
+    `DELETE FROM failed_payments WHERE status IN (${placeholders}) AND created_at < ?;`,
+    [...options.statuses, cutoff],
+  );
   return result.rowsAffected ?? 0;
 }

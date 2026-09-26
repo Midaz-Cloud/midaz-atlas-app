@@ -2,7 +2,12 @@ import { mapCartToCreateOrderRequest } from '@shared/api/kiosk';
 import { emitOrderFiscalInvoice, shouldEmitFiscalInvoice } from '@shared/peripherals/fiscal';
 import { printOrderTicket, OrderPrintError } from '@shared/peripherals/printer';
 
-import { processKioskOrder } from '../services/processKioskOrder';
+import { KioskApiError, KioskNetworkError } from '@shared/api/kiosk';
+import { isKioskOffline } from '@shared/connectivity';
+import { __resetKioskConnectivityForTests } from '@shared/connectivity/kioskConnectivityStore';
+import { getLocalComandaByClientOrderId, getOrderOutboxByClientOrderId } from '@shared/persistence';
+
+import { OFFLINE_TICKET_FOOTER_NOTE, processKioskOrder } from '../services/processKioskOrder';
 import type { OrderProcessingPhase } from '../types';
 
 const mockCreateOrder = jest.fn();
@@ -15,13 +20,9 @@ jest.mock('@shared/api/kiosk', () => ({
   withKioskAuth: (run: (client: unknown) => unknown) =>
     run({ createOrder: (...args: unknown[]) => mockCreateOrder(...args) }),
   mapCartToCreateOrderRequest: jest.fn().mockReturnValue({ items: [] }),
-  KioskApiError: class KioskApiError extends Error {
-    statusCode: number;
-    constructor(message: string, statusCode: number) {
-      super(message);
-      this.statusCode = statusCode;
-    }
-  },
+  KioskApiError: jest.requireActual('@shared/api/kiosk/errors').KioskApiError,
+  KioskNetworkError: jest.requireActual('@shared/api/kiosk/errors').KioskNetworkError,
+  isKioskNetworkError: jest.requireActual('@shared/api/kiosk/errors').isKioskNetworkError,
 }));
 
 jest.mock('@shared/peripherals/fiscal', () => ({
@@ -295,30 +296,143 @@ describe('processKioskOrder phases', () => {
     expect(printOrderTicket).not.toHaveBeenCalled();
   });
 
-  it('keeps order_registration_failed when POST /kiosk/orders fails after fiscal', async () => {
-    (shouldEmitFiscalInvoice as jest.Mock).mockReturnValue(true);
-    (emitOrderFiscalInvoice as jest.Mock).mockResolvedValue({
-      issuedInvoiceNumber: 2616,
-    });
-    mockCreateOrder.mockRejectedValueOnce(new Error('Gateway timeout'));
+  describe('registro sin backend (la venta ya se cobró)', () => {
+    let seq = 0;
+    const nextClientOrderId = () => {
+      seq += 1;
+      return `0b1c2d3e-4f50-4a61-8b72-${String(seq).padStart(12, '0')}`;
+    };
 
-    const result = await processKioskOrder(
-      {
-        ...baseParams,
-        paymentMethodId: 'pos',
-        declaresTaxes: true,
-        cardPayment: { posReference: 'POS-99' } as never,
-      },
-      () => undefined,
-    );
-
-    expect(result).toMatchObject({
-      status: 'order_registration_failed',
-      posReference: 'POS-99',
-      fiscalInvoiceNumber: 2616,
-      message: 'Gateway timeout',
+    beforeEach(() => {
+      __resetKioskConnectivityForTests();
     });
-    expect(printOrderTicket).not.toHaveBeenCalled();
+
+    it('POST falla por red después de la factura → queda en el kiosko con número local y se entrega', async () => {
+      (shouldEmitFiscalInvoice as jest.Mock).mockReturnValue(true);
+      (emitOrderFiscalInvoice as jest.Mock).mockResolvedValue({ issuedInvoiceNumber: 2616 });
+      mockCreateOrder.mockRejectedValueOnce(new KioskNetworkError('timeout', '/kiosk/orders'));
+      const clientOrderId = nextClientOrderId();
+      const registered = jest.fn();
+
+      const result = await processKioskOrder(
+        {
+          ...baseParams,
+          paymentMethodId: 'pos',
+          declaresTaxes: true,
+          clientOrderId,
+          deviceSerial: 'MDZ-KIOSK-001',
+          paidAt: '2026-09-24T16:01:36.000Z',
+          reservationId: 'res-1',
+          cardPayment: { posReference: 'POS-99' } as never,
+          onOrderRegistered: registered,
+        },
+        () => undefined,
+      );
+
+      expect(result).toMatchObject({ status: 'ok', registeredLocally: true, fiscalInvoiceNumber: 2616 });
+      const orderId = (result as { orderId: string }).orderId;
+      expect(orderId).toMatch(/^K001-\d{4}$/);
+      expect(registered).toHaveBeenCalledWith(orderId, 1, 1, 'USD');
+      expect(printOrderTicket).toHaveBeenCalledWith(
+        expect.objectContaining({
+          displayOrderNumber: orderId,
+          printQrEnabled: false,
+          trackShortCode: null,
+          footerNote: OFFLINE_TICKET_FOOTER_NOTE,
+        }),
+      );
+      expect(isKioskOffline()).toBe(true);
+
+      const outbox = await getOrderOutboxByClientOrderId(clientOrderId);
+      expect(outbox).toMatchObject({
+        status: 'queued',
+        origin: 'register_failed',
+        localNumber: orderId,
+        fiscalInvoiceNumber: 2616,
+        posReference: 'POS-99',
+        paidAt: '2026-09-24T16:01:36.000Z',
+      });
+      const request = (outbox!.payload as { request: Record<string, unknown> }).request;
+      expect(request).toMatchObject({
+        clientOrderId,
+        offline: true,
+        paidAt: '2026-09-24T16:01:36.000Z',
+        localOrderNumber: orderId,
+        grandTotalVES: 1,
+      });
+      expect(request).not.toHaveProperty('reservationId');
+      expect(await getLocalComandaByClientOrderId(clientOrderId)).toMatchObject({
+        localNumber: orderId,
+        paymentStatus: 'paid',
+        status: 'pending',
+      });
+    });
+
+    it('sesión offline: no intenta el POST y registra directo en el kiosko', async () => {
+      const clientOrderId = nextClientOrderId();
+
+      const result = await processKioskOrder(
+        { ...baseParams, paymentMethodId: 'pos', clientOrderId, deviceSerial: 'MDZ-KIOSK-001', offlineMode: true },
+        () => undefined,
+      );
+
+      expect(mockCreateOrder).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ status: 'ok', registeredLocally: true });
+      expect(await getOrderOutboxByClientOrderId(clientOrderId)).toMatchObject({ origin: 'offline' });
+    });
+
+    it('rechazo 4xx: la venta se entrega igual y queda `failed` para revisión', async () => {
+      mockCreateOrder.mockRejectedValueOnce(new KioskApiError('Producto inválido', 422));
+      const clientOrderId = nextClientOrderId();
+
+      const result = await processKioskOrder(
+        { ...baseParams, paymentMethodId: 'pos', clientOrderId, deviceSerial: 'MDZ-KIOSK-001' },
+        () => undefined,
+      );
+
+      expect(result).toMatchObject({ status: 'ok', registeredLocally: true });
+      expect(isKioskOffline()).toBe(false);
+      expect(await getOrderOutboxByClientOrderId(clientOrderId)).toMatchObject({
+        status: 'failed',
+        lastError: 'Producto inválido',
+        lastErrorStatus: 422,
+      });
+    });
+
+    it('reserva vencida: reintenta una vez sin reservationId con el mismo clientOrderId', async () => {
+      (mapCartToCreateOrderRequest as jest.Mock).mockReturnValue({ items: [], reservationId: 'res-old' });
+      mockCreateOrder.mockRejectedValueOnce(new KioskApiError('Reservation expired', 400));
+      const clientOrderId = nextClientOrderId();
+      const onExpired = jest.fn();
+
+      const result = await processKioskOrder(
+        {
+          ...baseParams,
+          paymentMethodId: 'pos',
+          clientOrderId,
+          deviceSerial: 'MDZ-KIOSK-001',
+          onReservationExpired: onExpired,
+        },
+        () => undefined,
+      );
+
+      expect(result).toMatchObject({ status: 'ok', orderId: 'ORD-1' });
+      expect(onExpired).toHaveBeenCalled();
+      expect(mockCreateOrder).toHaveBeenCalledTimes(2);
+      const [retryRequest, retryOptions] = mockCreateOrder.mock.calls[1];
+      expect(retryRequest).not.toHaveProperty('reservationId');
+      expect(retryRequest.clientOrderId).toBe(clientOrderId);
+      expect(retryOptions).toEqual({ idempotencyKey: clientOrderId });
+    });
+
+    it('sin clientOrderId/serial no hay dónde guardarla → failed (último recurso)', async () => {
+      mockCreateOrder.mockRejectedValueOnce(new Error('Gateway timeout'));
+
+      const result = await processKioskOrder({ ...baseParams, paymentMethodId: 'pos' }, () => undefined);
+
+      expect(result).toMatchObject({ status: 'failed', message: 'Gateway timeout' });
+      expect(printOrderTicket).not.toHaveBeenCalled();
+    });
   });
 
   it('skips POST /kiosk/orders when the Midaz order already exists', async () => {

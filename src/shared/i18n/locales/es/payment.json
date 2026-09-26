@@ -73,7 +73,8 @@
       "ticketPrinted": "Ticket impreso correctamente.",
       "pickupInstructions": "Retira tu pedido cuando veas tu número en pantalla.",
       "orderLabel": "Tu número de pedido",
-      "ticketSlotHint": "Por favor, toma tu ticket impreso y factura en la ranura inferior del kiosco."
+      "ticketSlotHint": "Por favor, toma tu ticket impreso y factura en la ranura inferior del kiosco.",
+      "offlineQueued": "Pedido guardado en el kiosco. Se enviará al sistema al recuperar la conexión."
     },
     "fiscalError": {
       "title": "Error en la impresora fiscal",
