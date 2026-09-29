@@ -136,6 +136,9 @@ export function KioskCachedImage({
       source={resolvedSource!}
       style={style}
       resizeMode={resizeMode}
+      // Decodificar ya reducido al tamaño de la vista (no la foto completa de
+      // varios MB): menos memoria nativa por tarjeta, clave en el AF910.
+      resizeMethod="resize"
       onLoad={onLoad}
       onError={(event: NativeSyntheticEvent<ImageErrorEventData>) => {
         const nativeError = event?.nativeEvent?.error ?? 'unknown';

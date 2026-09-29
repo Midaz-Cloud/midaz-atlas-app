@@ -1,9 +1,15 @@
 package com.midazatlasapp.device
 
 import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Debug
+import android.os.Process
+import android.os.SystemClock
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -54,6 +60,43 @@ class KioskDeviceModule(reactContext: ReactApplicationContext) :
     private const val HKA_PACKAGE = "com.thefactory.demoPP9"
     private const val HKA_START_ACTION = "com.thefactory.demoPP9.action.START_FISCAL_SERVICE"
     private const val HKA_START_RECEIVER = "com.thefactory.demoPP9.service.FiscalServiceStartReceiver"
+  }
+
+  /**
+   * Memoria real del proceso del kiosko y del sistema, para la telemetría de
+   * salud (heartbeat cada 5 min + historial local en el menú admin). Sirve para
+   * ver si la app crece con las horas sin necesidad de `adb shell dumpsys meminfo`.
+   * PSS (KB) es el número que reporta Android por app; `lowMemory` es la señal
+   * con la que el sistema empieza a matar procesos de fondo (p.ej. HkaApp).
+   */
+  @ReactMethod
+  fun getProcessMemory(promise: Promise) {
+    try {
+      val map = Arguments.createMap()
+      map.putDouble("pssKb", Debug.getPss().toDouble())
+      map.putDouble("nativeHeapKb", Debug.getNativeHeapAllocatedSize() / 1024.0)
+      val runtime = Runtime.getRuntime()
+      map.putDouble("javaHeapKb", (runtime.totalMemory() - runtime.freeMemory()) / 1024.0)
+      val activityManager =
+        reactApplicationContext.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+      if (activityManager != null) {
+        val info = ActivityManager.MemoryInfo()
+        activityManager.getMemoryInfo(info)
+        map.putDouble("systemAvailKb", info.availMem / 1024.0)
+        map.putDouble("systemTotalKb", info.totalMem / 1024.0)
+        map.putBoolean("lowMemory", info.lowMemory)
+      }
+      val uptimeMs =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+          SystemClock.elapsedRealtime() - Process.getStartElapsedRealtime()
+        } else {
+          -1L
+        }
+      map.putDouble("processUptimeMs", uptimeMs.toDouble())
+      promise.resolve(map)
+    } catch (e: Exception) {
+      promise.reject("PROCESS_MEMORY_ERROR", e.message, e)
+    }
   }
 
   @ReactMethod

@@ -13,3 +13,4 @@ export {
 export { MenuSearchSection } from './MenuSearchSection';
 export { ProductBadge } from './ProductBadge';
 export { ProductCard } from './ProductCard';
+export { MenuProductRow } from './MenuProductRow';

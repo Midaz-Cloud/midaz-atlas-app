@@ -6,3 +6,14 @@ export {
   setKioskTelemetrySessionMode,
   type StartKioskTelemetryHeartbeatOptions,
 } from './kioskTelemetryHeartbeat';
+export {
+  collectKioskRuntimeHealth,
+  formatUptime,
+  type KioskRuntimeHealth,
+} from './kioskRuntimeHealth';
+export {
+  loadKioskRuntimeHealthHistory,
+  recordKioskRuntimeHealthSample,
+  clearKioskRuntimeHealthHistory,
+  RUNTIME_HEALTH_MAX_SAMPLES,
+} from './kioskRuntimeHealthHistory';

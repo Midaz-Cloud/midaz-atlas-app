@@ -1,4 +1,4 @@
-import { HttpFiscalClient } from '../HttpFiscalClient';
+import { FISCAL_TIMEOUTS, HttpFiscalClient } from '../HttpFiscalClient';
 import { resetFiscalClientForTests } from '../createFiscalClient';
 
 jest.mock('@shared/config/fiscal', () => ({
@@ -198,5 +198,49 @@ describe('HttpFiscalClient', () => {
       httpStatus: 503,
       message: 'printer busy',
     });
+  });
+
+  it('passes an abort signal and a short budget to the health probe', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, apiVersion: '1', serviceVersion: '0', data: null, message: null, error: null }),
+    });
+
+    const client = new HttpFiscalClient();
+    await client.getHealth();
+
+    const init = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect(FISCAL_TIMEOUTS.health).toBeLessThanOrEqual(5_000);
+    expect(FISCAL_TIMEOUTS.emit).toBeGreaterThan(FISCAL_TIMEOUTS.health);
+    expect(FISCAL_TIMEOUTS.zReport).toBeGreaterThanOrEqual(FISCAL_TIMEOUTS.emit);
+  });
+
+  it('fails with a readable error when HkaApp accepts but never answers (timeout)', async () => {
+    jest.useFakeTimers();
+    try {
+      (global.fetch as jest.Mock).mockImplementation(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => {
+              const error = new Error('Aborted');
+              error.name = 'AbortError';
+              reject(error);
+            });
+          }),
+      );
+
+      const client = new HttpFiscalClient();
+      const pending = client.getHealth();
+      // Se rechaza recién cuando avanza el reloj: evitar un unhandled rejection intermedio.
+      pending.catch(() => undefined);
+      await jest.advanceTimersByTimeAsync(FISCAL_TIMEOUTS.health);
+      await expect(pending).rejects.toMatchObject({
+        message: expect.stringContaining('sin respuesta en 5 s'),
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

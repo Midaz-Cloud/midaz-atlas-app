@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo } from 'react';
+import { FlatList, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -14,8 +14,8 @@ import {
   MenuCartBar,
   MenuCategoryTabs,
   MenuFeaturedSection,
+  MenuProductRow,
   MenuSearchHeader,
-  ProductCard,
 } from './components';
 import { useMenuScreen } from './hooks';
 import type { MenuProduct } from './types';
@@ -32,12 +32,31 @@ type MenuScreenProps = {
   initialCategoryId?: string;
 };
 
-function chunkProductsIntoRows(products: MenuProduct[]): MenuProduct[][] {
-  const rows: MenuProduct[][] = [];
+type ProductRow = MenuProduct[];
+
+/**
+ * Fase 2 · virtualización. Antes se montaban TODAS las categorías a la vez
+ * (`display: none` para las no visibles) "para mantener las imágenes calientes":
+ * con catálogos grandes y fotos de varios MB eso decodificaba el catálogo entero
+ * en memoria nativa cada vez que un cliente entraba al menú. Ahora solo existe la
+ * categoría elegida y, dentro de ella, la FlatList monta las filas cercanas al
+ * viewport y recicla el resto. Las imágenes ya viven en disco (`KioskCachedImage`),
+ * así que cambiar de categoría vuelve a pintarlas desde archivo, no desde la red.
+ */
+export function chunkProductsIntoRows(products: MenuProduct[]): ProductRow[] {
+  const rows: ProductRow[] = [];
   for (let index = 0; index < products.length; index += 2) {
     rows.push(products.slice(index, index + 2));
   }
   return rows;
+}
+
+function rowKey(row: ProductRow): string {
+  return row.map((item) => item.id).join('-');
+}
+
+function RowSeparator() {
+  return <View style={styles.rowSeparator} />;
 }
 
 export function MenuScreen({
@@ -62,7 +81,7 @@ export function MenuScreen({
     setSearchQuery,
     featuredProducts,
     showFeaturedSection,
-    productsByCategoryId,
+    gridProducts,
   } = useMenuScreen({ excludeProductId, initialCategoryId });
   const { lines } = useKioskOrder();
 
@@ -77,6 +96,58 @@ export function MenuScreen({
     return quantities;
   }, [lines]);
 
+  const rows = useMemo(() => chunkProductsIntoRows(gridProducts), [gridProducts]);
+
+  const selectedCategory = useMemo(
+    () => categories.find((category) => category.id === selectedCategoryId),
+    [categories, selectedCategoryId],
+  );
+  const sectionTitle =
+    selectedCategory?.displayName ??
+    (gridProducts[0]?.sectionKey
+      ? t(gridProducts[0].sectionKey)
+      : selectedCategory
+        ? t(selectedCategory.nameKey)
+        : '');
+
+  const renderRow = useCallback<ListRenderItem<ProductRow>>(
+    ({ item }) => (
+      <MenuProductRow
+        row={item}
+        firstQuantity={cartQuantityByProductId.get(item[0]?.id ?? '') ?? 0}
+        secondQuantity={cartQuantityByProductId.get(item[1]?.id ?? '') ?? 0}
+        onProductPress={onProductPress}
+        onAddProduct={onAddProduct}
+      />
+    ),
+    [cartQuantityByProductId, onAddProduct, onProductPress],
+  );
+
+  const header = (
+    <View style={styles.header}>
+      <MenuCategoryTabs
+        categories={categories}
+        selectedCategoryId={selectedCategoryId}
+        onSelectCategory={setSelectedCategoryId}
+      />
+
+      {showFeaturedSection ? (
+        <MenuFeaturedSection
+          products={featuredProducts}
+          cartQuantityByProductId={cartQuantityByProductId}
+          onProductPress={onProductPress}
+          onAddProduct={onAddProduct}
+        />
+      ) : null}
+
+      {rows.length > 0 ? (
+        <Text style={[styles.sectionTitle, { color: colors.menuSectionHeading }]}>
+          {sectionTitle}
+        </Text>
+      ) : null}
+    </View>
+  );
+
   return (
     <View
       style={[styles.root, { backgroundColor: colors.screenBackground }]}
@@ -89,76 +160,29 @@ export function MenuScreen({
         focusAccent="blue"
       />
 
-      <ScrollView
+      <FlatList
         style={styles.scroll}
+        data={rows}
+        keyExtractor={rowKey}
+        renderItem={renderRow}
+        extraData={cartQuantityByProductId}
+        ListHeaderComponent={header}
+        ItemSeparatorComponent={RowSeparator}
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: insets.bottom + kioskScreenLayout.menuScrollBottomInset },
         ]}
         showsVerticalScrollIndicator={false}
-        removeClippedSubviews={false}>
-        <MenuCategoryTabs
-          categories={categories}
-          selectedCategoryId={selectedCategoryId}
-          onSelectCategory={setSelectedCategoryId}
-        />
-
-        {showFeaturedSection ? (
-          <MenuFeaturedSection
-            products={featuredProducts}
-            cartQuantityByProductId={cartQuantityByProductId}
-            onProductPress={onProductPress}
-            onAddProduct={onAddProduct}
-          />
-        ) : null}
-
-        {/* Keep every category grid mounted so product images stay warm; only the
-            selected category is visible in the layout. */}
-        {categories.map((category) => {
-          const products = productsByCategoryId.get(category.id) ?? [];
-          const isSelected = category.id === selectedCategoryId;
-          const productRows = chunkProductsIntoRows(products);
-          const sectionTitle =
-            category.displayName ??
-            (products[0]?.sectionKey ? t(products[0].sectionKey) : t(category.nameKey));
-
-          return (
-            <View
-              key={category.id}
-              collapsable={false}
-              pointerEvents={isSelected ? 'auto' : 'none'}
-              style={isSelected ? styles.section : styles.sectionHidden}
-              testID={`menu-category-panel-${category.id}`}>
-              {products.length > 0 ? (
-                <>
-                  <Text style={[styles.sectionTitle, { color: colors.menuSectionHeading }]}>
-                    {sectionTitle}
-                  </Text>
-                  <View style={styles.grid}>
-                    {productRows.map((row) => (
-                      <View
-                        key={row.map((item) => item.id).join('-')}
-                        style={styles.gridRow}>
-                        {row.map((product) => (
-                          <View key={product.id} style={styles.gridCell}>
-                            <ProductCard
-                              product={product}
-                              cartQuantity={cartQuantityByProductId.get(product.id) ?? 0}
-                              onPress={() => onProductPress(product)}
-                              onAddPress={() => onAddProduct(product)}
-                            />
-                          </View>
-                        ))}
-                        {row.length === 1 ? <View style={styles.gridCell} /> : null}
-                      </View>
-                    ))}
-                  </View>
-                </>
-              ) : null}
-            </View>
-          );
-        })}
-      </ScrollView>
+        // Filas de 2 tarjetas altas: pocas por pantalla, no vale la pena
+        // pre-montar muchas. removeClippedSubviews libera las vistas nativas
+        // (y sus bitmaps) de las filas que salen del viewport.
+        initialNumToRender={4}
+        maxToRenderPerBatch={4}
+        updateCellsBatchingPeriod={50}
+        windowSize={5}
+        removeClippedSubviews
+        testID={`menu-category-panel-${selectedCategoryId}`}
+      />
 
       <MenuCartBar
         itemCount={itemCount}
@@ -178,31 +202,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    gap: kioskScreenLayout.menuSectionGap,
+    flexGrow: 1,
   },
-  section: {
-    paddingHorizontal: kioskScreenLayout.menuHorizontalPadding,
+  header: {
     gap: kioskScreenLayout.menuSectionGap,
-  },
-  /** Mounted but not laid out — keeps ProductCard / images alive off-screen. */
-  sectionHidden: {
-    display: 'none',
-    paddingHorizontal: kioskScreenLayout.menuHorizontalPadding,
-    gap: kioskScreenLayout.menuSectionGap,
+    marginBottom: kioskScreenLayout.menuSectionGap,
   },
   sectionTitle: {
     ...displayTextStyle(),
     fontSize: kioskScreenLayout.menuSectionTitleSize,
     lineHeight: kioskScreenLayout.menuSectionTitleLineHeight,
+    paddingHorizontal: kioskScreenLayout.menuHorizontalPadding,
   },
-  grid: {
-    gap: kioskScreenLayout.productGridGap,
-  },
-  gridRow: {
-    flexDirection: 'row',
-    gap: kioskScreenLayout.productGridGap,
-  },
-  gridCell: {
-    flex: 1,
+  rowSeparator: {
+    height: kioskScreenLayout.productGridGap,
   },
 });
