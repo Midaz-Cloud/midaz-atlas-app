@@ -3,6 +3,7 @@ import type {
   KioskOrderTypeOptionLive,
   KioskPagoMovilAccountLive,
 } from '../liveApi.types';
+import { sanitizeKioskColor } from './sanitizeKioskColor';
 import type {
   FulfillmentType,
   KioskConfigResponse,
@@ -59,15 +60,15 @@ export function mapLiveConfigToKioskConfigResponse(
     enabledPaymentMethods: normalizeEnabledPaymentMethods(live.enabledPaymentMethods ?? []),
     kioskInvoicingType: live.kioskInvoicingType ?? null,
     appearance: {
-      primaryColor: liveAppearance.primaryColor ?? '#004be0',
-      secondaryColor: liveAppearance.secondaryColor ?? '#07143a',
+      primaryColor: sanitizeKioskColor(liveAppearance.primaryColor, '#004be0'),
+      secondaryColor: sanitizeKioskColor(liveAppearance.secondaryColor, '#07143a'),
       title: liveAppearance.title ?? 'Bienvenido',
       subtitle: liveAppearance.subtitle ?? 'Realizá tu pedido aquí',
       coverImage: liveAppearance.coverImage ?? null,
       pickupImage: liveAppearance.pickupImage ?? null,
       inStoreImage: liveAppearance.inStoreImage ?? null,
-      titleColor: liveAppearance.titleColor ?? null,
-      subtitleColor: liveAppearance.subtitleColor ?? null,
+      titleColor: sanitizeKioskColor(liveAppearance.titleColor, null),
+      subtitleColor: sanitizeKioskColor(liveAppearance.subtitleColor, null),
       languages: liveAppearance.languages ?? null,
       translations: liveAppearance.translations ?? null,
     },

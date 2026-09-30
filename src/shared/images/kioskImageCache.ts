@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { isVerboseKioskLogging } from '@shared/config/env';
@@ -18,8 +18,12 @@ const APP_FOLDER = 'com.midazatlasapp';
 const IMAGES_FOLDER = 'images';
 /** Per-image download timeout (AbortController cancels hung fetches). */
 const DOWNLOAD_TIMEOUT_MS = 60_000;
-/** Serial downloads on AF910 — parallel blob-util / bandwidth sharing caused mass failures. */
-const DOWNLOAD_CONCURRENCY = 1;
+/**
+ * Con la descarga nativa (`KioskDeviceModule.downloadToFile`) los bytes no pasan
+ * por JS, así que 2 en paralelo no compiten por el hilo JS. El fallo masivo
+ * histórico era de blob-util FileStorage, no del paralelismo en sí.
+ */
+const DOWNLOAD_CONCURRENCY = 2;
 /** Extra attempt after a timeout / interrupted download before marking failed. */
 const DOWNLOAD_TIMEOUT_RETRIES = 1;
 
@@ -164,21 +168,44 @@ function timeoutErrorMessage(url: string): string {
   return `Image cache timeout after ${DOWNLOAD_TIMEOUT_MS}ms (${url})`;
 }
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
+const BASE64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+/** Múltiplo de 3 para que cada bloque codifique sin padding intermedio. */
+const BASE64_CHUNK_BYTES = 3 * 8192;
+
+/**
+ * Solo respaldo (sin módulo nativo). Arma el resultado por bloques y un único
+ * `join` final: la versión anterior concatenaba de a 4 caracteres y en Hermes
+ * eso copia el string entero en cada paso (cuadrático), minutos de CPU por PNG.
+ */
+export function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  let result = '';
-  for (let i = 0; i < bytes.length; i += 3) {
-    const a = bytes[i]!;
-    const b = i + 1 < bytes.length ? bytes[i + 1]! : 0;
-    const c = i + 2 < bytes.length ? bytes[i + 2]! : 0;
-    const triplet = (a << 16) | (b << 8) | c;
-    result += chars[(triplet >> 18) & 63];
-    result += chars[(triplet >> 12) & 63];
-    result += i + 1 < bytes.length ? chars[(triplet >> 6) & 63] : '=';
-    result += i + 2 < bytes.length ? chars[triplet & 63] : '=';
+  const parts: string[] = [];
+  for (let start = 0; start < bytes.length; start += BASE64_CHUNK_BYTES) {
+    const end = Math.min(start + BASE64_CHUNK_BYTES, bytes.length);
+    const out = new Array<string>(Math.ceil((end - start) / 3) * 4);
+    let o = 0;
+    for (let i = start; i < end; i += 3) {
+      const a = bytes[i]!;
+      const hasB = i + 1 < end;
+      const hasC = i + 2 < end;
+      const triplet = (a << 16) | ((hasB ? bytes[i + 1]! : 0) << 8) | (hasC ? bytes[i + 2]! : 0);
+      out[o++] = BASE64_CHARS[(triplet >> 18) & 63]!;
+      out[o++] = BASE64_CHARS[(triplet >> 12) & 63]!;
+      out[o++] = hasB ? BASE64_CHARS[(triplet >> 6) & 63]! : '=';
+      out[o++] = hasC ? BASE64_CHARS[triplet & 63]! : '=';
+    }
+    parts.push(out.join(''));
   }
-  return result;
+  return parts.join('');
+}
+
+type NativeDownloader = {
+  downloadToFile?: (url: string, destPath: string, timeoutMs: number) => Promise<number>;
+};
+
+function getNativeDownloader(): NativeDownloader['downloadToFile'] | null {
+  const mod = (NativeModules as { KioskDeviceModule?: NativeDownloader }).KioskDeviceModule;
+  return typeof mod?.downloadToFile === 'function' ? mod.downloadToFile.bind(mod) : null;
 }
 
 /**
@@ -187,6 +214,18 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
  * "Download interrupted" for most multi-MB product images on this device.
  */
 async function downloadUrlToPath(url: string, destPath: string): Promise<string> {
+  const native = getNativeDownloader();
+  if (native) {
+    const startedAt = Date.now();
+    try {
+      const bytes = await native(url, destPath, DOWNLOAD_TIMEOUT_MS);
+      debugLog('[KioskImages] DOWNLOAD native', `bytes=${bytes}`, `ms=${Date.now() - startedAt}`, destPath);
+      return destPath;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(message.includes('timeout') ? timeoutErrorMessage(url) : message);
+    }
+  }
   const blobUtil = getBlobUtilModule();
   if (!blobUtil) {
     throw new Error('Disk image cache unavailable');
@@ -255,9 +294,19 @@ async function ensureDir(path: string): Promise<void> {
   }
   const exists = await blobUtil.fs.isDir(path);
   if (!exists) {
-    await blobUtil.fs.mkdir(path);
+    try {
+      await blobUtil.fs.mkdir(path);
+    } catch (error) {
+      // Otra descarga paralela la creó entre el isDir y el mkdir.
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes('already exists') && !(await blobUtil.fs.isDir(path))) {
+        throw error;
+      }
+    }
   }
 }
+
+let imagesRootInit: Promise<string> | null = null;
 
 /**
  * `{DocumentDir}/com.midazatlasapp/images`
@@ -270,15 +319,23 @@ export async function getImagesRootDir(): Promise<string> {
   if (imagesRootPath) {
     return imagesRootPath;
   }
-  const root = `${blobUtil.fs.dirs.DocumentDir}/${APP_FOLDER}/${IMAGES_FOLDER}`;
-  await ensureDir(`${blobUtil.fs.dirs.DocumentDir}/${APP_FOLDER}`);
-  await ensureDir(root);
-  for (const kind of ['config', 'categories', 'products', 'modifiers'] as const) {
-    await ensureDir(`${root}/${kind}`);
+  // Single-flight: con 2 descargas en paralelo ambas creaban las carpetas a la vez.
+  if (!imagesRootInit) {
+    imagesRootInit = (async () => {
+      const root = `${blobUtil.fs.dirs.DocumentDir}/${APP_FOLDER}/${IMAGES_FOLDER}`;
+      await ensureDir(`${blobUtil.fs.dirs.DocumentDir}/${APP_FOLDER}`);
+      await ensureDir(root);
+      for (const kind of ['config', 'categories', 'products', 'modifiers'] as const) {
+        await ensureDir(`${root}/${kind}`);
+      }
+      imagesRootPath = root;
+      debugLog('[KioskImages] root', root);
+      return root;
+    })().finally(() => {
+      imagesRootInit = null;
+    });
   }
-  imagesRootPath = root;
-  debugLog('[KioskImages] root', root);
-  return root;
+  return imagesRootInit;
 }
 
 function destPathFor(root: string, kind: ImageCacheKind, remoteUrl: string): string {
@@ -406,7 +463,27 @@ function fileNameFromPath(path: string): string {
 /**
  * Verify local file or download into typed folder. Never throws for network errors.
  */
-export async function ensureLocalImage(entry: ImageSyncEntry): Promise<ImageEnsureResult> {
+const ensureInFlight = new Map<string, Promise<ImageEnsureResult>>();
+
+/**
+ * Una sola descarga por URL a la vez. Varios productos comparten foto (1LT y
+ * 2LT Colita) y la sync de arranque corre en paralelo con la UI: sin esto se
+ * bajaba dos veces a la vez, una fallaba y esa tarjeta quedaba en blanco.
+ */
+export function ensureLocalImage(entry: ImageSyncEntry): Promise<ImageEnsureResult> {
+  const key = entry.url.trim();
+  const pending = ensureInFlight.get(key);
+  if (pending) {
+    return pending.then((result) => ({ ...result, kind: entry.kind }));
+  }
+  const task = ensureLocalImageOnce(entry).finally(() => {
+    ensureInFlight.delete(key);
+  });
+  ensureInFlight.set(key, task);
+  return task;
+}
+
+async function ensureLocalImageOnce(entry: ImageSyncEntry): Promise<ImageEnsureResult> {
   const url = entry.url.trim();
   const kind = entry.kind;
   if (!url || !isRemoteHttpUri(url)) {
@@ -748,6 +825,8 @@ export async function reconcileKioskImageCache(
 }
 
 export async function clearKioskImageCache(): Promise<void> {
+  ensureInFlight.clear();
+  imagesRootInit = null;
   memoryUriByRemote.clear();
   kindByRemote.clear();
   inFlight.clear();

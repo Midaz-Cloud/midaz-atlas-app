@@ -14,6 +14,11 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.modules.network.OkHttpClientProvider
+import java.io.File
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import okhttp3.Request
 
 /**
  * Reads the kiosk hardware serial via system properties (ro.serialno).
@@ -56,7 +61,81 @@ class KioskDeviceModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  /**
+   * Descarga una URL directo a un archivo, sin pasar los bytes por JS. Antes la
+   * caché de imágenes bajaba con fetch → arrayBuffer → base64 armado en JS
+   * (medio millón de concatenaciones por PNG de 1 MB): dejaba el hilo JS al 100 %
+   * durante minutos y cada toque del cliente esperaba en la cola. Escribe a
+   * `<dest>.part` y renombra al final, así un corte nunca deja un archivo a medias.
+   */
+  @ReactMethod
+  fun downloadToFile(url: String, destPath: String, timeoutMs: Double, promise: Promise) {
+    downloadExecutor.execute {
+      val dest = File(destPath)
+      // Temporal único por llamada: dos productos con la misma foto (o la sync de
+      // arranque y la UI a la vez) escribían el mismo `.part` y el segundo rename fallaba.
+      val part = File("$destPath.${java.util.UUID.randomUUID()}.part")
+      try {
+        dest.parentFile?.mkdirs()
+        val client = OkHttpClientProvider.getOkHttpClient()
+          .newBuilder()
+          .callTimeout(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
+          .build()
+        val request = Request.Builder().url(url).header("Accept", "image/*,*/*;q=0.8").build()
+        client.newCall(request).execute().use { response ->
+          if (!response.isSuccessful) {
+            promise.reject("HTTP_${response.code}", "HTTP ${response.code}")
+            return@execute
+          }
+          val body = response.body
+          if (body == null) {
+            promise.reject("EMPTY_BODY", "Empty image body")
+            return@execute
+          }
+          var total = 0L
+          body.byteStream().use { input ->
+            part.outputStream().use { output ->
+              val buffer = ByteArray(64 * 1024)
+              while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                output.write(buffer, 0, read)
+                total += read
+              }
+            }
+          }
+          if (total <= 0L) {
+            part.delete()
+            promise.reject("EMPTY_BODY", "Empty image body")
+            return@execute
+          }
+          if (dest.exists()) dest.delete()
+          if (!part.renameTo(dest)) {
+            if (dest.exists() && dest.length() > 0L) {
+              // Otra descarga de la misma URL terminó primero: el archivo ya está.
+              part.delete()
+            } else {
+              part.copyTo(dest, overwrite = true)
+              part.delete()
+            }
+          }
+          promise.resolve(total.toDouble())
+        }
+      } catch (e: Exception) {
+        part.delete()
+        val timeout = e is java.io.InterruptedIOException
+        promise.reject(
+          if (timeout) "TIMEOUT" else "DOWNLOAD_ERROR",
+          if (timeout) "Image cache timeout (native) $url" else (e.message ?: "download failed"),
+          e,
+        )
+      }
+    }
+  }
+
   companion object {
+    /** Pocas descargas a la vez: el AF910 tiene 4 núcleos lentos y Wi‑Fi compartido. */
+    private val downloadExecutor = Executors.newFixedThreadPool(2)
     private const val HKA_PACKAGE = "com.thefactory.demoPP9"
     private const val HKA_START_ACTION = "com.thefactory.demoPP9.action.START_FISCAL_SERVICE"
     private const val HKA_START_RECEIVER = "com.thefactory.demoPP9.service.FiscalServiceStartReceiver"
