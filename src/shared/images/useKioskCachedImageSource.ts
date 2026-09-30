@@ -39,6 +39,16 @@ function shouldResolveRemote(
  * after resolve confirms there is no local copy.
  * Always verifies disk hits via resolve so a wiped file re-downloads.
  */
+function sameUri(source: ImageSourcePropType | undefined, uri: string): boolean {
+  return (
+    source != null &&
+    typeof source === 'object' &&
+    !Array.isArray(source) &&
+    'uri' in source &&
+    source.uri === uri
+  );
+}
+
 export function useKioskCachedImageSource(
   source?: ImageSourcePropType,
   cacheKind?: ImageCacheKind,
@@ -94,7 +104,8 @@ export function useKioskCachedImageSource(
 
     const localHit = getLocalCachedImageUri(remoteUri);
     if (localHit) {
-      setResolvedSource({ uri: localHit });
+      // Misma URI que ya se pintó: no crear otro objeto (Image lo tomaría como fuente nueva).
+      setResolvedSource((prev) => (sameUri(prev, localHit) ? prev : { uri: localHit }));
       setIsResolving(false);
     } else {
       setIsResolving(true);
@@ -113,7 +124,7 @@ export function useKioskCachedImageSource(
         if (cancelled || !uri) {
           return;
         }
-        setResolvedSource({ uri });
+        setResolvedSource((prev) => (sameUri(prev, uri) ? prev : { uri }));
         setIsResolving(false);
       })
       .catch(() => {

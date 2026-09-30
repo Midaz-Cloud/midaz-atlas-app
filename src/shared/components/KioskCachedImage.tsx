@@ -136,6 +136,8 @@ export function KioskCachedImage({
       source={resolvedSource!}
       style={style}
       resizeMode={resizeMode}
+      // Sin el fundido de 300 ms de Android: la foto ya está en disco, se pinta directo.
+      fadeDuration={0}
       // Decodificar ya reducido al tamaño de la vista (no la foto completa de
       // varios MB): menos memoria nativa por tarjeta, clave en el AF910.
       resizeMethod="resize"

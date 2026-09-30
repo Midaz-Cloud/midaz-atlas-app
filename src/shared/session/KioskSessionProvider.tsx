@@ -31,6 +31,7 @@ import { startKioskCustomerSync } from '@shared/customer/syncKioskCustomers';
 import { startHkaFiscalService } from '@shared/peripherals/fiscal/ensureFiscalReady';
 import { shouldUsePhysicalFiscalPrinter } from '@shared/api/kiosk/utils/invoicingType';
 import { startKioskTelemetryHeartbeat } from '@shared/telemetry';
+import { optimizeCachedImagesOnce } from '@shared/images/kioskImageCache';
 import { useSessionLocale } from '@shared/i18n';
 import { resolveKioskLanguagePolicy } from '@shared/i18n/resolveKioskLanguagePolicy';
 
@@ -209,6 +210,15 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
       return;
     }
     void startHkaFiscalService();
+  }, [status]);
+
+  // Fotos que ya estaban en caché antes de 1.2.4: se reducen una vez en segundo
+  // plano (hilo nativo) para que el catálogo aparezca sin retraso.
+  useEffect(() => {
+    if (status !== 'ready') {
+      return;
+    }
+    void optimizeCachedImagesOnce();
   }, [status]);
 
   // Caché de clientes para vender sin red: se baja en línea (incremental).

@@ -15,6 +15,8 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.modules.network.OkHttpClientProvider
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -119,7 +121,10 @@ class KioskDeviceModule(reactContext: ReactApplicationContext) :
               part.delete()
             }
           }
-          promise.resolve(total.toDouble())
+          // Se guarda ya reducida: la tarjeta se ve a ~400 px y decodificar un PNG
+          // de 1080 px por tarjeta era el retraso visible al abrir el catálogo.
+          optimizeImageFile(dest)
+          promise.resolve(dest.length().toDouble())
         }
       } catch (e: Exception) {
         part.delete()
@@ -133,7 +138,73 @@ class KioskDeviceModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  /**
+   * Reduce una sola vez las imágenes que ya estaban en caché antes de esta versión.
+   * Idempotente: una imagen ya reducida (≤ MAX_IMAGE_SIDE) no se toca. Resuelve
+   * cuántas se reescribieron.
+   */
+  @ReactMethod
+  fun optimizeCachedImages(rootPath: String, promise: Promise) {
+    downloadExecutor.execute {
+      try {
+        var changed = 0
+        File(rootPath).walkTopDown()
+          .filter { it.isFile && !it.name.endsWith(".part") }
+          .forEach { if (optimizeImageFile(it)) changed += 1 }
+        promise.resolve(changed)
+      } catch (e: Exception) {
+        promise.reject("OPTIMIZE_ERROR", e.message, e)
+      }
+    }
+  }
+
+  /** true si la reescribió. Nunca deja el archivo roto: escribe a un temporal y renombra. */
+  private fun optimizeImageFile(file: File): Boolean {
+    return try {
+      val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+      BitmapFactory.decodeFile(file.path, bounds)
+      val side = maxOf(bounds.outWidth, bounds.outHeight)
+      if (side <= 0 || side <= MAX_IMAGE_SIDE) return false
+      var sample = 1
+      while (side / (sample * 2) >= MAX_IMAGE_SIDE) sample *= 2
+      val decoded = BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
+        ?: return false
+      val scale = MAX_IMAGE_SIDE.toFloat() / maxOf(decoded.width, decoded.height)
+      val bitmap = if (scale < 1f) {
+        Bitmap.createScaledBitmap(
+          decoded,
+          (decoded.width * scale).toInt().coerceAtLeast(1),
+          (decoded.height * scale).toInt().coerceAtLeast(1),
+          true,
+        ).also { if (it !== decoded) decoded.recycle() }
+      } else {
+        decoded
+      }
+      val tmp = File("${file.path}.${java.util.UUID.randomUUID()}.opt")
+      tmp.outputStream().use { out ->
+        @Suppress("DEPRECATION")
+        bitmap.compress(Bitmap.CompressFormat.WEBP, WEBP_QUALITY, out)
+      }
+      bitmap.recycle()
+      if (tmp.length() <= 0L) {
+        tmp.delete()
+        return false
+      }
+      if (!tmp.renameTo(file)) {
+        tmp.copyTo(file, overwrite = true)
+        tmp.delete()
+      }
+      true
+    } catch (_: Throwable) {
+      false
+    }
+  }
+
   companion object {
+    /** Lado máximo guardado: la tarjeta más grande (detalle) ronda 700 px en el AF910. */
+    private const val MAX_IMAGE_SIDE = 720
+    private const val WEBP_QUALITY = 85
+
     /** Pocas descargas a la vez: el AF910 tiene 4 núcleos lentos y Wi‑Fi compartido. */
     private val downloadExecutor = Executors.newFixedThreadPool(2)
     private const val HKA_PACKAGE = "com.thefactory.demoPP9"

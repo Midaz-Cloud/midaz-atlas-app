@@ -844,3 +844,32 @@ export async function clearKioskImageCache(): Promise<void> {
   imagesRootPath = null;
   await AsyncStorage.multiRemove([CACHE_INDEX_KEY, LEGACY_CACHE_INDEX_KEY]);
 }
+
+const OPTIMIZED_FLAG_KEY = '@kiosk/imageCacheOptimized/v1';
+
+type NativeOptimizer = { optimizeCachedImages?: (rootPath: string) => Promise<number> };
+
+/**
+ * Una sola vez por instalación: reduce a ≤720 px (WebP) las fotos que quedaron en
+ * disco antes de que la descarga nativa las guardara ya reducidas. Corre en un
+ * hilo nativo, no bloquea la UI, y si falla se reintenta en el próximo arranque.
+ */
+export async function optimizeCachedImagesOnce(): Promise<number> {
+  try {
+    if ((await AsyncStorage.getItem(OPTIMIZED_FLAG_KEY)) === 'done') {
+      return 0;
+    }
+    const mod = (NativeModules as { KioskDeviceModule?: NativeOptimizer }).KioskDeviceModule;
+    if (typeof mod?.optimizeCachedImages !== 'function' || !isKioskImageDiskCacheAvailable()) {
+      return 0;
+    }
+    const root = await getImagesRootDir();
+    const changed = await mod.optimizeCachedImages(root);
+    await AsyncStorage.setItem(OPTIMIZED_FLAG_KEY, 'done');
+    debugLog('[KioskImages] OPTIMIZE existing', `changed=${changed}`);
+    return changed;
+  } catch (error) {
+    console.warn('[KioskImages] OPTIMIZE failed', error instanceof Error ? error.message : String(error));
+    return 0;
+  }
+}
