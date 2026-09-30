@@ -2,8 +2,14 @@ import { withKioskAuth } from '@shared/api/kiosk';
 import { shouldUseMockApi } from '@shared/config/api';
 
 import { collectKioskTelemetry } from './kioskTelemetry';
+import { recordKioskRuntimeHealthSample } from './kioskRuntimeHealthHistory';
 
 const HEARTBEAT_MS = 5 * 60_000;
+
+/** El DTO del backend valida enteros (MB); en el historial local se guardan con decimal. */
+function roundOrNull(value: number | null): number | null {
+  return value == null ? null : Math.round(value);
+}
 
 type Context = {
   sessionMode: 'online' | 'offline';
@@ -56,6 +62,9 @@ export async function requestKioskHeartbeatNow(): Promise<boolean> {
         sessionMode: context.sessionMode,
         lanRunning: context.lanRunning,
       });
+      // Historial local (24 h) aunque el envío falle: es justamente sin red o
+      // con el equipo degradado cuando más hace falta poder mirarlo después.
+      await recordKioskRuntimeHealthSample(telemetry.runtime).catch(() => undefined);
       await withKioskAuth((client) =>
         client.sendHeartbeat({
           lanIp: context.lanIp ?? undefined,
@@ -69,6 +78,17 @@ export async function requestKioskHeartbeatNow(): Promise<boolean> {
           lan: telemetry.lan,
           catalog: telemetry.catalog,
           sessionMode: telemetry.sessionMode,
+          runtime: {
+            appUptimeSec: telemetry.runtime.appUptimeSec,
+            jsHeapUsedMb: roundOrNull(telemetry.runtime.jsHeapUsedMb),
+            jsHeapSizeMb: roundOrNull(telemetry.runtime.jsHeapSizeMb),
+            jsGcCount: telemetry.runtime.jsGcCount,
+            pssMb: roundOrNull(telemetry.runtime.pssMb),
+            nativeHeapMb: roundOrNull(telemetry.runtime.nativeHeapMb),
+            javaHeapMb: roundOrNull(telemetry.runtime.javaHeapMb),
+            systemAvailMb: roundOrNull(telemetry.runtime.systemAvailMb),
+            systemLowMemory: telemetry.runtime.systemLowMemory,
+          },
         }),
       );
       return true;

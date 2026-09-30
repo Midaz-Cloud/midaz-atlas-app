@@ -14,16 +14,42 @@ import type {
   FiscalZReportResult,
 } from './types';
 
-async function fiscalFetch(url: string, init: RequestInit): Promise<Response> {
+/**
+ * Presupuestos por llamada (ms). HkaApp corre en la misma tablet: si su servidor
+ * acepta la conexión pero se queda trabado (p.ej. bloqueado en la pila Bluetooth),
+ * un fetch sin timeout dejaba colgados para siempre el heartbeat de telemetría y
+ * el `ensureFiscalReady` previo al cobro. Emitir e imprimir el Z tardan lo que
+ * tarde la impresora, por eso sus presupuestos son largos.
+ */
+export const FISCAL_TIMEOUTS = {
+  health: 5_000,
+  emit: 120_000,
+  zReport: 180_000,
+} as const;
+
+async function fiscalFetch(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     logFiscal(`${init.method ?? 'GET'} ${url}`);
-    return await fetch(url, init);
+    return await fetch(url, { ...init, signal: controller.signal });
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    logFiscal('fetch failed', { url, detail });
+    const aborted = (error as { name?: string } | null)?.name === 'AbortError';
+    const detail = aborted
+      ? `sin respuesta en ${Math.round(timeoutMs / 1000)} s`
+      : error instanceof Error
+        ? error.message
+        : String(error);
+    logFiscal('fetch failed', { url, detail, aborted });
     throw new FiscalServiceError(
       `No se pudo conectar al servicio fiscal (${getFiscalServiceBaseUrl()}): ${detail}. Verifique que HkaApp este abierta en este dispositivo.`,
     );
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -44,10 +70,14 @@ export class HttpFiscalClient implements FiscalClient {
   async getHealth(options?: FiscalHealthOptions): Promise<FiscalHealthResult> {
     const query = options?.probeEnq ? '?probe=enq' : '';
     const url = `${this.baseUrl}/v1/health${query}`;
-    const response = await fiscalFetch(url, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-    });
+    const response = await fiscalFetch(
+      url,
+      {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      },
+      FISCAL_TIMEOUTS.health,
+    );
     const body = await readFiscalJson(response);
     const envelope = parseFiscalHealthEnvelope(body);
     logFiscal('health response', {
@@ -70,14 +100,18 @@ export class HttpFiscalClient implements FiscalClient {
   async emitInvoice(request: EmitFiscalInvoiceRequest): Promise<EmitFiscalInvoiceResult> {
     const url = `${this.baseUrl}/v1/invoices/emit`;
     logFiscal('emit request', request);
-    const response = await fiscalFetch(url, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
+    const response = await fiscalFetch(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
       },
-      body: JSON.stringify(request),
-    });
+      FISCAL_TIMEOUTS.emit,
+    );
     const body = await readFiscalJson(response);
     const envelope = parseFiscalEmitEnvelope(body);
     logFiscal('emit response', {
@@ -116,10 +150,14 @@ export class HttpFiscalClient implements FiscalClient {
     url: string,
   ): Promise<FiscalZReportResult> {
     logFiscal(`${method} ${url}`);
-    const response = await fiscalFetch(url, {
-      method,
-      headers: { Accept: 'application/json' },
-    });
+    const response = await fiscalFetch(
+      url,
+      {
+        method,
+        headers: { Accept: 'application/json' },
+      },
+      FISCAL_TIMEOUTS.zReport,
+    );
     const body = await readFiscalJson(response);
     const envelope = parseFiscalZReportEnvelope(body);
     logFiscal('z report response', {

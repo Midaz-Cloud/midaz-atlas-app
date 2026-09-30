@@ -51,6 +51,9 @@ describe('collectKioskTelemetry', () => {
     expect(result.sync).toEqual({ pending: 3, failed: 1, openFailedPayments: 1 });
     expect(result.catalog).toEqual({ products: 2 });
     expect(result.sessionMode).toBe('online');
+    // Salud del proceso: siempre presente (con nulls si el nativo no está en Jest).
+    expect(typeof result.runtime.at).toBe('string');
+    expect(result.runtime.appUptimeSec).toBeGreaterThanOrEqual(0);
   });
 
   it('keeps reporting the rest when one source fails (fiscal unreachable)', async () => {

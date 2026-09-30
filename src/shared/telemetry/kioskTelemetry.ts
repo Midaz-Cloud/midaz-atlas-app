@@ -6,6 +6,8 @@ import { listFailedPaymentRecordsByStatus } from '@shared/persistence';
 import { getOrderSyncSnapshot } from '@shared/sync';
 import { checkFiscalHealth } from '@shared/peripherals/fiscal/checkFiscalHealth';
 
+import { collectKioskRuntimeHealth, type KioskRuntimeHealth } from './kioskRuntimeHealth';
+
 export type KioskTelemetryDevice = {
   memTotalMb: number | null;
   memAvailableMb: number | null;
@@ -23,6 +25,8 @@ export type KioskTelemetrySnapshot = {
   sync: { pending: number; failed: number; openFailedPayments: number };
   catalog: { products: number };
   sessionMode: 'online' | 'offline';
+  /** Memoria del proceso / heap JS / uptime: ver kioskRuntimeHealth.ts. */
+  runtime: KioskRuntimeHealth;
 };
 
 const BYTES_PER_MB = 1024 * 1024;
@@ -110,10 +114,11 @@ export async function collectKioskTelemetry(options: {
    *  para no crear un ciclo entre `@shared/telemetry` y `@shared/lan`. */
   lanRunning: boolean;
 }): Promise<KioskTelemetrySnapshot> {
-  const [device, fiscal, openFailedPayments] = await Promise.all([
+  const [device, fiscal, openFailedPayments, runtime] = await Promise.all([
     collectDevice(),
     collectFiscal(options.requiresFiscalPrinter),
     collectOpenFailedPayments(),
+    collectKioskRuntimeHealth(),
   ]);
 
   const syncSnapshot = getOrderSyncSnapshot();
@@ -132,5 +137,6 @@ export async function collectKioskTelemetry(options: {
     },
     catalog: { products: getCatalogProducts().length },
     sessionMode: options.sessionMode,
+    runtime,
   };
 }

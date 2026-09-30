@@ -55,6 +55,7 @@ export type AdminDashboardScreenProps = {
   onBack: () => void;
   onOpenFailedPayments?: () => void;
   onOpenPendingSync?: () => void;
+  onOpenDeviceHealth?: () => void;
 };
 
 type StatusTone = 'neutral' | 'success' | 'error';
@@ -74,6 +75,7 @@ export function AdminDashboardScreen({
   onBack,
   onOpenFailedPayments,
   onOpenPendingSync,
+  onOpenDeviceHealth,
 }: AdminDashboardScreenProps) {
   const syncStatus = useOrderSyncStatus();
   const lanStatus = useLanComandaServerStatus();
@@ -708,6 +710,14 @@ export function AdminDashboardScreen({
                 ? ` (${syncStatus.pending + syncStatus.failed})`
                 : ''}
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={onOpenDeviceHealth}
+            disabled={loading || !onOpenDeviceHealth}
+            testID="admin-device-health-button">
+            <Text style={styles.buttonText}>Salud del equipo</Text>
           </TouchableOpacity>
 
           {showCloseProgress ? (

@@ -64,3 +64,9 @@ Payloads USB reales para tests van en `src/shared/peripherals/ecr/__fixtures__/`
 ## Pendiente: rotar credenciales expuestas (`.env.bak.20260827-dev`)
 
 Ese archivo (commit `cb0b65c`, mergeado a `develop` el 2026-09-01) trae `KIOSK_API_KEY` y `KIOSK_ADMIN_PASSCODE` en texto plano — quedó en la rama `feat/kiosk-order-types`, que hasta esa fecha era solo local y recién se pusheó a GitHub por primera vez. Rotar ambos valores cuando se pueda (no es urgente, repo privado) y, si se quiere sacar el archivo del historial, coordinarlo aparte — reescribir requiere force-push sobre `develop`.
+
+## Salud del equipo y Fase 2 del menú (2026-09-29)
+
+- **Telemetría de proceso** (`src/shared/telemetry/kioskRuntimeHealth.ts`): PSS/heap Hermes/uptime vía `KioskDeviceModule.getProcessMemory` + `HermesInternal.getInstrumentedStats`. Viaja en el heartbeat (`runtime`, whitelisted en gateway y `KioskHeartbeatDto`) y se guarda un historial local de 24 h (`kioskRuntimeHealthHistory.ts`, una toma cada 5 min) visible en admin → "Salud del equipo" (`DeviceHealthScreen`). Si el kiosko "se pone lento tras horas", mirar ahí primero (PSS/heap creciendo vs. `Memoria baja` del sistema) antes de tocar código.
+- **Menú virtualizado**: `MenuScreen` es una `FlatList` con solo la categoría elegida montada (`MenuProductRow` memoizada). No volver al patrón de montar todas las categorías con `display: none`: decodificaba el catálogo completo en memoria nativa.
+- **Fiscal con timeout**: `FISCAL_TIMEOUTS` en `HttpFiscalClient` (health 5 s, emit 120 s, Z 180 s). HkaApp por su lado hace backoff (10 s → 5 min) en la reconexión Bluetooth cuando la impresora no responde; el health con `probe=enq` (antes de cobrar) es "urgente" y salta esa espera.

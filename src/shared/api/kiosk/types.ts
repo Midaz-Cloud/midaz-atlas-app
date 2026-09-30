@@ -124,6 +124,18 @@ export type KioskHeartbeatRequest = {
   lan?: { running: boolean };
   catalog?: { products: number };
   sessionMode?: 'online' | 'offline';
+  /** Salud del proceso (PSS, heap Hermes, uptime): @shared/telemetry/kioskRuntimeHealth. */
+  runtime?: {
+    appUptimeSec?: number | null;
+    jsHeapUsedMb?: number | null;
+    jsHeapSizeMb?: number | null;
+    jsGcCount?: number | null;
+    pssMb?: number | null;
+    nativeHeapMb?: number | null;
+    javaHeapMb?: number | null;
+    systemAvailMb?: number | null;
+    systemLowMemory?: boolean | null;
+  };
 };
 
 export type KioskLanComandaConfig = {

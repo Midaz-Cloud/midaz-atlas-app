@@ -5,6 +5,7 @@ export type IntroductionStep =
   | 'admin'
   | 'failedPayments'
   | 'failedPaymentDetail'
-  | 'pendingSync';
+  | 'pendingSync'
+  | 'deviceHealth';
 
 export type OrderType = 'dineIn' | 'takeOut';

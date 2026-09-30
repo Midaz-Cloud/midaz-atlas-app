@@ -46,7 +46,22 @@ export async function lookupCustomerByDocument(
     return lookupCustomerOffline(normalized);
   }
 
-  const live = await lookupCustomerByCedulaLive(normalized);
+  // Cliente que el kiosko ya conoce (caché sincronizado del backend o de una
+  // compra anterior): respuesta instantánea y se refresca en segundo plano.
+  const known = await findKnownCustomer(normalized);
+  if (known) {
+    void lookupCustomerByCedulaLive(normalized)
+      .then((fresh) => {
+        if (fresh.status === 'found') {
+          return cacheCustomerLocally(fresh.customer);
+        }
+        return undefined;
+      })
+      .catch(() => undefined);
+    return { status: 'found', customer: known };
+  }
+
+  const live = await withLookupDeadline(lookupCustomerByCedulaLive(normalized), normalized);
 
   switch (live.status) {
     case 'found':
@@ -70,6 +85,55 @@ export async function lookupCustomerByDocument(
         message: live.message,
         documentId: live.documentId,
       };
+  }
+}
+
+/**
+ * Tope duro de la búsqueda en vivo: pase lo que pase (DNS, Wi‑Fi colgado,
+ * backend lento) el cliente sale de la pantalla en ≤ 9 s. Al vencer se trata
+ * como sin red → caché local o registro.
+ */
+export const CUSTOMER_LOOKUP_DEADLINE_MS = 9_000;
+
+function withLookupDeadline(
+  lookup: ReturnType<typeof lookupCustomerByCedulaLive>,
+  documentId: string,
+): ReturnType<typeof lookupCustomerByCedulaLive> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<Awaited<ReturnType<typeof lookupCustomerByCedulaLive>>>((resolve) => {
+    timer = setTimeout(
+      () =>
+        resolve({
+          status: 'error',
+          message: 'La búsqueda de cédula tardó demasiado',
+          documentId,
+          networkError: true,
+        }),
+      CUSTOMER_LOOKUP_DEADLINE_MS,
+    );
+  });
+  return Promise.race([lookup, deadline]).finally(() => clearTimeout(timer));
+}
+
+async function findKnownCustomer(documentId: string): Promise<KioskCustomer | null> {
+  try {
+    const local = await findLocalCustomer(documentId);
+    if (!local || local.backendId == null) {
+      // Solo los que ya existen en el backend: uno registrado sin red todavía
+      // no tiene id y conviene consultar para enlazarlo.
+      return null;
+    }
+    return {
+      id: local.backendId,
+      documentId: local.documentId,
+      firstName: local.firstName,
+      lastName: local.lastName,
+      phone: local.phone,
+      email: local.email ?? '',
+      source: 'local',
+    };
+  } catch {
+    return null;
   }
 }
 

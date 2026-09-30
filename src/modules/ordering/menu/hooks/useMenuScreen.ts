@@ -30,19 +30,27 @@ export function useMenuScreen(options: UseMenuScreenOptions = {}) {
   const catalogProducts = getCatalogProducts();
   const catalogCategories = getCatalogCategories();
 
-  const categories =
-    catalogCategories.length > 0
-      ? catalogCategories
-      : useMockFallback
-        ? mockMenuCategories
-        : [];
+  // Memoizados para que los memos de abajo no se invaliden en cada render por
+  // un `[]` nuevo cuando el catálogo está vacío.
+  const categories = useMemo(
+    () =>
+      catalogCategories.length > 0
+        ? catalogCategories
+        : useMockFallback
+          ? mockMenuCategories
+          : [],
+    [catalogCategories, useMockFallback],
+  );
 
-  const allProducts =
-    catalogProducts.length > 0
-      ? catalogProducts
-      : useMockFallback
-        ? mockMenuProducts
-        : [];
+  const allProducts = useMemo(
+    () =>
+      catalogProducts.length > 0
+        ? catalogProducts
+        : useMockFallback
+          ? mockMenuProducts
+          : [],
+    [catalogProducts, useMockFallback],
+  );
 
   const [selectedCategoryId, setSelectedCategoryId] = useState(
     initialCategoryId ?? categories[0]?.id ?? '',
@@ -94,37 +102,8 @@ export function useMenuScreen(options: UseMenuScreenOptions = {}) {
     });
   }, [allProducts, hasFeaturedProducts, matchesSearchAndExclude, selectedCategoryId]);
 
-  /**
-   * All category grids kept in memory (MenuScreen shows/hides).
-   * Filtered by search; featured products stay in the featured carousel only.
-   */
-  const productsByCategoryId = useMemo(() => {
-    const map = new Map<string, MenuProduct[]>();
-    for (const category of categories) {
-      map.set(category.id, []);
-    }
-    for (const product of allProducts) {
-      if (hasFeaturedProducts && product.featured) {
-        continue;
-      }
-      if (!matchesSearchAndExclude(product)) {
-        continue;
-      }
-      const existing = map.get(product.categoryId);
-      if (existing) {
-        existing.push(product);
-      } else {
-        map.set(product.categoryId, [product]);
-      }
-    }
-    return map;
-  }, [allProducts, categories, hasFeaturedProducts, matchesSearchAndExclude]);
-
-  const sectionTitleKey = useMemo(() => {
-    const first = gridProducts[0];
-    return first?.sectionKey ?? 'menu.sections.cups';
-  }, [gridProducts]);
-
+  // Fase 2: solo la categoría elegida se monta (`gridProducts`); ya no se
+  // precalcula la grilla de todas las categorías.
   return {
     categories,
     selectedCategoryId,
@@ -134,8 +113,6 @@ export function useMenuScreen(options: UseMenuScreenOptions = {}) {
     featuredProducts,
     showFeaturedSection: hasFeaturedProducts,
     gridProducts,
-    productsByCategoryId,
-    sectionTitleKey,
   };
 }
 
