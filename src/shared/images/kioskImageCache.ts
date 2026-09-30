@@ -510,16 +510,18 @@ async function ensureLocalImageOnce(entry: ImageSyncEntry): Promise<ImageEnsureR
     const root = await getImagesRootDir();
     const index = await loadIndex();
     const indexed = index[url];
-    const preferredPath =
-      indexed?.path && indexed.kind === kind
-        ? indexed.path
-        : destPathFor(root, kind, url);
+    // La foto se identifica por URL, no por tipo: la misma URL puede ser imagen de
+    // producto y de categoría a la vez. Antes el path dependía del tipo y cada
+    // uso borraba el archivo del otro ("stale path"), así que en cada arranque se
+    // borraban entre sí: ENOENT en el menú y re-descarga completa tras actualizar.
+    const indexedExists = Boolean(indexed?.path) && (await blobUtil.fs.exists(indexed!.path));
+    const preferredPath = indexedExists ? indexed!.path : destPathFor(root, kind, url);
     const fileName = fileNameFromPath(preferredPath);
 
-    if (await blobUtil.fs.exists(preferredPath)) {
+    if (indexedExists || (await blobUtil.fs.exists(preferredPath))) {
       const localUri = rememberRemoteMapping(url, preferredPath);
-      if (!indexed || indexed.path !== preferredPath || indexed.kind !== kind) {
-        await updateIndexEntry(url, preferredPath, kind);
+      if (!indexed || indexed.path !== preferredPath) {
+        await updateIndexEntry(url, preferredPath, indexed?.kind ?? kind);
       }
       debugLog(
         '[KioskImages] SKIP cached',
@@ -529,11 +531,6 @@ async function ensureLocalImageOnce(entry: ImageSyncEntry): Promise<ImageEnsureR
         url,
       );
       return { status: 'skipped', url, kind, localUri };
-    }
-
-    // Stale index path that no longer exists — clean and re-download.
-    if (indexed?.path && indexed.path !== preferredPath) {
-      await unlinkQuietly(indexed.path);
     }
 
     debugLog(

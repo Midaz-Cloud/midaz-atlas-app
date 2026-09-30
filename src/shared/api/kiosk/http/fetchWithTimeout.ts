@@ -11,7 +11,8 @@ export const KIOSK_TIMEOUTS = {
   createOrder: 15_000,
   validatePayment: 15_000,
   customers: 10_000,
-  customerLookup: 6_000,
+  /** Backend corta la API externa a 5 s; 8 s cubre eso más el Wi‑Fi del kiosko. */
+  customerLookup: 8_000,
   settlement: 15_000,
   banks: 8_000,
   default: 10_000,

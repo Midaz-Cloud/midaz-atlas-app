@@ -26,6 +26,20 @@ export type LiveLookupCedulaResult =
   /** `networkError`: no hubo respuesta del servidor (sin red / timeout), no un rechazo. */
   | { status: 'error'; message: string; documentId: string; networkError?: true };
 
+/** El serial no cambia durante la vida del proceso: leerlo una vez (antes, 7 llamadas nativas por búsqueda). */
+let cachedSerial: Promise<string> | null = null;
+function getLookupSerial(): Promise<string> {
+  if (!cachedSerial) {
+    cachedSerial = getKioskDeviceProfile()
+      .then((device) => device.serialNumber)
+      .catch((error) => {
+        cachedSerial = null;
+        throw error;
+      });
+  }
+  return cachedSerial;
+}
+
 export async function lookupCustomerByCedulaLive(
   documentId: string,
 ): Promise<LiveLookupCedulaResult> {
@@ -38,14 +52,14 @@ export async function lookupCustomerByCedulaLive(
     };
   }
 
-  const device = await getKioskDeviceProfile();
+  const serialNumber = await getLookupSerial();
   const { nacionalidad, cedula } = documentIdToLookupQuery(documentId);
 
   const query = new URLSearchParams({
     nacionalidad,
     cedula,
     apiKey,
-    serialNumber: device.serialNumber,
+    serialNumber,
   });
 
   const url = getKioskApiUrl(`/customers/lookup-cedula?${query.toString()}`);

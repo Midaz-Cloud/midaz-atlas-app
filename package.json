@@ -1,6 +1,6 @@
 {
   "name": "MidazAtlasApp",
-  "version": "1.2.4",
+  "version": "1.2.6",
   "private": true,
   "scripts": {
     "android": "node scripts/adbDevServer.js && cross-env STORYBOOK_ENABLED=false ANDROID_HOME=%LOCALAPPDATA%/Android/Sdk ANDROID_SDK_ROOT=%LOCALAPPDATA%/Android/Sdk react-native run-android",
