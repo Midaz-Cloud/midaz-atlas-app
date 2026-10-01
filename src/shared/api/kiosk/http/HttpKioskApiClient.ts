@@ -25,7 +25,6 @@ import type {
   CreateKioskOrderResponse,
   KioskBank,
   KioskConfigFetchResult,
-  KioskConfigResponse,
   KioskCustomerApi,
   KioskLoginRequest,
   KioskLoginResponse,
@@ -284,6 +283,18 @@ export class HttpKioskApiClient implements KioskApiClient {
       data: Array.isArray(body.data) ? body.data : [],
       nextCursor: typeof body.nextCursor === 'string' ? body.nextCursor : null,
     };
+  }
+
+  async lookupCedula(nacionalidad: string, cedula: string): Promise<unknown> {
+    const query = new URLSearchParams({ nacionalidad, cedula });
+    const response = await fetchWithTimeout(
+      this.apiUrl(`/kiosk/customers/lookup-cedula?${query.toString()}`),
+      { method: 'GET', headers: this.headers() },
+      KIOSK_TIMEOUTS.customerLookup,
+      '/kiosk/customers/lookup-cedula',
+    );
+    await throwIfNotOk(response, '/kiosk/customers/lookup-cedula');
+    return response.json();
   }
 
   async sendHeartbeat(body: KioskHeartbeatRequest): Promise<void> {

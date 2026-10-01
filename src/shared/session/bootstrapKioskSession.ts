@@ -58,6 +58,10 @@ export type BootstrapKioskSessionResult =
   | {
       status: 'auth_error';
       message: string;
+      /** HTTP del backend (401 = no registrado/revocado/complemento, 403 = bloqueado); undefined = red/otro. */
+      statusCode?: number;
+      /** Serial que mandó el equipo: se muestra en pantalla para que lo registren sin adb. */
+      deviceSerial: string | null;
     };
 
 export async function bootstrapKioskSession(
@@ -194,7 +198,15 @@ export async function bootstrapKioskSession(
         : err instanceof Error
           ? err.message
           : 'Error al iniciar el kiosco';
-    return { status: 'auth_error', message };
+    const deviceSerial = await getKioskDeviceProfile()
+      .then((device) => device.serialNumber)
+      .catch(() => null);
+    return {
+      status: 'auth_error',
+      message,
+      statusCode: err instanceof KioskApiError ? err.statusCode : undefined,
+      deviceSerial,
+    };
   }
 }
 
