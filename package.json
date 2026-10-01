@@ -9,6 +9,8 @@
     "android:demo:install": "node scripts/adbDevServer.js && cross-env STORYBOOK_ENABLED=false ENVFILE=.env.demo ANDROID_HOME=%LOCALAPPDATA%/Android/Sdk ANDROID_SDK_ROOT=%LOCALAPPDATA%/Android/Sdk react-native run-android --no-packager",
     "android:release": "npm run android:release:apk && npm run android:release:install",
     "android:release:apk": "cross-env STORYBOOK_ENABLED=false node scripts/assembleAndroidRelease.js",
+    "android:release:qa:apk": "cross-env STORYBOOK_ENABLED=false ENVFILE=.env.qa.local node scripts/assembleAndroidRelease.js",
+    "android:release:prod:apk": "cross-env STORYBOOK_ENABLED=false ENVFILE=.env.prod.local node scripts/assembleAndroidRelease.js",
     "android:release:install": "node scripts/installAndroidReleaseApk.js",
     "android:release:run": "cross-env STORYBOOK_ENABLED=false ANDROID_HOME=%LOCALAPPDATA%/Android/Sdk ANDROID_SDK_ROOT=%LOCALAPPDATA%/Android/Sdk react-native run-android --mode release --no-packager",
     "android:demo:release": "cross-env STORYBOOK_ENABLED=false ENVFILE=.env.demo node scripts/assembleAndroidRelease.js",
