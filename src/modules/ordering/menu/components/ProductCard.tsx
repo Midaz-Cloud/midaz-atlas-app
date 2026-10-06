@@ -83,7 +83,8 @@ export function ProductCard({
           overflow: 'hidden',
           alignItems: 'center',
           justifyContent: 'center',
-          ...kioskScreenShadows.productImage,
+          // Sin sombra propia: una segunda elevación por tarjeta (5 % de opacidad,
+          // casi invisible) duplicaba el costo de dibujo en cada frame del scroll.
         },
         image: {
           width: '100%',

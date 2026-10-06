@@ -10,5 +10,11 @@
     "imagesFailed": "Could not download {{count}} image(s)",
     "authErrorTitle": "Could not connect",
     "retry": "Retry"
+  },
+  "connectivity": {
+    "offline": "Offline",
+    "degraded": "Unstable connection",
+    "syncing": "Syncing",
+    "pending": "{{count}} pending sync"
   }
 }

@@ -109,7 +109,7 @@ export function CustomerLookupScreen({
             documentId,
           },
           prefill,
-          existingCustomerId: result.customer.id,
+          existingCustomerId: result.customer.id ?? undefined,
         });
         return;
       }

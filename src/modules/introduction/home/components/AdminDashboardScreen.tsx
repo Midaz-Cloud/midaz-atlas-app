@@ -5,9 +5,8 @@ import { useTranslation } from 'react-i18next';
 
 import {
   buildSettlementFromEcr,
-  createKioskApiClient,
   isSettlementApprovedPlainText,
-  loadAccessToken,
+  withKioskAuth,
   loadLastPosSerial,
   salvageSettlementDataForPrint,
   saveLastPosSerial,
@@ -24,10 +23,14 @@ import {
   sendSettlementExcelDocument,
 } from '@shared/mail';
 import {
-  clearFailedPayments,
   clearSuccessfulPosTransactions,
+  listOrderOutbox,
   listSuccessfulPosTransactions,
+  pruneFailedPayments,
 } from '@shared/persistence';
+import { drainOrderOutbox, useOrderSyncStatus } from '@shared/sync';
+import { pickLanIp, useLanComandaServerStatus } from '@shared/lan';
+import { useKioskConnectivity } from '@shared/connectivity';
 import { useEcrConnection } from '@shared/peripherals/ecr';
 import { createFiscalClient } from '@shared/peripherals/fiscal';
 import {
@@ -51,6 +54,8 @@ import {
 export type AdminDashboardScreenProps = {
   onBack: () => void;
   onOpenFailedPayments?: () => void;
+  onOpenPendingSync?: () => void;
+  onOpenDeviceHealth?: () => void;
 };
 
 type StatusTone = 'neutral' | 'success' | 'error';
@@ -69,7 +74,12 @@ function isPosCancelledOrFailedMessage(message: string): boolean {
 export function AdminDashboardScreen({
   onBack,
   onOpenFailedPayments,
+  onOpenPendingSync,
+  onOpenDeviceHealth,
 }: AdminDashboardScreenProps) {
+  const syncStatus = useOrderSyncStatus();
+  const lanStatus = useLanComandaServerStatus();
+  const connectivity = useKioskConnectivity();
   const { t } = useTranslation('introduction');
   const colors = useKioskScreenColors();
   const appearance = useKioskAppearance();
@@ -404,12 +414,13 @@ export function AdminDashboardScreen({
       if (printsFiscalZ) {
         setStepState('fiscal_z', 'active');
         try {
-          const token = await loadAccessToken();
-          const zResult = await runFiscalZClose({
-            effectiveInvoicingType: organization?.effectiveInvoicingType,
-            fiscal: createFiscalClient(),
-            kiosk: createKioskApiClient(token ?? undefined),
-          });
+          const zResult = await withKioskAuth((kiosk) =>
+            runFiscalZClose({
+              effectiveInvoicingType: organization?.effectiveInvoicingType,
+              fiscal: createFiscalClient(),
+              kiosk,
+            }),
+          );
           if (zResult.persisted) {
             setStepState('fiscal_z', 'done');
           } else {
@@ -434,10 +445,7 @@ export function AdminDashboardScreen({
       );
       if (persistSettlementRequest) {
         try {
-          const token = await loadAccessToken();
-          await createKioskApiClient(token ?? undefined).submitSettlement(
-            persistSettlementRequest,
-          );
+          await withKioskAuth((client) => client.submitSettlement(persistSettlementRequest));
         } catch (settleErr) {
           if (!(settleErr instanceof KioskApiError && settleErr.statusCode === 409)) {
             console.warn('[AdminDashboard] Error al registrar el cierre POS:', settleErr);
@@ -457,6 +465,23 @@ export function AdminDashboardScreen({
         );
       }
 
+      // Ventas cobradas sin backend: se intenta enviarlas antes del cierre (sin
+      // bloquearlo) y las que sigan pendientes salen listadas en el ticket.
+      let pendingSync: { count: number; localNumbers: string[] } | undefined;
+      try {
+        await Promise.race([
+          drainOrderOutbox({ force: true }),
+          new Promise((resolve) => setTimeout(resolve, 15_000)),
+        ]);
+        const pending = await listOrderOutbox({ statuses: ['queued', 'syncing', 'failed'] });
+        pendingSync = {
+          count: pending.length,
+          localNumbers: pending.map((row) => row.localNumber).reverse(),
+        };
+      } catch (syncErr) {
+        console.warn('[AdminDashboard] Error al revisar ventas pendientes de sincronizar:', syncErr);
+      }
+
       // 1) Print first — never block the ticket behind Excel/mail.
       setStepState('printing', 'active');
       await new Promise<void>((resolve) => setTimeout(resolve, 50));
@@ -470,6 +495,7 @@ export function AdminDashboardScreen({
           amountDisplay: tx.amountDisplay,
           posDateTime: tx.posDateTime,
         })),
+        pendingSync,
       });
       const sanitizedTicketText = sanitizePrinterText(ticketText);
       const printer = createPrinterClient();
@@ -491,7 +517,8 @@ export function AdminDashboardScreen({
 
       try {
         await clearSuccessfulPosTransactions();
-        await clearFailedPayments();
+        // Solo lo ya resuelto: un cobro sin orden abierto es dinero sin registrar.
+        await pruneFailedPayments({ statuses: ['retried_ok', 'dismissed'], olderThanDays: 7 });
       } catch (clearErr) {
         console.warn(
           '[AdminDashboard] Error al limpiar transacciones locales (exitosas/fallidas):',
@@ -644,6 +671,14 @@ export function AdminDashboardScreen({
           <Text style={styles.subtitle}>
             Desde esta seccion puedes realizar operaciones administrativas en el kiosco.
           </Text>
+          <Text style={styles.subtitle} testID="admin-lan-status">
+            {lanStatus.running
+              ? `Comandas LAN: ${pickLanIp(lanStatus.addresses) ?? 'sin IP'}:${lanStatus.port}`
+              : `Comandas LAN: apagado${lanStatus.error ? ` (${lanStatus.error})` : ''}`}
+            {' · '}
+            {connectivity.status === 'offline' ? 'Sin conexión con el servidor' : 'Servidor conectado'}
+            {syncStatus.pending > 0 ? ` · ${syncStatus.pending} por sincronizar` : ''}
+          </Text>
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
@@ -662,6 +697,27 @@ export function AdminDashboardScreen({
             disabled={loading || !onOpenFailedPayments}
             testID="admin-failed-payments-button">
             <Text style={styles.buttonText}>Ver pagos fallidos</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={onOpenPendingSync}
+            disabled={loading || !onOpenPendingSync}
+            testID="admin-pending-sync-button">
+            <Text style={styles.buttonText}>
+              Ventas por sincronizar
+              {syncStatus.pending + syncStatus.failed > 0
+                ? ` (${syncStatus.pending + syncStatus.failed})`
+                : ''}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={onOpenDeviceHealth}
+            disabled={loading || !onOpenDeviceHealth}
+            testID="admin-device-health-button">
+            <Text style={styles.buttonText}>Salud del equipo</Text>
           </TouchableOpacity>
 
           {showCloseProgress ? (

@@ -30,6 +30,8 @@ export type OrderOutcomeScreenProps = {
   onCallCashier?: () => void;
   onRetryFiscal?: () => void;
   fiscalRetryBusy?: boolean;
+  /** Sin backend: la venta quedó en la cola del kiosko (número local, sin QR). */
+  registeredOffline?: boolean;
   onSessionComplete: () => void;
 };
 
@@ -41,6 +43,7 @@ export function OrderOutcomeScreen({
   onCallCashier,
   onRetryFiscal,
   fiscalRetryBusy = false,
+  registeredOffline = false,
   onSessionComplete,
 }: OrderOutcomeScreenProps) {
   const { orderId } = useKioskOrder();
@@ -101,7 +104,8 @@ export function OrderOutcomeScreen({
     onSessionComplete,
   );
 
-  if (variant === 'success' && mode === 'qr') {
+  // El QR de seguimiento necesita el shortCode del backend: offline no hay.
+  if (variant === 'success' && mode === 'qr' && !registeredOffline) {
     return (
       <KioskScreenLayout
         testID="payment-order-outcome-qr-screen"
@@ -139,6 +143,9 @@ export function OrderOutcomeScreen({
                 <View style={styles.successFooter}>
                   <OrderNumberCard orderId={orderId} label={success.orderLabel} />
                   <OrderOutcomeHintRow message={success.ticketSlotHint} />
+                  {registeredOffline ? (
+                    <OrderOutcomeHintRow message={success.offlineQueued} />
+                  ) : null}
                 </View>
               ) : null
             }
@@ -177,6 +184,9 @@ export function OrderOutcomeScreen({
               orderId ? (
                 <View style={styles.successFooter}>
                   <OrderNumberCard orderId={orderId} label={ticketPrintFailed.orderLabel} />
+                  {registeredOffline ? (
+                    <OrderOutcomeHintRow message={success.offlineQueued} />
+                  ) : null}
                 </View>
               ) : null
             }

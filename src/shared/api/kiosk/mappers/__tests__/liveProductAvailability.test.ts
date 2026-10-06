@@ -1,4 +1,10 @@
-import { isLiveProductSoldOut, mapLiveProductToKioskProductApi } from '../liveProduct';
+import { resolveMaxAddQuantity } from '@modules/ordering/menu/productAvailability';
+
+import {
+  isLiveProductSoldOut,
+  mapLiveProductToKioskProductApi,
+  mapLiveProductToMenuProduct,
+} from '../liveProduct';
 import type { KioskProductApiLive } from '../../liveApi.types';
 
 function baseLive(overrides: Partial<KioskProductApiLive> = {}): KioskProductApiLive {
@@ -58,5 +64,27 @@ describe('mapLiveProduct soldOut with isAvailable', () => {
   it('is available when isAvailable is true', () => {
     const live = baseLive({ stock: 0, isAvailable: true, available: 2 });
     expect(isLiveProductSoldOut(live)).toBe(false);
+  });
+});
+
+describe('mapLiveProductToMenuProduct stock sin límite', () => {
+  it('COMBO con stock/available null queda sin tope (no 0)', () => {
+    const live = baseLive({
+      productType: 'COMBO',
+      stock: null,
+      available: null,
+      isAvailable: true,
+    } as unknown as Partial<KioskProductApiLive>);
+    const menu = mapLiveProductToMenuProduct(live, 'p-29', 'USD');
+    expect(menu.soldOut).toBe(false);
+    expect(menu.available).toBeUndefined();
+    expect(resolveMaxAddQuantity(menu)).toBeUndefined();
+  });
+
+  it('con stock numérico sigue topeando por disponibilidad', () => {
+    const live = baseLive({ stock: 3, available: 2, isAvailable: true });
+    const menu = mapLiveProductToMenuProduct(live, 'p-1', 'USD');
+    expect(menu.available).toBe(2);
+    expect(resolveMaxAddQuantity(menu, 1)).toBe(1);
   });
 });

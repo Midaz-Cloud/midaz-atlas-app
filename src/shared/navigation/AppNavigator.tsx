@@ -107,6 +107,10 @@ export function AppNavigator() {
   const handleSessionComplete = handleExitToIntroduction;
   const handleSessionExpire = handleExitToIntroduction;
 
+  const handleExit = useCallback(() => {
+    void handleExitToIntroduction();
+  }, [handleExitToIntroduction]);
+
   const isRetailMode = runtimeConfig?.foodServiceEnabled === false;
 
   let flowContent;
@@ -132,18 +136,14 @@ export function AppNavigator() {
   } else {
     flowContent = isRetailMode ? (
       <RetailOrderingNavigator
-        onExit={() => {
-          void handleExitToIntroduction();
-        }}
+        onExit={handleExit}
         onProceedToPayment={handleProceedToPayment}
       />
     ) : (
       <OrderingNavigator
         initialCartCheckoutOpen={resumeCartCheckout}
         onInitialCartCheckoutConsumed={handleInitialCartCheckoutConsumed}
-        onExit={() => {
-          void handleExitToIntroduction();
-        }}
+        onExit={handleExit}
         onProceedToPayment={handleProceedToPayment}
       />
     );

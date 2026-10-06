@@ -9,6 +9,7 @@ import { useSessionLocale } from '@shared/i18n';
 import { useKioskAppearance, useKioskSession } from '@shared/session';
 import { brand, bodyTextStyle, displayTextStyle } from '@shared/theme';
 import { kioskScale } from '@shared/utils';
+import { KioskConnectivityBadge } from '@shared/ui/KioskConnectivityBadge';
 
 import { appearanceTextColor } from './appearanceColors';
 import {
@@ -146,6 +147,15 @@ export function HomeScreen({
             </View>
           ) : null}
 
+          <View
+            style={[
+              styles.connectivityBadge,
+              { top: insets.top + kioskScale(20) },
+            ]}
+            pointerEvents="none">
+            <KioskConnectivityBadge />
+          </View>
+
           {devUi ? (
             <View
               style={[
@@ -228,6 +238,13 @@ const styles = StyleSheet.create({
   },
   languageBadge: {
     position: 'absolute',
+    zIndex: 2,
+  },
+  connectivityBadge: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
     zIndex: 2,
   },
   deviceInfoWrap: {

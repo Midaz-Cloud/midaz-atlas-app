@@ -1,4 +1,5 @@
 import { getKioskQrGeneratorUrl } from '@shared/config/api';
+import { logKioskCheckoutPayload } from './logKioskCheckoutPayload';
 import { loadAccessToken } from './tokenStorage';
 import type { KioskPagoMovilAccount } from './types';
 
@@ -34,9 +35,7 @@ export async function generatePagoMovilQrCode(
     description: 'Pedido kiosko',
   };
 
-  console.log('[generatePagoMovilQrCode] Request URL:', url);
-  console.log('[generatePagoMovilQrCode] Request Payload:', JSON.stringify(payload, null, 2));
-  console.log('[generatePagoMovilQrCode] Has Authorization Token:', !!token);
+  logKioskCheckoutPayload('generatePagoMovilQrCode request', { url, payload, hasToken: !!token });
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -51,7 +50,10 @@ export async function generatePagoMovilQrCode(
     body: JSON.stringify(payload),
   });
 
-  console.log('[generatePagoMovilQrCode] Response Status:', response.status, response.statusText);
+  logKioskCheckoutPayload('generatePagoMovilQrCode response', {
+    status: response.status,
+    statusText: response.statusText,
+  });
 
   if (!response.ok) {
     let errorMsg = `Failed to generate QR code: ${response.status} ${response.statusText}`;

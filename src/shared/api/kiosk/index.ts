@@ -1,6 +1,7 @@
 export type { KioskApiClient } from './client';
 export { createKioskApiClient, resetKioskApiClientForTests } from './factory';
-export { KioskApiError } from './errors';
+export { KioskApiError, KioskNetworkError, isKioskNetworkError } from './errors';
+export { withKioskAuth, reloginKiosk, __resetKioskReauthForTests } from './withKioskAuth';
 export { getUploadsUrl, resolveKioskImageUrl } from './imageUrl';
 export * from './types';
 export type {
@@ -145,4 +146,5 @@ export {
   isMockKioskConfig,
   saveLastPosSerial,
   loadLastPosSerial,
+  loadAccessTokenRaw,
 } from './tokenStorage';

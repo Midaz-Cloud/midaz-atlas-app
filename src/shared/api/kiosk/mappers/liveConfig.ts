@@ -3,9 +3,11 @@ import type {
   KioskOrderTypeOptionLive,
   KioskPagoMovilAccountLive,
 } from '../liveApi.types';
+import { sanitizeKioskColor } from './sanitizeKioskColor';
 import type {
   FulfillmentType,
   KioskConfigResponse,
+  KioskLanComandaConfig,
   KioskOrderTypeOption,
   KioskPagoMovilAccount,
   PaymentMethodApi,
@@ -58,15 +60,15 @@ export function mapLiveConfigToKioskConfigResponse(
     enabledPaymentMethods: normalizeEnabledPaymentMethods(live.enabledPaymentMethods ?? []),
     kioskInvoicingType: live.kioskInvoicingType ?? null,
     appearance: {
-      primaryColor: liveAppearance.primaryColor ?? '#004be0',
-      secondaryColor: liveAppearance.secondaryColor ?? '#07143a',
+      primaryColor: sanitizeKioskColor(liveAppearance.primaryColor, '#004be0'),
+      secondaryColor: sanitizeKioskColor(liveAppearance.secondaryColor, '#07143a'),
       title: liveAppearance.title ?? 'Bienvenido',
       subtitle: liveAppearance.subtitle ?? 'Realizá tu pedido aquí',
       coverImage: liveAppearance.coverImage ?? null,
       pickupImage: liveAppearance.pickupImage ?? null,
       inStoreImage: liveAppearance.inStoreImage ?? null,
-      titleColor: liveAppearance.titleColor ?? null,
-      subtitleColor: liveAppearance.subtitleColor ?? null,
+      titleColor: sanitizeKioskColor(liveAppearance.titleColor, null),
+      subtitleColor: sanitizeKioskColor(liveAppearance.subtitleColor, null),
       languages: liveAppearance.languages ?? null,
       translations: liveAppearance.translations ?? null,
     },
@@ -82,6 +84,25 @@ export function mapLiveConfigToKioskConfigResponse(
     pagoMovilAccount: mapPagoMovilAccount(live.pagoMovilAccount),
     exchangeRates: live.exchangeRates ?? live.rates ?? null,
     orderTypes: mapOrderTypes(live.orderTypes),
+    lanComanda: mapLanComanda(live.lanComanda),
+  };
+}
+
+/** Puerto fijo del servidor LAN (el backend lo manda igual; se tolera ausente). */
+export const DEFAULT_LAN_COMANDA_PORT = 8790;
+
+/** Sin clave no hay servidor LAN: la Comandera no tendría cómo autenticarse. */
+function mapLanComanda(live: KioskConfigResponseLive['lanComanda']): KioskLanComandaConfig | null {
+  const sharedKey = typeof live?.sharedKey === 'string' ? live.sharedKey.trim() : '';
+  if (!live || !sharedKey) {
+    return null;
+  }
+  const port = Number(live.port);
+  return {
+    enabled: live.enabled !== false,
+    sharedKey,
+    port: Number.isInteger(port) && port > 0 ? port : DEFAULT_LAN_COMANDA_PORT,
+    allowCashOffline: live.allowCashOffline === true,
   };
 }
 

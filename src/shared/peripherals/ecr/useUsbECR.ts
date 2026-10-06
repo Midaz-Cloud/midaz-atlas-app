@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NativeEventEmitter } from 'react-native';
 
 import { shouldUseMockApi } from '@shared/config';
@@ -8,6 +8,10 @@ import { ECR_PAYMENT_TIMEOUT_MS } from './ecrPaymentTimeoutMs';
 import { ecrErrorFromPaymentResponse } from './ecrTransactionError';
 import { extractLastBalancedJson } from './extractLastBalancedJson';
 import { formatEcrDocumentNumber } from './formatEcrDocumentNumber';
+import {
+  isResponseForPendingEcrRequest,
+  type PendingEcrRequest,
+} from './isResponseForPendingEcrRequest';
 import { isTransientEcrResponse } from './isTransientEcrResponse';
 import { getUsbSerialModule } from './usbSerialModule';
 import { toEcrTerminalAmount } from './toEcrTerminalAmount';
@@ -16,6 +20,7 @@ type PendingTx = {
   resolve: (value: string) => void;
   reject: (reason?: unknown) => void;
   timeoutId?: ReturnType<typeof setTimeout>;
+  request?: PendingEcrRequest;
 };
 
 export type UseUsbECRReturn = {
@@ -85,6 +90,16 @@ export function useUsbECR(): UseUsbECRReturn {
 
       const balanced = extractLastBalancedJson(payload);
       const settledPayload = balanced ?? payload;
+
+      if (pending.request && !isResponseForPendingEcrRequest(settledPayload, pending.request)) {
+        if (__DEV__) {
+          console.warn('[useUsbECR] respuesta ajena al pedido pendiente, ignorada', {
+            expected: pending.request,
+            payload: settledPayload,
+          });
+        }
+        return;
+      }
 
       setReceivedMessages((prev) => [...prev, settledPayload]);
       setLastTransactionResponse(settledPayload);
@@ -316,7 +331,13 @@ export function useUsbECR(): UseUsbECRReturn {
             ),
           );
         }, timeoutMs);
-        pendingTransaction.current = { resolve, reject, timeoutId };
+        const { referenceNo, type } = payload as { referenceNo?: string; type?: string };
+        pendingTransaction.current = {
+          resolve,
+          reject,
+          timeoutId,
+          ...(referenceNo && type ? { request: { referenceNo, type } } : {}),
+        };
       });
 
       try {
@@ -372,21 +393,43 @@ export function useUsbECR(): UseUsbECRReturn {
     );
   }, [sendAndWait]);
 
-  return {
-    isConnected,
-    isConnecting,
-    isProcessing,
-    error,
-    lastTransactionResponse,
-    receivedMessages,
-    usesNativeUsb,
-    initialize,
-    connect,
-    disconnect,
-    performPayment,
-    performSettlement,
-    performVersionCheck,
-    forceCleanup,
-    checkConnection,
-  };
+  // Los callbacks ya son estables (useCallback); memoizar el objeto de retorno
+  // evita que EcrConnectionProvider empuje un `value` de Context nuevo (y
+  // re-renderice a todos sus consumidores) en cada render en que nada cambió.
+  return useMemo<UseUsbECRReturn>(
+    () => ({
+      isConnected,
+      isConnecting,
+      isProcessing,
+      error,
+      lastTransactionResponse,
+      receivedMessages,
+      usesNativeUsb,
+      initialize,
+      connect,
+      disconnect,
+      performPayment,
+      performSettlement,
+      performVersionCheck,
+      forceCleanup,
+      checkConnection,
+    }),
+    [
+      isConnected,
+      isConnecting,
+      isProcessing,
+      error,
+      lastTransactionResponse,
+      receivedMessages,
+      usesNativeUsb,
+      initialize,
+      connect,
+      disconnect,
+      performPayment,
+      performSettlement,
+      performVersionCheck,
+      forceCleanup,
+      checkConnection,
+    ],
+  );
 }

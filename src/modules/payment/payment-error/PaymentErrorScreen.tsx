@@ -23,6 +23,8 @@ export type PaymentErrorScreenProps = {
   /** Terminal approved charge but POST /kiosk/orders failed. */
   orderRegistrationFailed?: boolean;
   posReference?: string;
+  /** La impresora fiscal no estaba lista: no se cobró nada. */
+  fiscalUnavailable?: boolean;
   retryCount?: number;
   onBack: () => void;
   onRetry: () => void;
@@ -34,6 +36,7 @@ export function PaymentErrorScreen({
   methodId: _methodId,
   orderRegistrationFailed = false,
   posReference,
+  fiscalUnavailable = false,
   retryCount,
   onBack,
   onRetry,
@@ -44,13 +47,19 @@ export function PaymentErrorScreen({
 
   const isBlocked = orderRegistrationFailed && retryCount != null && retryCount >= 3;
 
-  const titleLine1 = orderRegistrationFailed
-    ? t('error.orderRegistrationFailed.titleLine1')
-    : t('error.titleLine1');
-  const titleLine2 = orderRegistrationFailed
-    ? t('error.orderRegistrationFailed.titleLine2')
-    : t('error.titleLine2');
-  const subtitle = isBlocked
+  const titleLine1 = fiscalUnavailable
+    ? t('error.fiscalUnavailable.titleLine1')
+    : orderRegistrationFailed
+      ? t('error.orderRegistrationFailed.titleLine1')
+      : t('error.titleLine1');
+  const titleLine2 = fiscalUnavailable
+    ? t('error.fiscalUnavailable.titleLine2')
+    : orderRegistrationFailed
+      ? t('error.orderRegistrationFailed.titleLine2')
+      : t('error.titleLine2');
+  const subtitle = fiscalUnavailable
+    ? t('error.fiscalUnavailable.subtitle')
+    : isBlocked
     ? t('error.orderRegistrationFailed.blockedMessage')
     : orderRegistrationFailed
       ? t('error.orderRegistrationFailed.subtitle', {

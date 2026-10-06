@@ -3,7 +3,7 @@ import {
   createKioskApiClient,
   mapConfigToRuntime,
   mapSellableKioskApiProductsToCatalog,
-  loadAccessToken,
+  withKioskAuth,
   loadConfigEtag,
   saveConfigEtag,
   loadProductsEtag,
@@ -44,9 +44,12 @@ async function applyProductsResponse(
   const { menuProducts, idMap } = mapSellableKioskApiProductsToCatalog(sellable);
   const categories = buildCategoriesFromProducts(menuProducts);
   setCatalog(categories, menuProducts, idMap);
+  const scanIndexDebugInfo = getScanIndexDebugInfo();
   logRetailScan('catalog synced from API', {
     sellableCount: menuProducts.length,
-    ...getScanIndexDebugInfo(),
+    productCount: scanIndexDebugInfo.productCount,
+    barcodeIndexSize: scanIndexDebugInfo.barcodeIndexSize,
+    skuIndexSize: scanIndexDebugInfo.skuIndexSize,
   });
   // Background strict sync — skips files already on disk; does not block UI.
   void prefetchCatalogImages(categories, menuProducts).catch(() => undefined);
@@ -59,10 +62,8 @@ async function applyProductsResponse(
 async function fetchAndApplyProducts(
   force = false,
 ): Promise<{ productCount: number; changed: boolean }> {
-  const token = await loadAccessToken();
-  const client = createKioskApiClient(token ?? undefined);
   const etag = force ? null : await loadProductsEtag();
-  const productsResponse = await client.getProducts(etag);
+  const productsResponse = await withKioskAuth((client) => client.getProducts(etag));
   if (productsResponse.notModified && !force) {
     return { productCount: getCatalogProducts().length, changed: false };
   }
@@ -81,6 +82,7 @@ export function startKioskCatalogSync(
     };
   }
 
+  let stopped = false;
   let configRunning = false;
   let productsRunning = false;
   let configTimer: ReturnType<typeof setInterval> | null = null;
@@ -112,16 +114,17 @@ export function startKioskCatalogSync(
   };
 
   const pollConfig = async () => {
-    if (configRunning) {
+    if (configRunning || stopped) {
       return;
     }
     configRunning = true;
     try {
-      const token = await loadAccessToken();
-      const client = createKioskApiClient(token ?? undefined);
       const etag = await loadConfigEtag();
-      const result = await client.getConfig(etag);
-      if (result.etag) {
+      const result = await withKioskAuth((client) => client.getConfig(etag));
+      if (stopped) {
+        return;
+      }
+      if (result.etag && result.etag !== etag) {
         await saveConfigEtag(result.etag);
       }
       const isFirstConfig = lastConfig === null;
@@ -140,7 +143,7 @@ export function startKioskCatalogSync(
   };
 
   const refreshProducts = async (force = false) => {
-    if (productsRunning) {
+    if (productsRunning || stopped) {
       return;
     }
     productsRunning = true;
@@ -149,6 +152,9 @@ export function startKioskCatalogSync(
       // `lastConfig` alcanza para reconstruir el snapshot. Pedirla también acá
       // duplicaba la request cada minuto sin aportar nada.
       const { productCount, changed } = await fetchAndApplyProducts(force);
+      if (stopped) {
+        return;
+      }
       if (changed) {
         emitSnapshot(productCount);
       }
@@ -163,12 +169,18 @@ export function startKioskCatalogSync(
     if (productsTimer) {
       clearInterval(productsTimer);
     }
+    if (stopped) {
+      return;
+    }
     productsTimer = setInterval(() => {
       void refreshProducts(false);
     }, PRODUCTS_REFRESH_MS);
   };
 
   const refreshProductsNow = async () => {
+    if (stopped) {
+      return;
+    }
     await refreshProducts(true);
     resetProductsTimer();
   };
@@ -181,6 +193,7 @@ export function startKioskCatalogSync(
 
   return {
     stop: () => {
+      stopped = true;
       if (configTimer) {
         clearInterval(configTimer);
       }

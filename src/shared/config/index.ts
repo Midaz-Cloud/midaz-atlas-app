@@ -13,7 +13,13 @@ export {
   KIOSK_DEMO_SERIAL,
   KIOSK_TOKEN_TTL_MS,
 } from './api';
-export { isKioskDemoMode, showKioskDevUi, parseBooleanEnv, getEnvString } from './env';
+export {
+  isKioskDemoMode,
+  showKioskDevUi,
+  isVerboseKioskLogging,
+  parseBooleanEnv,
+  getEnvString,
+} from './env';
 export {
   getDemoReferenceCode,
   getDemoScenario,

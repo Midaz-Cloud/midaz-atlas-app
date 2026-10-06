@@ -1,3 +1,5 @@
+import { isVerboseKioskLogging } from '@shared/config/env';
+
 const MAX_STRING_CHARS = 500;
 
 function isJestRuntime(): boolean {
@@ -14,20 +16,24 @@ function previewValue(value: unknown): unknown {
   return value;
 }
 
-/** Logcat tag: ReactNativeJS — filter with `adb logcat -s ReactNativeJS:*` or `RetailScan`. */
+/**
+ * Logcat tag: ReactNativeJS — filter with `adb logcat -s ReactNativeJS:*` or `RetailScan`.
+ * Gated by `isVerboseKioskLogging()` (see logFiscal.ts); `console.warn` survives
+ * `transform-remove-console` in release. Skipped under Jest.
+ */
 export function logRetailScan(label: string, payload?: unknown): void {
-  if (isJestRuntime()) {
+  if (isJestRuntime() || !isVerboseKioskLogging()) {
     return;
   }
 
   if (payload === undefined) {
-    console.log(`[RetailScan] ${label}`);
+    console.warn(`[RetailScan] ${label}`);
     return;
   }
 
   try {
-    console.log(`[RetailScan] ${label}`, previewValue(payload));
+    console.warn(`[RetailScan] ${label}`, previewValue(payload));
   } catch {
-    console.log(`[RetailScan] ${label}`, String(payload));
+    console.warn(`[RetailScan] ${label}`, String(payload));
   }
 }

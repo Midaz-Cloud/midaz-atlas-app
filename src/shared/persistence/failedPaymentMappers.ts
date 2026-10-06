@@ -46,7 +46,7 @@ export function snapshotCustomer(
     return null;
   }
   return {
-    customerId: customer.id,
+    customerId: customer.id ?? undefined,
     documentId: customer.documentId,
     firstName: customer.firstName,
     lastName: customer.lastName,

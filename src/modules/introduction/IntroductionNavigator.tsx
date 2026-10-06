@@ -10,8 +10,10 @@ import { useKioskSession } from '@shared/session';
 import { HomeScreen } from './home/HomeScreen';
 import {
   AdminDashboardScreen,
+  DeviceHealthScreen,
   FailedPaymentDetailScreen,
   FailedPaymentsListScreen,
+  PendingSyncOrdersScreen,
 } from './home/components';
 import { LanguageSelectionScreen } from './language-selection/LanguageSelectionScreen';
 import { OrderTypeScreen } from './order-type/OrderTypeScreen';
@@ -109,8 +111,18 @@ export function IntroductionNavigator({ onComplete }: IntroductionNavigatorProps
       <AdminDashboardScreen
         onBack={goBackToHome}
         onOpenFailedPayments={openFailedPayments}
+        onOpenPendingSync={() => setStep('pendingSync')}
+        onOpenDeviceHealth={() => setStep('deviceHealth')}
       />
     );
+  }
+
+  if (step === 'pendingSync') {
+    return <PendingSyncOrdersScreen onBack={() => setStep('admin')} />;
+  }
+
+  if (step === 'deviceHealth') {
+    return <DeviceHealthScreen onBack={() => setStep('admin')} />;
   }
 
   if (step === 'failedPayments') {

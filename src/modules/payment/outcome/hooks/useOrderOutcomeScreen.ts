@@ -7,6 +7,7 @@ export type OrderOutcomeSuccessCopy = {
   pickupInstructions: string;
   orderLabel: string;
   ticketSlotHint: string;
+  offlineQueued: string;
 };
 
 export type OrderOutcomeFiscalErrorCopy = {
@@ -44,6 +45,7 @@ export function useOrderOutcomeScreen() {
       pickupInstructions: t('outcome.success.pickupInstructions'),
       orderLabel: t('outcome.success.orderLabel'),
       ticketSlotHint: t('outcome.success.ticketSlotHint'),
+      offlineQueued: t('outcome.success.offlineQueued'),
     }),
     [t],
   );

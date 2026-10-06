@@ -44,3 +44,4 @@ export {
   parseFiscalZReportEnvelope,
   toKioskZReportBody,
 } from './parseFiscalZReportResponse';
+export { ensureFiscalReady, startHkaFiscalService, type EnsureFiscalReadyResult } from './ensureFiscalReady';

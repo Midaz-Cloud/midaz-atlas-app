@@ -4,6 +4,7 @@ declare module 'react-native-config' {
     KIOSK_DEMO_REFERENCE_CODE?: string;
     KIOSK_DEMO_SCENARIO?: string;
     KIOSK_DEMO_SHORT_TIMEOUTS?: string;
+    KIOSK_VERBOSE_LOGS?: string;
     KIOSK_API_BASE_URL?: string;
     KIOSK_UPLOADS_BASE_URL?: string;
     KIOSK_API_KEY?: string;

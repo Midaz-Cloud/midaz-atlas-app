@@ -73,7 +73,8 @@
       "ticketPrinted": "Receipt printed successfully.",
       "pickupInstructions": "Pick up your order when you see your number on the screen.",
       "orderLabel": "Your order number",
-      "ticketSlotHint": "Please take your printed receipt and invoice from the slot below the kiosk."
+      "ticketSlotHint": "Please take your printed receipt and invoice from the slot below the kiosk.",
+      "offlineQueued": "Order saved on the kiosk. It will be sent to the system when the connection is back."
     },
     "fiscalError": {
       "title": "Fiscal printer error",
@@ -111,6 +112,11 @@
       "retryCta": "Retry registering order",
       "blockedMessage": "You have exceeded the maximum number of registration attempts. Please contact an employee.",
       "helpCta": "Request help"
+    },
+    "fiscalUnavailable": {
+      "titleLine1": "Fiscal printer",
+      "titleLine2": "unavailable",
+      "subtitle": "You were not charged. Please try again in a moment or call the cashier."
     }
   },
   "assistance": {

@@ -177,6 +177,7 @@ function buildKioskPosResponse(
     '00000000';
   const merchantID = readString(flat, 'merchantID') ?? '0000000000';
   const batchNum = readString(flat, 'batchNum') ?? '000001';
+  const authCode = readString(flat, 'authCode', 'authorizationCode');
 
   return {
     responseCode: normalizedCode ?? '00',
@@ -191,6 +192,7 @@ function buildKioskPosResponse(
     batchNum,
     amount,
     ...(referenceNo ? { referenceNo } : {}),
+    ...(authCode ? { authCode } : {}),
   };
 }
 

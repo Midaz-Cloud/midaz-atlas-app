@@ -10,5 +10,11 @@
     "imagesFailed": "No se pudo descargar {{count}} imagen(es)",
     "authErrorTitle": "No se pudo conectar",
     "retry": "Reintentar"
+  },
+  "connectivity": {
+    "offline": "Sin conexión",
+    "degraded": "Conexión inestable",
+    "syncing": "Sincronizando",
+    "pending": "{{count}} por sincronizar"
   }
 }

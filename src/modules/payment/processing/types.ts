@@ -2,7 +2,13 @@
 export type OrderProcessingPhase = 'fiscal' | 'printing' | 'registering';
 
 export type ProcessKioskOrderResult =
-  | { status: 'ok'; orderId: string; fiscalInvoiceNumber?: number }
+  | {
+      status: 'ok';
+      orderId: string;
+      fiscalInvoiceNumber?: number;
+      /** Sin backend: quedó en la cola del kiosko con número local; se sincroniza sola. */
+      registeredLocally?: true;
+    }
   | {
       status: 'fiscal_error';
       orderId: string;
@@ -16,19 +22,12 @@ export type ProcessKioskOrderResult =
       shortCode?: string | null;
       fiscalInvoiceNumber?: number;
       message?: string;
+      registeredLocally?: true;
     }
   | {
+      /** Último recurso: ni el backend ni el kiosko pudieron guardar la venta. */
       status: 'failed';
       message?: string;
       rawJson?: string;
       fiscalInvoiceNumber?: number;
-    }
-  | { status: 'reservation_expired' }
-  | {
-      status: 'order_registration_failed';
-      posReference?: string;
-      mobileReference?: string;
-      fiscalInvoiceNumber?: number;
-      message?: string;
-      rawJson?: string;
     };

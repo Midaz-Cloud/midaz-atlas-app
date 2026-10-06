@@ -7,11 +7,13 @@ import {
   mapOrgCustomerToKioskCustomer,
 } from '../mappers/lookupCedula';
 import { loadAccessToken } from '../tokenStorage';
+import { fetchWithTimeout, KIOSK_TIMEOUTS } from './fetchWithTimeout';
 import type { KioskCustomer } from '@shared/customer';
 
 export type CreateCustomerLiveResult =
   | { status: 'ok'; customer: KioskCustomer }
-  | { status: 'error'; message: string };
+  /** `networkError`: no hubo respuesta del servidor (sin red / timeout), no un rechazo. */
+  | { status: 'error'; message: string; networkError?: true };
 
 export async function createCustomerLive(params: {
   documentId: string;
@@ -33,7 +35,7 @@ export async function createCustomerLive(params: {
 
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await fetchWithTimeout(url, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -41,11 +43,11 @@ export async function createCustomerLive(params: {
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify(body),
-    });
+    }, KIOSK_TIMEOUTS.customers, '/kiosk/customers');
   } catch (cause) {
     const message =
       cause instanceof Error ? cause.message : 'Error de red al crear el cliente';
-    return { status: 'error', message };
+    return { status: 'error', message, networkError: true };
   }
 
   if (!response.ok) {

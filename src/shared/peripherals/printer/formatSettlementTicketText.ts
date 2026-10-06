@@ -63,6 +63,8 @@ export type FormatSettlementTicketParams = {
   referenceNo?: string;
   approved: boolean;
   transactions?: SettlementTicketTransactionLine[];
+  /** Ventas cobradas sin backend que aún no se sincronizan (no se pierden con el cierre). */
+  pendingSync?: { count: number; localNumbers: string[] };
 };
 
 function formatTicketTxDateTime(tx: SettlementTicketTransactionLine): string {
@@ -173,6 +175,15 @@ export function formatSettlementTicketText(params: FormatSettlementTicketParams)
   lines.push('--------------------------------');
 
   appendTransactionsSection(lines, transactions);
+
+  if (params.pendingSync && params.pendingSync.count > 0) {
+    lines.push('--------------------------------');
+    lines.push(`PENDIENTES DE SINCRONIZAR: ${params.pendingSync.count}`);
+    for (const localNumber of params.pendingSync.localNumbers.slice(0, 30)) {
+      lines.push(`  ${localNumber}`);
+    }
+    lines.push('Se enviaran al volver la conexion.');
+  }
 
   return lines.join('\n');
 }

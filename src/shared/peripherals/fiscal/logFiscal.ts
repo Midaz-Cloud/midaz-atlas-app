@@ -1,4 +1,6 @@
-const MAX_STRING_CHARS = 6000;
+import { isVerboseKioskLogging } from '@shared/config/env';
+
+const MAX_STRING_CHARS = 2000;
 
 function isJestRuntime(): boolean {
   return process.env.JEST_WORKER_ID != null;
@@ -16,21 +18,24 @@ function previewValue(value: unknown): unknown {
 
 /**
  * Fiscal HTTP traces for Metro / Android logcat (`ReactNativeJS`).
- * Always on (including release APK) so HkaApp connectivity can be diagnosed on-device.
+ * Gated by `isVerboseKioskLogging()` (dev builds, or `KIOSK_VERBOSE_LOGS=true` for
+ * a diagnostic release) so a normal release APK stays silent — HkaApp connectivity
+ * issues get diagnosed with a verbose build, not by logging on every kiosk always.
+ * Uses `console.warn` so it survives `transform-remove-console` in production.
  * Skipped under Jest.
  */
 export function logFiscal(label: string, payload?: unknown): void {
-  if (isJestRuntime()) {
+  if (isJestRuntime() || !isVerboseKioskLogging()) {
     return;
   }
 
   try {
     if (payload === undefined) {
-      console.log(`[Fiscal] ${label}`);
+      console.warn(`[Fiscal] ${label}`);
       return;
     }
-    console.log(`[Fiscal] ${label}`, previewValue(payload));
+    console.warn(`[Fiscal] ${label}`, previewValue(payload));
   } catch {
-    console.log(`[Fiscal] ${label}`, payload == null ? '' : String(payload));
+    console.warn(`[Fiscal] ${label}`, payload == null ? '' : String(payload));
   }
 }
