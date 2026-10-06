@@ -1,16 +1,16 @@
 # Midaz Atlas — nota para agentes
 
-**Empezá por acá:**
+**Empieza por aquí:**
 - `docs/DEVELOPER_HANDBOOK.md` — **cómo hago X**: agregar una pantalla a un paso del flujo, una llamada de API, un periférico; la máquina de estados de navegación; el stack de providers; el contrato de orden del kiosco; correr en un equipo desde cero.
 - `../docs/ECOSISTEMA.md` — mapa de los 8 repos (si estás tocando más de uno).
-- `../Midaz-W-Backend/KIOSK_DEVELOPER_GUIDE.md` — **el contrato del backend contra el que codea esta app**. No está en este repo; el README lo linkea como `docs/KIOSK_DEVELOPER_GUIDE.md` y ese archivo no existe.
+- `../Midaz-W-Backend/KIOSK_DEVELOPER_GUIDE.md` — **el contrato del backend contra el que se programa esta app**. No está en este repo; el README lo cita como `docs/KIOSK_DEVELOPER_GUIDE.md` y ese archivo no existe.
 - El resto de este archivo — **por qué esto explotó antes**: el registro de incidentes.
 
 **Cinco cosas que hay que saber antes de tocar nada:**
 1. **No hay react-navigation.** La navegación es estado de React + render condicional en dos niveles, y `OrderingNavigator` usa un modelo de capas (`active/parked/unmounted`), no montar y desmontar.
 2. **`KIOSK_API_USE_MOCK` es el único switch de mock.** `KIOSK_DEMO_MODE` **no** fuerza mock — el README y este archivo dicen lo contrario y están equivocados; ver `src/shared/config/api.ts:53-60`.
-3. **El `.env.demo` committeado tiene `KIOSK_API_USE_MOCK=false`** y apunta a una IP LAN viva, así que `npm run android:demo` hoy no corre offline.
-4. **Plata primero, orden después.** `POST /kiosk/cart/reserve` es obligatorio antes de cualquier cobro, y la orden solo se crea con el pago ya confirmado.
+3. **El `.env.demo` versionado tiene `KIOSK_API_USE_MOCK=false`** y apunta a una IP de la LAN, así que `npm run android:demo` hoy corre contra el backend, no contra el mock.
+4. **Primero el cobro, después la orden.** `POST /kiosk/cart/reserve` es obligatorio antes de cualquier cobro, y la orden solo se crea con el pago ya confirmado. La excepción es el modo sin backend, que salta la reserva y encola la venta: ver `docs/KIOSK_OFFLINE_LAN.md`.
 5. **`docs/usb-pos-transaccion.md` tiene todas las rutas mal** (son de `conviasa`, un proyecto predecesor). El protocolo que describe sí es correcto.
 
 ---
