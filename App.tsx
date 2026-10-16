@@ -19,7 +19,8 @@ function App() {
           <EcrConnectionProvider>
             <KioskOrderSessionBridge>
               <KioskCustomerProvider>
-                <StatusBar barStyle="light-content" />
+                {/* Oculta: el kiosko no muestra la barra de estado (ver MainActivity.hideStatusBar). */}
+                <StatusBar hidden barStyle="light-content" />
                 <AppNavigator />
               </KioskCustomerProvider>
             </KioskOrderSessionBridge>
