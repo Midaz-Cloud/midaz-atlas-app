@@ -3,6 +3,7 @@ import {
   KioskApiError,
   isKioskNetworkError,
   loadAccessTokenRaw,
+  loginKioskWithBinding,
   loadCachedProductsBody,
   parseKioskProductsResponse,
   mapConfigToRuntime,
@@ -70,7 +71,7 @@ export async function bootstrapKioskSession(
     const device = await getKioskDeviceProfile();
     onPhase?.('login');
     const preLoginClient = createKioskApiClient();
-    const login = await preLoginClient.login({
+    const login = await loginKioskWithBinding(preLoginClient, {
       serialNumber: device.serialNumber,
       apiKey: getKioskApiKey(),
     });

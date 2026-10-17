@@ -24,10 +24,23 @@ export type KioskOrderTypeOption = {
 export type KioskLoginRequest = {
   serialNumber: string;
   apiKey: string;
+  /** Secreto del equipo ya guardado; el servidor lo valida en cada login. */
+  deviceSecret?: string;
+  /** Siempre true desde esta versión: la app sabe vincularse al equipo. */
+  bindingCapable?: true;
+};
+
+export type KioskDeviceBindingState = 'enrolled' | 'pending' | 'unbound';
+
+export type KioskDeviceBinding = {
+  state: KioskDeviceBindingState;
+  /** Solo viene cuando el servidor acaba de emitirlo. */
+  deviceSecret?: string;
 };
 
 export type KioskLoginResponse = {
   accessToken: string;
+  deviceBinding?: KioskDeviceBinding;
 };
 
 export type KioskAppearanceTranslation = {

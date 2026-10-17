@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { KIOSK_TOKEN_TTL_MS } from '@shared/config/api';
+import { loadSecureItem, removeSecureItem, saveSecureItem } from './deviceSecretStorage';
 import type { KioskConfigResponse } from './types';
 
 const ACCESS_TOKEN_KEY = '@kiosk/accessToken';
@@ -11,22 +12,42 @@ const PRODUCTS_ETAG_KEY = '@kiosk/productsEtag';
 const PRODUCTS_BODY_KEY = '@kiosk/productsBody';
 const LAST_POS_SERIAL_KEY = '@kiosk/lastPosSerial';
 
+/**
+ * El token de sesión vive en el almacén seguro nativo (no AsyncStorage). Solo el
+ * vencimiento, que no es secreto, sigue en AsyncStorage.
+ */
 export async function saveAccessToken(token: string): Promise<void> {
   const expiresAt = String(Date.now() + KIOSK_TOKEN_TTL_MS);
-  await AsyncStorage.multiSet([
-    [ACCESS_TOKEN_KEY, token],
-    [ACCESS_TOKEN_EXPIRES_KEY, expiresAt],
-  ]);
+  await saveSecureItem(ACCESS_TOKEN_KEY, token);
+  await AsyncStorage.removeItem(ACCESS_TOKEN_KEY);
+  await AsyncStorage.setItem(ACCESS_TOKEN_EXPIRES_KEY, expiresAt);
+}
+
+/** Lee el token seguro; si quedó uno viejo en AsyncStorage lo migra y lo borra de ahí. */
+async function readStoredToken(): Promise<string | null> {
+  const secure = await loadSecureItem(ACCESS_TOKEN_KEY);
+  if (secure) {
+    return secure;
+  }
+  const legacy = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
+  if (!legacy) {
+    return null;
+  }
+  try {
+    await saveSecureItem(ACCESS_TOKEN_KEY, legacy);
+    await AsyncStorage.removeItem(ACCESS_TOKEN_KEY);
+  } catch {
+    // Sin almacén seguro se usa el token viejo tal cual hasta el próximo login.
+  }
+  return legacy;
 }
 
 export async function loadAccessToken(): Promise<string | null> {
-  const [[, token], [, expiresAtRaw]] = await AsyncStorage.multiGet([
-    ACCESS_TOKEN_KEY,
-    ACCESS_TOKEN_EXPIRES_KEY,
-  ]);
+  const token = await readStoredToken();
   if (!token) {
     return null;
   }
+  const expiresAtRaw = await AsyncStorage.getItem(ACCESS_TOKEN_EXPIRES_KEY);
   const expiresAt = expiresAtRaw ? Number(expiresAtRaw) : 0;
   if (expiresAt && Date.now() >= expiresAt) {
     await clearAccessToken();
@@ -40,17 +61,17 @@ export async function loadAccessToken(): Promise<string | null> {
  * y el kiosko igual tiene que arrancar en modo offline con lo que tiene.
  */
 export async function loadAccessTokenRaw(): Promise<{ token: string; expiresAt: number } | null> {
-  const [[, token], [, expiresAtRaw]] = await AsyncStorage.multiGet([
-    ACCESS_TOKEN_KEY,
-    ACCESS_TOKEN_EXPIRES_KEY,
-  ]);
+  const token = await readStoredToken();
   if (!token) {
     return null;
   }
+  const expiresAtRaw = await AsyncStorage.getItem(ACCESS_TOKEN_EXPIRES_KEY);
   return { token, expiresAt: expiresAtRaw ? Number(expiresAtRaw) : 0 };
 }
 
+/** Borra la sesión. NO toca el `deviceSecret`: el vínculo del equipo sobrevive. */
 export async function clearAccessToken(): Promise<void> {
+  await removeSecureItem(ACCESS_TOKEN_KEY);
   await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, ACCESS_TOKEN_EXPIRES_KEY]);
 }
 

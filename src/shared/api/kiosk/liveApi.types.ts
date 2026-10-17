@@ -7,10 +7,16 @@
 export type KioskLoginRequestLive = {
   serialNumber: string;
   apiKey: string;
+  deviceSecret?: string;
+  bindingCapable?: true;
 };
 
 export type KioskLoginResponseLive = {
   accessToken: string;
+  deviceBinding?: {
+    state: 'enrolled' | 'pending' | 'unbound';
+    deviceSecret?: string;
+  };
 };
 
 /** GET /kiosk/config */
