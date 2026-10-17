@@ -1,3 +1,20 @@
+# Midaz Atlas — nota para agentes
+
+**Empieza por aquí:**
+- `docs/DEVELOPER_HANDBOOK.md` — **cómo hago X**: agregar una pantalla a un paso del flujo, una llamada de API, un periférico; la máquina de estados de navegación; el stack de providers; el contrato de orden del kiosco; correr en un equipo desde cero.
+- `../docs/ECOSISTEMA.md` — mapa de los 8 repos (si estás tocando más de uno).
+- `../Midaz-W-Backend/KIOSK_DEVELOPER_GUIDE.md` — **el contrato del backend contra el que se programa esta app**. No está en este repo; el README lo cita como `docs/KIOSK_DEVELOPER_GUIDE.md` y ese archivo no existe.
+- El resto de este archivo — **por qué esto explotó antes**: el registro de incidentes.
+
+**Cinco cosas que hay que saber antes de tocar nada:**
+1. **No hay react-navigation.** La navegación es estado de React + render condicional en dos niveles, y `OrderingNavigator` usa un modelo de capas (`active/parked/unmounted`), no montar y desmontar.
+2. **`KIOSK_API_USE_MOCK` es el único switch de mock.** `KIOSK_DEMO_MODE` **no** fuerza mock — el README y este archivo dicen lo contrario y están equivocados; ver `src/shared/config/api.ts:53-60`.
+3. **El `.env.demo` versionado tiene `KIOSK_API_USE_MOCK=false`** y apunta a una IP de la LAN, así que `npm run android:demo` hoy corre contra el backend, no contra el mock.
+4. **Primero el cobro, después la orden.** `POST /kiosk/cart/reserve` es obligatorio antes de cualquier cobro, y la orden solo se crea con el pago ya confirmado. La excepción es el modo sin backend, que salta la reserva y encola la venta: ver `docs/KIOSK_OFFLINE_LAN.md`.
+5. **`docs/usb-pos-transaccion.md` tiene todas las rutas mal** (son de `conviasa`, un proyecto predecesor). El protocolo que describe sí es correcto.
+
+---
+
 ## Tipos de pedido: la lista manda, el par fijo es solo el fallback
 `KioskConfigResponse.orderTypes` viene del panel por sucursal. `null` = par de fábrica (Comer aquí / Para llevar), gateado como siempre por `foodServiceEnabled`; una lista concreta lo reemplaza. `mapConfigToRuntime` resuelve todo en `orderTypeChoices` y `orderTypeSelectionEnabled` pasa a significar "hay 2 o más donde elegir" — con 1 el navigator la auto-aplica y con 0 no se pregunta nada (`IN_STORE`). La etiqueta custom NO se traduce (solo el par de fábrica usa i18n), y la orden viaja con `fulfillment` de la opción elegida, no con el `orderType` derivado, porque dos opciones distintas pueden mapear al mismo dineIn/takeOut. Las HeroSelectionCard son de alto fijo y el layout entra justo con dos (480 de alto + 72 de gap): con 3 se usa `orderTypeCompactLayout` (ratio 2/3, solo eje vertical) para que entren sin scrollear. El panel topea en 3 —web y backend— justamente por eso; subir ese tope exige rehacer este layout primero.
 
