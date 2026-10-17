@@ -14,7 +14,7 @@ export type KioskLoginRequestLive = {
 export type KioskLoginResponseLive = {
   accessToken: string;
   deviceBinding?: {
-    state: 'enrolled' | 'pending' | 'unbound';
+    state: 'enrolled' | 'pending' | 'unbound' | 'off' | 'unverified';
     deviceSecret?: string;
   };
 };

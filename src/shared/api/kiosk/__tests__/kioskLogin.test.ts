@@ -5,7 +5,7 @@ import { loadDeviceSecret, saveDeviceSecret } from '../deviceSecretStorage';
 import { loginKioskWithBinding } from '../kioskLogin';
 import { clearAccessToken, loadAccessToken, saveAccessToken } from '../tokenStorage';
 import type { KioskApiClient } from '../client';
-import type { KioskLoginRequest, KioskLoginResponse } from '../types';
+import type { KioskDeviceBindingState, KioskLoginRequest, KioskLoginResponse } from '../types';
 
 const credentials = { serialNumber: 'AF910S1', apiKey: 'k' };
 
@@ -92,6 +92,37 @@ describe('loginKioskWithBinding', () => {
       expect(login).toHaveBeenCalledTimes(1);
     },
   );
+
+  it.each(['off', 'estado-nuevo'])('el estado %s se sigue normal: un login, sin secreto ni bucle', async (state) => {
+    const { client, login } = clientWith({
+      accessToken: 't',
+      deviceBinding: { state: state as KioskDeviceBindingState },
+    });
+    const res = await loginKioskWithBinding(client, credentials);
+    expect(res.accessToken).toBe('t');
+    expect(login).toHaveBeenCalledTimes(1);
+    expect(await loadDeviceSecret()).toBeNull();
+  });
+
+  it('unverified no borra el secreto guardado ni re-enrola', async () => {
+    await saveDeviceSecret('guardado');
+    const { client, login } = clientWith({ accessToken: 't', deviceBinding: { state: 'unverified' } });
+    const res = await loginKioskWithBinding(client, credentials);
+    expect(res.accessToken).toBe('t');
+    expect(login).toHaveBeenCalledTimes(1);
+    expect(await loadDeviceSecret()).toBe('guardado');
+  });
+
+  it('la confirmación corta tras UN reintento aunque no diga enrolled', async () => {
+    const { client, login } = clientWith(
+      { accessToken: 't1', deviceBinding: { state: 'pending', deviceSecret: 's1' } },
+      { accessToken: 't2', deviceBinding: { state: 'unverified', deviceSecret: 's2' } },
+    );
+    const res = await loginKioskWithBinding(client, credentials);
+    expect(res.accessToken).toBe('t2');
+    expect(login).toHaveBeenCalledTimes(2);
+    expect(await loadDeviceSecret()).toBe('s1');
+  });
 
   it('si la confirmación es rechazada, el secreto sigue guardado y el error se propaga una vez', async () => {
     const { client, login } = clientWith(

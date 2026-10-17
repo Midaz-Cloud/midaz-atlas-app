@@ -30,7 +30,8 @@ export type KioskLoginRequest = {
   bindingCapable?: true;
 };
 
-export type KioskDeviceBindingState = 'enrolled' | 'pending' | 'unbound';
+/** `off` = vínculo desactivado en el servidor; `unverified` = entró con un secreto que no coincide (transición). Un valor desconocido se trata como normal. */
+export type KioskDeviceBindingState = 'enrolled' | 'pending' | 'unbound' | 'off' | 'unverified';
 
 export type KioskDeviceBinding = {
   state: KioskDeviceBindingState;
