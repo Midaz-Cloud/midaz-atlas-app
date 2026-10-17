@@ -9,6 +9,12 @@
     "imagesRemaining": "{{count}} remaining",
     "imagesFailed": "Could not download {{count}} image(s)",
     "authErrorTitle": "Could not connect",
+    "authErrorNotRegistered": "This device is not assigned to any company or its Kiosk add-on is not active. Share the serial with Midaz to activate it.",
+    "authErrorBlocked": "The company's subscription is suspended. Contact Midaz to reactivate it.",
+    "authErrorUnreachable": "No response from the server. Check the kiosk's internet connection.",
+    "authErrorGeneric": "The server rejected the kiosk startup.",
+    "serialLabel": "Device serial",
+    "autoRetry": "Retrying in {{count}} s…",
     "retry": "Retry"
   },
   "connectivity": {

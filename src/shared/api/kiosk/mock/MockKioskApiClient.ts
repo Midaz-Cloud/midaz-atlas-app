@@ -173,6 +173,12 @@ export class MockKioskApiClient implements KioskApiClient {
     return { data: [], nextCursor: null };
   }
 
+  /** En mock la búsqueda de cédula resuelve antes (customerService); acá nunca hay cliente. */
+  async lookupCedula(): Promise<unknown> {
+    await delay(50);
+    throw new KioskApiError('Cédula no encontrada', 404);
+  }
+
   async sendHeartbeat(): Promise<void> {
     await delay(50);
   }

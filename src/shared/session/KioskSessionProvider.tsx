@@ -8,16 +8,12 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { useTranslation } from 'react-i18next';
 
 import type { OrderType } from '@modules/introduction/types';
 
 import type { KioskOrderTypeChoice, KioskRuntimeConfig } from '@shared/api/kiosk';
 import { fulfillmentToOrderType, reloginKiosk } from '@shared/api/kiosk';
 import { syncMockCatalogFromMenuMocks } from '@shared/api/kiosk/mock/buildMockFixtures';
-import { kioskScreenColors, kioskScreenLayout } from '@shared/theme';
-import { displayTextStyle } from '@shared/theme';
 
 import { shouldUseMockApi } from '@shared/config/api';
 import {
@@ -37,6 +33,7 @@ import { resolveKioskLanguagePolicy } from '@shared/i18n/resolveKioskLanguagePol
 
 import { bootstrapKioskSession, type KioskSessionMode } from './bootstrapKioskSession';
 import { KioskBootstrapLoadingScreen } from './KioskBootstrapLoadingScreen';
+import { KioskStartupErrorScreen } from './KioskStartupErrorScreen';
 import { startKioskCatalogSync, type KioskCatalogSyncController } from './kioskCatalogSync';
 import type { KioskBootstrapPhase, KioskBootstrapSnapshot } from './kioskBootstrapState';
 import type { ImageSyncProgress } from '@shared/images/kioskImageTypes';
@@ -78,7 +75,6 @@ type KioskSessionProviderProps = {
 };
 
 export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
-  const { t } = useTranslation('session');
   const { applyLanguagePolicy } = useSessionLocale();
   const [status, setStatus] = useState<KioskSessionStatus>('loading');
   const [sessionMode, setSessionMode] = useState<KioskSessionMode>('online');
@@ -99,6 +95,10 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
   const [tableNumber, setTableNumber] = useState<string | undefined>();
   const [deviceSerial, setDeviceSerial] = useState<string | null>(null);
   const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null);
+  const [authErrorDetail, setAuthErrorDetail] = useState<{
+    statusCode?: number;
+    deviceSerial: string | null;
+  }>({ deviceSerial: null });
   const [bootstrapKey, setBootstrapKey] = useState(0);
   const catalogSyncRef = useRef<KioskCatalogSyncController | null>(null);
   /** Evita re-aplicar la política de idioma en cada tick de config si `appearance.languages` no cambió. */
@@ -143,6 +143,7 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
     setBootstrapPhase(null);
     setImageProgress(null);
     setAuthErrorMessage(result.message);
+    setAuthErrorDetail({ statusCode: result.statusCode, deviceSerial: result.deviceSerial });
     setStatus('auth_error');
   }, [applyLanguagePolicy]);
 
@@ -328,14 +329,15 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
   }
 
   if (status === 'auth_error') {
+    // Reintento automático: al asignar el equipo en el Hub (o volver la red) entra
+    // solo, sin que nadie tenga que tocar el kiosko.
     return (
-      <View style={styles.centered} testID="kiosk-session-auth-error">
-        <Text style={styles.errorTitle}>{t('bootstrap.authErrorTitle')}</Text>
-        <Text style={styles.errorMessage}>{authErrorMessage}</Text>
-        <Text style={styles.retryHint} onPress={retryBootstrap}>
-          {t('bootstrap.retry')}
-        </Text>
-      </View>
+      <KioskStartupErrorScreen
+        message={authErrorMessage ?? ''}
+        statusCode={authErrorDetail.statusCode}
+        deviceSerial={authErrorDetail.deviceSerial}
+        onRetry={retryBootstrap}
+      />
     );
   }
 
@@ -352,29 +354,3 @@ export function useKioskSession(): KioskSessionContextValue {
   return ctx;
 }
 
-const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: kioskScreenColors.screenBackground,
-    paddingHorizontal: kioskScreenLayout.menuHorizontalPadding,
-    gap: kioskScreenLayout.menuSectionGap,
-  },
-  errorTitle: {
-    ...displayTextStyle(),
-    fontSize: kioskScreenLayout.menuSectionTitleSize,
-    color: kioskScreenColors.title,
-    textAlign: 'center',
-  },
-  errorMessage: {
-    fontSize: kioskScreenLayout.searchFontSize,
-    color: kioskScreenColors.menuSectionMuted,
-    textAlign: 'center',
-  },
-  retryHint: {
-    ...displayTextStyle(),
-    fontSize: kioskScreenLayout.menuSectionTitleSize,
-    color: kioskScreenColors.priceAccent,
-  },
-});

@@ -9,6 +9,12 @@
     "imagesRemaining": "Quedan {{count}}",
     "imagesFailed": "No se pudo descargar {{count}} imagen(es)",
     "authErrorTitle": "No se pudo conectar",
+    "authErrorNotRegistered": "Este equipo no está asignado a ninguna empresa o su complemento Kiosko no está activo. Compartí el serial con Midaz para activarlo.",
+    "authErrorBlocked": "La suscripción de la empresa está suspendida. Contactá a Midaz para reactivarla.",
+    "authErrorUnreachable": "No hay respuesta del servidor. Revisá la conexión a internet del kiosco.",
+    "authErrorGeneric": "El servidor rechazó el arranque del kiosco.",
+    "serialLabel": "Serial del equipo",
+    "autoRetry": "Reintentando en {{count}} s…",
     "retry": "Reintentar"
   },
   "connectivity": {

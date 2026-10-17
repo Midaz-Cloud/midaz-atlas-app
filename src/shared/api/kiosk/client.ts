@@ -42,6 +42,12 @@ export interface KioskApiClient {
   sendHeartbeat(body: KioskHeartbeatRequest): Promise<void>;
   /** Caché de clientes para vender sin red (descarga incremental). */
   syncCustomers(cursor: string | null): Promise<KioskCustomerSyncPage>;
+  /**
+   * Cédula → cliente de la org (o datos del CNE) autenticado con el token del
+   * kiosko (`GET /kiosk/customers/lookup-cedula`). Devuelve el body crudo; 404 =
+   * cédula inexistente. El gateway resuelve la org por el JWT: la API key ya no viaja.
+   */
+  lookupCedula(nacionalidad: string, cedula: string): Promise<unknown>;
   submitSettlement(request: KioskSettlementRequest): Promise<KioskSettlementResponse>;
   submitZReport(request: KioskZReportRequest): Promise<KioskZReportResponse>;
 }
