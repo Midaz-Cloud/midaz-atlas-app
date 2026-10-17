@@ -4,6 +4,7 @@ import { getKioskDeviceProfile } from '@shared/device';
 import type { KioskApiClient } from './client';
 import { KioskApiError } from './errors';
 import { createKioskApiClient } from './factory';
+import { loginKioskWithBinding } from './kioskLogin';
 import { loadAccessToken, saveAccessToken } from './tokenStorage';
 
 let reloginInFlight: Promise<string | null> | null = null;
@@ -20,7 +21,7 @@ export function reloginKiosk(): Promise<string | null> {
   reloginInFlight = (async () => {
     try {
       const device = await getKioskDeviceProfile();
-      const login = await createKioskApiClient().login({
+      const login = await loginKioskWithBinding(createKioskApiClient(), {
         serialNumber: device.serialNumber,
         apiKey: getKioskApiKey(),
       });

@@ -24,10 +24,24 @@ export type KioskOrderTypeOption = {
 export type KioskLoginRequest = {
   serialNumber: string;
   apiKey: string;
+  /** Secreto del equipo ya guardado; el servidor lo valida en cada login. */
+  deviceSecret?: string;
+  /** Siempre true desde esta versión: la app sabe vincularse al equipo. */
+  bindingCapable?: true;
+};
+
+/** `off` = vínculo desactivado en el servidor; `unverified` = entró con un secreto que no coincide (transición). Un valor desconocido se trata como normal. */
+export type KioskDeviceBindingState = 'enrolled' | 'pending' | 'unbound' | 'off' | 'unverified';
+
+export type KioskDeviceBinding = {
+  state: KioskDeviceBindingState;
+  /** Solo viene cuando el servidor acaba de emitirlo. */
+  deviceSecret?: string;
 };
 
 export type KioskLoginResponse = {
   accessToken: string;
+  deviceBinding?: KioskDeviceBinding;
 };
 
 export type KioskAppearanceTranslation = {

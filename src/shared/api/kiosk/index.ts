@@ -1,6 +1,7 @@
 export type { KioskApiClient } from './client';
 export { createKioskApiClient, resetKioskApiClientForTests } from './factory';
 export { KioskApiError, KioskNetworkError, isKioskNetworkError } from './errors';
+export { loginKioskWithBinding } from './kioskLogin';
 export { withKioskAuth, reloginKiosk, __resetKioskReauthForTests } from './withKioskAuth';
 export { getUploadsUrl, resolveKioskImageUrl } from './imageUrl';
 export * from './types';

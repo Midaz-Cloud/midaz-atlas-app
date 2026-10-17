@@ -2,6 +2,18 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
 
+// Almacén seguro nativo en memoria (deviceSecretStorage); se vacía antes de cada test.
+const mockSecureItems = new Map();
+jest.mock('@shared/api/kiosk/deviceSecretStorage', () => ({
+  saveDeviceSecret: async (v) => void mockSecureItems.set('__device_secret', v),
+  loadDeviceSecret: async () => mockSecureItems.get('__device_secret') ?? null,
+  clearDeviceSecret: async () => void mockSecureItems.delete('__device_secret'),
+  saveSecureItem: async (k, v) => void mockSecureItems.set(k, v),
+  loadSecureItem: async (k) => mockSecureItems.get(k) ?? null,
+  removeSecureItem: async (k) => void mockSecureItems.delete(k),
+}));
+beforeEach(() => mockSecureItems.clear());
+
 // SQLite real (sql.js/WASM) en vez de simular cada consulta a mano: ver __mocks__/opSqliteSqlJsMock.js.
 jest.mock('@op-engineering/op-sqlite', () => require('./__mocks__/opSqliteSqlJsMock'));
 

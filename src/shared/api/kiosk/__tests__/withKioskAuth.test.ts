@@ -70,6 +70,14 @@ describe('withKioskAuth', () => {
     mockLogin.mockRejectedValue(new Error('sin red'));
     await expect(reloginKiosk()).resolves.toBeNull();
   });
+
+  it('un 401 de vínculo de equipo no entra en bucle: un solo intento de login', async () => {
+    mockLogin.mockReset();
+    mockLogin.mockRejectedValue(new KioskApiError('x', 401, { code: 'DEVICE_SECRET_INVALID' }));
+    await expect(reloginKiosk()).resolves.toBeNull();
+    expect(mockLogin).toHaveBeenCalledTimes(1);
+    expect(mockLogin).toHaveBeenCalledWith(expect.objectContaining({ bindingCapable: true }));
+  });
 });
 
 describe('fetchWithTimeout', () => {

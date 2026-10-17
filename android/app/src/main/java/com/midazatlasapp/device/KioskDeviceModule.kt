@@ -31,6 +31,59 @@ class KioskDeviceModule(reactContext: ReactApplicationContext) :
 
   override fun getName(): String = "KioskDeviceModule"
 
+  private val secureStore by lazy { KioskSecureStore(reactApplicationContext) }
+
+  // Almacén seguro (AndroidKeyStore AES-GCM + SharedPreferences privadas): secreto
+  // del equipo y token de sesión. Nunca AsyncStorage.
+
+  @ReactMethod
+  fun setDeviceSecret(value: String, promise: Promise) = secureSet(KioskSecureStore.DEVICE_SECRET_KEY, value, promise)
+
+  @ReactMethod
+  fun getDeviceSecret(promise: Promise) = secureGet(KioskSecureStore.DEVICE_SECRET_KEY, promise)
+
+  /** Solo para un borrado explícito de la configuración del equipo; el logout no lo llama. */
+  @ReactMethod
+  fun clearDeviceSecret(promise: Promise) = secureRemove(KioskSecureStore.DEVICE_SECRET_KEY, promise)
+
+  @ReactMethod
+  fun setSecureItem(key: String, value: String, promise: Promise) = secureSet(itemKey(key), value, promise)
+
+  @ReactMethod
+  fun getSecureItem(key: String, promise: Promise) = secureGet(itemKey(key), promise)
+
+  @ReactMethod
+  fun removeSecureItem(key: String, promise: Promise) = secureRemove(itemKey(key), promise)
+
+  /** Las claves genéricas llevan prefijo para no chocar nunca con la del secreto del equipo. */
+  private fun itemKey(key: String) = "item:$key"
+
+  private fun secureSet(key: String, value: String, promise: Promise) {
+    try {
+      secureStore.set(key, value)
+      promise.resolve(null)
+    } catch (e: Exception) {
+      promise.reject("SECURE_STORE_ERROR", e.message, e)
+    }
+  }
+
+  private fun secureGet(key: String, promise: Promise) {
+    try {
+      promise.resolve(secureStore.get(key))
+    } catch (e: Exception) {
+      promise.reject("SECURE_STORE_ERROR", e.message, e)
+    }
+  }
+
+  private fun secureRemove(key: String, promise: Promise) {
+    try {
+      secureStore.remove(key)
+      promise.resolve(null)
+    } catch (e: Exception) {
+      promise.reject("SECURE_STORE_ERROR", e.message, e)
+    }
+  }
+
   /**
    * Pide a HkaApp que arranque su servicio fiscal (API :8765) y se conecte sola a
    * la impresora, sin abrirla ni sacar al kiosko de primer plano. Broadcast

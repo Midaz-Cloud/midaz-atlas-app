@@ -1,9 +1,20 @@
 export type KioskApiErrorBody = {
   statusCode?: number;
   message?: string;
+  /** Código de negocio (p. ej. DEVICE_SECRET_INVALID). */
+  code?: string;
   path?: string;
   timestamp?: string;
 };
+
+export const DEVICE_BINDING_ERROR_CODES: readonly string[] = [
+  'DEVICE_SECRET_REQUIRED',
+  'DEVICE_SECRET_INVALID',
+  'DEVICE_NOT_ENROLLED',
+];
+
+export const DEVICE_REBIND_MESSAGE =
+  'Este equipo necesita ser vinculado de nuevo. Pide a un administrador que use "Restablecer vínculo" en Midaz.';
 
 export class KioskApiError extends Error {
   readonly statusCode: number;
@@ -18,6 +29,16 @@ export class KioskApiError extends Error {
 
   static isAuthError(error: unknown): boolean {
     return error instanceof KioskApiError && error.statusCode === 401;
+  }
+
+  /** 401 por el vínculo del equipo (secreto ausente, inválido o equipo sin enrolar). */
+  static isDeviceBindingError(error: unknown): boolean {
+    return (
+      error instanceof KioskApiError &&
+      error.statusCode === 401 &&
+      error.body?.code !== undefined &&
+      DEVICE_BINDING_ERROR_CODES.includes(error.body.code)
+    );
   }
 }
 
