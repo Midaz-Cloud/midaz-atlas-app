@@ -77,6 +77,9 @@ function mountedCardIds(renderer: ReactTestRenderer.ReactTestRenderer): string[]
     .sort();
 }
 
+// Con la caché de transformación fría el primer render carga todo el árbol de la pantalla y pasa de 5 s.
+jest.setTimeout(30000);
+
 describe('MenuScreen (Fase 2 · una categoría montada, lista virtualizada)', () => {
   beforeEach(() => {
     mockRenderedCards.length = 0;
