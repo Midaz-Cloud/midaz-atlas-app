@@ -2,6 +2,9 @@ package com.midazatlasapp
 
 import android.os.Bundle
 import android.view.WindowManager
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -22,6 +25,24 @@ class MainActivity : ReactActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    hideStatusBar()
+  }
+
+  /**
+   * Sin barra de estado (hora, wifi, notificaciones): en un kiosko el cliente no la
+   * usa y tapa la parte de arriba. Android la vuelve a mostrar al volver de otra app
+   * o de un diálogo del sistema, por eso se re-aplica al recuperar el foco.
+   */
+  override fun onWindowFocusChanged(hasFocus: Boolean) {
+    super.onWindowFocusChanged(hasFocus)
+    if (hasFocus) hideStatusBar()
+  }
+
+  private fun hideStatusBar() {
+    WindowCompat.getInsetsController(window, window.decorView).apply {
+      systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+      hide(WindowInsetsCompat.Type.statusBars())
+    }
   }
 
   /**
