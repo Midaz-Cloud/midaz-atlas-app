@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { KioskApiClient } from './client';
+import { FALLBACK_BANKS } from './banksFallback';
 import type { KioskBank } from './types';
 
 const BANKS_CACHE_KEY = '@kiosk/banksCache';
@@ -43,15 +44,27 @@ async function saveCachedBanks(banks: KioskBank[]): Promise<void> {
   await AsyncStorage.setItem(BANKS_CACHE_KEY, JSON.stringify(entry));
 }
 
-/** Loads banks from cache when fresh; otherwise fetches and persists (24h TTL). */
+/**
+ * Loads banks from cache when fresh; otherwise fetches and persists (24h TTL).
+ * Nunca devuelve vacío: si el backend falla o responde `[]`, usa la última lista guardada
+ * (aunque esté vencida) o el catálogo de respaldo. Una lista vacía no se guarda jamás.
+ */
 export async function loadBanks(client: KioskApiClient): Promise<KioskBank[]> {
   const cached = await loadCachedBanks();
-  if (cached && Date.now() - cached.fetchedAt < BANKS_TTL_MS) {
-    return cached.banks;
+  const cachedBanks = cached && cached.banks.length > 0 ? cached.banks : null;
+  if (cached && cachedBanks && Date.now() - cached.fetchedAt < BANKS_TTL_MS) {
+    return cachedBanks;
   }
-  const banks = await client.getBanks();
-  await saveCachedBanks(banks);
-  return banks;
+  try {
+    const banks = await client.getBanks();
+    if (banks.length > 0) {
+      await saveCachedBanks(banks);
+      return banks;
+    }
+  } catch {
+    // Sin red o error del backend: se cae al respaldo de abajo.
+  }
+  return cachedBanks ?? FALLBACK_BANKS;
 }
 
 export async function clearBanksCache(): Promise<void> {
