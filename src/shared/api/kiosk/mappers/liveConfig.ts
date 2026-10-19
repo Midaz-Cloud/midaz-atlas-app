@@ -63,7 +63,7 @@ export function mapLiveConfigToKioskConfigResponse(
       primaryColor: sanitizeKioskColor(liveAppearance.primaryColor, '#004be0'),
       secondaryColor: sanitizeKioskColor(liveAppearance.secondaryColor, '#07143a'),
       title: liveAppearance.title ?? 'Bienvenido',
-      subtitle: liveAppearance.subtitle ?? 'Realizá tu pedido aquí',
+      subtitle: liveAppearance.subtitle ?? 'Haz tu pedido aquí',
       coverImage: liveAppearance.coverImage ?? null,
       pickupImage: liveAppearance.pickupImage ?? null,
       inStoreImage: liveAppearance.inStoreImage ?? null,

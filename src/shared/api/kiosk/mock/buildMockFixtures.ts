@@ -80,7 +80,7 @@ export function getMockConfig(): KioskConfigResponse {
       primaryColor: '#004be0',
       secondaryColor: '#07143a',
       title: 'Bienvenidos',
-      subtitle: 'Realizá tu pedido aquí',
+      subtitle: 'Haz tu pedido aquí',
       coverImage: null,
       pickupImage: null,
       inStoreImage: null,
