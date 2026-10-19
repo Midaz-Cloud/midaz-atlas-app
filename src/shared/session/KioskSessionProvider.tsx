@@ -26,6 +26,7 @@ import { startLanComandaServer } from '@shared/lan';
 import { startKioskCustomerSync } from '@shared/customer/syncKioskCustomers';
 import { startHkaFiscalService } from '@shared/peripherals/fiscal/ensureFiscalReady';
 import { shouldUsePhysicalFiscalPrinter } from '@shared/api/kiosk/utils/invoicingType';
+import { parseDeclaresTaxes } from '@shared/api/kiosk/utils/declaresTaxes';
 import { startKioskTelemetryHeartbeat } from '@shared/telemetry';
 import { optimizeCachedImagesOnce } from '@shared/images/kioskImageCache';
 import { useSessionLocale } from '@shared/i18n';
@@ -245,9 +246,11 @@ export function KioskSessionProvider({ children }: KioskSessionProviderProps) {
   // portal — INDEPENDIENTE del servidor LAN: antes solo se reportaba si
   // lanComanda.enabled, dejando kioskos "sin reportar" para siempre si esa
   // opción estaba apagada.
-  const requiresFiscalPrinter = shouldUsePhysicalFiscalPrinter(
-    bootstrapSnapshot?.organization.effectiveInvoicingType,
-  );
+  // Una empresa que no declara IVA no factura fiscal: sin impresora que vigilar (si no, el portal
+  // marcaba el kiosko "Necesita revisión · Impresora fiscal no disponible").
+  const requiresFiscalPrinter =
+    parseDeclaresTaxes(bootstrapSnapshot?.organization.declaresTaxes) &&
+    shouldUsePhysicalFiscalPrinter(bootstrapSnapshot?.organization.effectiveInvoicingType);
   useEffect(() => {
     if (status !== 'ready' || shouldUseMockApi()) {
       return;
