@@ -7,7 +7,7 @@ Si el kiosko pierde internet o el backend no responde, sigue vendiendo con tarje
 | Paso | Con backend | Sin backend |
 | --- | --- | --- |
 | Arranque | login + config + catálogo en vivo | config y catálogo de la última sesión (caché) |
-| Métodos de pago | los configurados | solo tarjeta (POS). Efectivo si `lanAllowCashOffline` |
+| Métodos de pago | los configurados | solo tarjeta (POS). Efectivo si `lanAllowCashOffline` (lado app: `runtimeConfig.raw.lanComanda.allowCashOffline`, ver `useOfflinePaymentOptions.ts`) |
 | Reserva de stock | obligatoria | se salta; el backend descuenta (forzado) al sincronizar |
 | Cliente | búsqueda en vivo | caché local; si no está, registro local (se crea al sincronizar) |
 | Factura fiscal | HkaApp | HkaApp (igual, es local) |

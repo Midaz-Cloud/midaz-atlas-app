@@ -9,5 +9,6 @@ Captured responses for kiosk HTTP integration. Do not commit secrets; login JSON
 | `config.meta.json` | ETag + fetch metadata |
 | `products.response.json` | `GET /kiosk/products` (full array) |
 | `products.meta.json` | Count + field list |
+| `banks.response.json` | `GET /kiosk/banks` (lista de bancos para pago móvil) |
 
 See `INTEGRATION_NOTES.md` and `../liveApi.types.ts`.
