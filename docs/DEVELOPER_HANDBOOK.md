@@ -1,8 +1,8 @@
 # Manual del desarrollador — Midaz Atlas (kiosco AF910)
 
 > Este archivo responde **"¿cómo hago X?"**. `CLAUDE.md` responde **"¿por qué esto explotó antes?"**.
-> Contexto transversal de los 8 repos: `../docs/ECOSISTEMA.md` (las rutas `../` de este manual son relativas a la raíz del repo).
-> Verificado contra el código el 2026-10-05 (rama `docs/developer-handbook` con `develop` fusionado). Lo que no se pudo comprobar está marcado como **sin verificar**. §10 corrige afirmaciones falsas del README y del propio CLAUDE.md.
+> Contexto transversal de los 9 repos: `../docs/ECOSISTEMA.md` (las rutas `../` de este manual son relativas a la raíz del repo).
+> Verificado contra el código el 2026-10-05 (rama `docs/developer-handbook` con `develop` fusionado). Lo que no se pudo comprobar está marcado como **sin verificar**. Actualizado el 2026-10-17 (README, CLAUDE.md y `usb-pos-transaccion.md` ya corregidos).
 
 React Native **bare** 0.85.3 · React 19.2 · TypeScript ^5.8 · Node `^20.19.4`, `^22.13` o `^24.3` (lo exige RN 0.85.3; `package.json` solo declara `>= 20.0.0`) · Android-first (`com.midazatlasapp`)
 
@@ -40,7 +40,7 @@ Módulos nativos (`android/.../com/midazatlasapp/`): `device/`, `ecr/`, `lan/`, 
 
 > ⚠️ **No existe `peripherals/device/`** — el código de serial está en `src/shared/device/` (CLAUDE.md lo lista junto a los periféricos, pero no vive ahí).
 
-Convenciones: pantallas `*Screen.tsx` (38); `__tests__/` colocados (164 archivos de test); `*.stories.tsx` colocados (85). Casi todas las áreas compartidas exponen un barrel `index.ts`; las excepciones son `catalog/`, `modifiers/` y `ui/` (se importan por archivo), y `api/` y `peripherals/`, que lo exponen por subcarpeta. `utils/index.ts` no reexporta `uuid.ts`: se importa como `@shared/utils/uuid`.
+Convenciones: pantallas `*Screen.tsx`; `__tests__/` colocados; `*.stories.tsx` colocados. Casi todas las áreas compartidas exponen un barrel `index.ts`; las excepciones son `catalog/`, `modifiers/` y `ui/` (se importan por archivo), y `api/` y `peripherals/`, que lo exponen por subcarpeta. `utils/index.ts` no reexporta `uuid.ts`: se importa como `@shared/utils/uuid`.
 
 ⚠️ **Los fixtures de payloads USB crudos van en `src/shared/peripherals/ecr/__fixtures__/`, nunca en `__tests__/`** — jest trataría el archivo como suite.
 
@@ -56,6 +56,8 @@ Convenciones: pantallas `*Screen.tsx` (38); `__tests__/` colocados (164 archivos
 | `jest.config.js` | `moduleNameMapper` |
 
 Cambiar un alias sin tocar los cuatro rompe una capa distinta en cada caso (typecheck, bundling o los tests).
+
+Aparte de los aliases, `jest.setup.js` sustituye `@op-engineering/op-sqlite` por `__mocks__/opSqliteSqlJsMock.js` (SQLite real vía sql.js/WASM, no un mock a mano) y `react-native-config` por `__mocks__/react-native-config.js`.
 
 ---
 
@@ -145,22 +147,22 @@ Fuera del bootstrap, las llamadas autenticadas van por `withKioskAuth((client) =
 ### La capa demo — `src/shared/config/demo.ts`
 `KIOSK_DEMO_MODE` activa el banner, los escenarios y los timeouts cortos, pero **no** el mock. Escenarios: `default | fiscal_error | payment_fail | pos_fail`. `KIOSK_DEMO_REFERENCE_CODE` (default `123456`) es la referencia de pago móvil que el mock acepta.
 
-### Storage de token y caché — `tokenStorage.ts` (AsyncStorage)
-Claves `@kiosk/accessToken`, `@kiosk/accessTokenExpiresAt`, `@kiosk/configEtag`, `@kiosk/configBody`, `@kiosk/productsEtag`, `@kiosk/productsBody`, `@kiosk/lastPosSerial`. TTL de token **24 h**, auto-expira al cargar. Los bancos tienen su propia caché de 24 h (`banksCache.ts`).
+### Storage de token y caché — `tokenStorage.ts`
+Desde 2026-10-17 el token (`@kiosk/accessToken`) vive en el almacén seguro nativo (`deviceSecretStorage.ts` → `KioskDeviceModule`/`KioskSecureStore.kt`, AndroidKeyStore AES-GCM), igual que el `deviceSecret` del vínculo por equipo; si quedó uno viejo en AsyncStorage se migra y se borra de ahí. En AsyncStorage siguen solo las claves que no son secreto: `@kiosk/accessTokenExpiresAt`, `@kiosk/configEtag`, `@kiosk/configBody`, `@kiosk/productsEtag`, `@kiosk/productsBody`, `@kiosk/lastPosSerial`. TTL de token **24 h**, auto-expira al cargar. Los bancos tienen su propia caché de 24 h (`banksCache.ts`).
 
-### Los 14 métodos de la interfaz `KioskApiClient`
+### Los 15 métodos de la interfaz `KioskApiClient`
 
 Base `KIOSK_API_BASE_URL` (default `http://localhost:3000`, **sin prefijo `/api`**). Todas las llamadas del cliente HTTP pasan por `fetchWithTimeout` con un presupuesto de `KIOSK_TIMEOUTS` (`http/fetchWithTimeout.ts`). Non-2xx → `KioskApiError(message, statusCode, body)`; sin respuesta HTTP (sin red o timeout) → `KioskNetworkError`, que además alimenta el store de conectividad.
 
 | # | Método + path | Nota |
 |---|---|---|
-| 1 | `POST /auth/kiosk/login` | `{serialNumber, apiKey}`, **sin header Authorization** → `{accessToken}` (24 h) |
+| 1 | `POST /auth/kiosk/login` | `{serialNumber, apiKey, deviceSecret?, bindingCapable?}`, **sin header Authorization** → `{accessToken, deviceBinding?}` (24 h). `deviceBinding.state` ∈ `enrolled | pending | unbound | off | unverified`; si trae `deviceSecret` (`pending`) se guarda (`deviceSecretStorage.ts`), se confirma con UN segundo login y se manda en los siguientes; `unverified`/`off`/desconocido = login normal sin tocar el secreto; 401 `DEVICE_SECRET_REQUIRED\|INVALID`/`DEVICE_NOT_ENROLLED` → `DEVICE_REBIND_MESSAGE` (`kioskLogin.ts`) |
 | 2 | `GET /kiosk/config` | `If-None-Match`; **sin ETag agrega un cache-buster `?_t=<now>`**. `304` → se remapea desde `@kiosk/configBody` |
 | 3 | `GET /kiosk/products` | mismo patrón de ETag |
 | 4 | `POST /kiosk/cart/reserve` | `{items:[{productId, quantity}], ttlMinutes?}` → `{reservationId, allReserved, items[]}` |
 | 5 | `GET /kiosk/banks` | → `{code, name}[]` |
 | 6 | `POST /kiosk/validate-payment` | lee `response.text()` primero y arma el error a mano, para que sobreviva el mensaje del banco. Éxito = `success===true && status==='00'` |
-| 7 | `GET /kiosk/customers?documentId=` | ⚠️ lleva un `TODO: confirm path with backend` |
+| 7 | `GET /kiosk/customers?documentId=` | ⚠️ **404: la ruta no existe en el gateway** (`kiosk.controller.ts` solo tiene `customers/sync`, `customers/lookup-cedula`, `POST customers`, `PATCH customers/:id`). Para buscar por cédula usá el método 15 |
 | 8 | `POST /kiosk/customers` | el registro vivo va en realidad por `http/customerCreate.ts` |
 | 9 | `POST /kiosk/orders` | ver §5.1. Manda `Idempotency-Key` (por defecto, `clientOrderId`) |
 | 10 | `GET /kiosk/orders/by-client-id/{clientOrderId}` | `404` → `null` (la venta todavía no existe en el backend) |
@@ -168,18 +170,19 @@ Base `KIOSK_API_BASE_URL` (default `http://localhost:3000`, **sin prefijo `/api`
 | 12 | `GET /kiosk/customers/sync?cursor=` | descarga incremental de la caché de clientes |
 | 13 | `POST /kiosk/settlement` | |
 | 14 | `POST /kiosk/z-reports` | |
+| 15 | `GET /kiosk/customers/lookup-cedula?nacionalidad=&cedula=` | con Bearer (el gateway resuelve la org por el JWT). Devuelve el body crudo; 404 = cédula inexistente. `http/customerLookup.ts` cae a la ruta pública `GET /customers/lookup-cedula?apiKey&serialNumber` si el gateway responde 404 "Cannot GET" |
 
-**Fuera de la interfaz:** `GET /customers/lookup-cedula` (**sin Bearer; `apiKey` y `serialNumber` en el query string**), `PATCH /kiosk/customers/{id}`, `POST /kiosk/generate-payment-qr` y `GET /health` (sonda de conectividad, `connectivity/probeKioskGateway.ts`).
+**Fuera de la interfaz:** `PATCH /kiosk/customers/{id}`, `POST /kiosk/generate-payment-qr`, `GET /health` (sonda de conectividad, `connectivity/probeKioskGateway.ts`) y el fallback público `GET /customers/lookup-cedula` descrito en el método 15.
 
 ### 5.1 El contrato de orden — primero el cobro, después la orden
 
-El backend documenta esto en `../Midaz-W-Backend/KIOSK_DEVELOPER_GUIDE.md` (no está en este repo). Los endpoints 10 a 12 de la tabla no aparecen en esa guía. Lo esencial:
+El backend documenta esto en `../Midaz-W-Backend/KIOSK_DEVELOPER_GUIDE.md` (no está en este repo). Lo que la guía original (v2.3) no documenta — heartbeat, `customers/sync`, `orders/by-client-id`, `z-reports`, `lookup-cedula` con token, `PATCH customers/:id`, `deviceBinding`, `clientOrderId`/idempotencia — está en su **Addendum 2026-10-17**. Lo esencial:
 
 1. **`POST /kiosk/cart/reserve` es obligatorio antes de cualquier cobro.** Es atómico y todo-o-nada, TTL 5 min. Sin reserva, dos kioscos cobran la misma última unidad — y cobrar sin stock disponible es una infracción fiscal ante el SENIAT. **Excepción: sin backend** la reserva se salta (`reserveCartOrSkipOffline`) y la venta queda en `order_outbox` hasta sincronizar; ver `docs/KIOSK_OFFLINE_LAN.md`.
 2. **La orden se crea solo después de confirmar el pago.** Tarjeta: solo si `posResponse.responseCode === "00"`. Pago móvil: solo si `status === "00"`. Efectivo es la excepción — la orden entra `PENDIENTE` y el cajero confirma el cobro en el panel.
 3. Si el pago falla, **la reserva sigue viva** y se puede reusar el mismo `reservationId` con otro método.
 4. `branchId`, `organizationId` y `kioskDeviceId` los inyecta el backend desde el JWT — **nunca los mandes**.
-5. `posBound: false` en el login = modo degradado: oculta `debito`, `credito` y `pago_movil_qr`, deja efectivo y pago móvil manual. **El cliente no debe ver ningún error.** ⚠️ Hoy la app no lee `posBound`: `KioskLoginResponse` solo tipa `accessToken`.
+5. `posBound: false` en el login = modo degradado: oculta `debito`, `credito` y `pago_movil_qr`, deja efectivo y pago móvil manual. **El cliente no debe ver ningún error.** ⚠️ Hoy la app no lee `posBound`: `KioskLoginResponse` tipa `accessToken` y `deviceBinding?`, nada más.
 6. `taxRate` va como entero (`16`), no como string.
 
 ---
@@ -297,19 +300,7 @@ Release: `npm run android:release` (ABIs `armeabi-v7a,arm64-v8a`).
 
 ---
 
-## 10. Docs que mienten (verificado contra el código)
-
-- **`KIOSK_DEMO_MODE` no fuerza mock.** El `README.md` ("*`KIOSK_DEMO_MODE=true` **always** forces mock API (feria-safe)*") y el `CLAUDE.md` dicen lo contrario que `src/shared/config/api.ts`, cuyo propio comentario aclara que no.
-- **El `.env.demo` versionado tiene `KIOSK_API_USE_MOCK=false`** y apunta a una IP de la LAN. O sea que `npm run android:demo` hoy corre la capa demo contra un backend **vivo**, no contra fixtures offline — exactamente lo contrario de lo que promete el README. También versiona `KIOSK_ADMIN_PASSCODE` en texto plano.
-- **`docs/usb-pos-transaccion.md` tiene todas las rutas mal.** Cita `com/keiver/pacheco/conviasa/UsbSerialModule.kt`, `hooks/useUsbECR.ts`, `components/PaymentModal.tsx`, `app/screens/PaymentScreen.tsx`, `utils/recoveryQueue.ts` — **ninguno existe aquí**; `conviasa` es el paquete de un proyecto predecesor y aparece solo en ese doc. **La descripción del protocolo sí es correcta** (115200-8-N-1, detección por VID/PID, sleep de 300 ms, `extractLastBalancedJson`, `sendAndWait` de 120 s, el filtro de `result: -97`). Úsalo como referencia de protocolo; ignora cada ruta.
-- `README.md` cita `docs/KIOSK_DEVELOPER_GUIDE.md`, `docs/ECR_NATIVE_MODULE.md` y `../docs/SELF_SERVICE_KIOSK_FLUX.md` — **los tres faltan**. La guía del kiosco real vive en `../Midaz-W-Backend/KIOSK_DEVELOPER_GUIDE.md`.
-- `CLAUDE.md` (sección "Persistence") pide actualizar "the hand-written sqlite mock in `jest.setup.js`"; ese mock ya no existe (§7).
-- `CLAUDE.md` dice "Node >= 22.11"; `package.json` declara `>= 20.0.0` y RN 0.85.3 no acepta 22.11 (pide `^22.13.0`).
-- `.cursor/rules/midaz-atlas-app-kiosk-order.mdc` dice que `KioskOrderProvider` se monta en `App.tsx`; lo monta `KioskOrderSessionBridge`, y sus globs apuntan a un prefijo `MidazAtlasApp/**` que no existe.
-
----
-
-## 11. Deudas y código muerto
+## 10. Deudas y código muerto
 
 1. **`getCheckoutSnapshot()` se descarta** (`AppNavigator.tsx:66`) — el contrato de congelar totales no está aplicado.
 2. **El mock de `@shared/session` en jest está desactualizado** (§9).

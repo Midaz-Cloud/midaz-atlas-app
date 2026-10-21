@@ -2,7 +2,7 @@
 
 ## Imports en código
 
-Usa el alias **`@assets`** (configurado en `tsconfig.json` y `babel.config.js`):
+Usa el alias **`@assets`** (configurado en 4 archivos que deben ir a la par: `babel.config.js`, `tsconfig.json`, `metro.config.js`, `jest.config.js`):
 
 ```ts
 import IconBack from '@assets/images/kiosk/icon-back.svg';
