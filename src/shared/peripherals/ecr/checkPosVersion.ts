@@ -7,7 +7,7 @@ import type { UseUsbECRReturn } from './useUsbECR';
  * puede haber cambiado sin aviso (pasó en producción) — no confiar en un pago/cierre
  * hecho contra un SDK sin verificar.
  */
-export const EXPECTED_PKUSB_APP_VERSION_CODE = 15;
+export const EXPECTED_PKUSB_APP_VERSION_CODE = 16;
 export const EXPECTED_VESLC_VERSION_CODE = 117;
 
 export type PosVersionCheck =
