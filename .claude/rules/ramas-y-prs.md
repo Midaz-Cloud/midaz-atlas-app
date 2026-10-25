@@ -16,5 +16,18 @@ Vale para todos los repos de Midaz-Cloud, para personas y para agentes (Claude, 
 ## Por qué
 Los PR de `develop` hacia QA traían decenas de commits imposibles de revisar y arrastraban trabajo a medias a QA y a producción. Subiendo uno por uno, cada destino recibe solo lo que se eligió y cualquier cambio se revierte solo.
 
+## Antes de crear la rama: preguntar siempre
+Un agente (Claude u otro) no crea una rama sin antes preguntar a la persona, y esperar la respuesta:
+1. **Qué tipo de cambio es** (define el título del PR y la versión):
+   | Tipo | Cuándo | Título del PR | Versión |
+   |---|---|---|---|
+   | Parche | Arregla algo que ya existía, sin cambiar cómo se usa | `fix(área): …` | sube Z |
+   | Menor | Agrega algo nuevo; lo anterior sigue igual | `feat(área): …` | sube Y |
+   | Mayor | Obliga a otro a cambiar: APK o kiosko instalados, Hub, lo que consumen o certificaron Credicard/Access, migración sin vuelta atrás, flujo que el comercio ya conoce | `feat!:`/`fix!:` + línea `BREAKING CHANGE: qué rompe` | sube X |
+   | Sin versión | No cambia lo que corre | `docs:`, `test:`, `ci:`, `chore:` | no sube |
+2. **A qué ramas va** (QA, allinone, release/aws, main…). Con eso se calcula la base: el ancestro común de esos destinos.
+
+Con Claude Code, usar la herramienta de preguntas (AskUserQuestion) con esas dos preguntas. El hook `.claude/hooks/confirmar-rama.mjs` además pide confirmación en pantalla cada vez que se va a crear una rama. Si la persona ya respondió ambas cosas en su mensaje, no se vuelve a preguntar.
+
 ## Ramas de este repo
 `develop` (integración, no se promueve) y `main` (lo publicado en los kioskos).
