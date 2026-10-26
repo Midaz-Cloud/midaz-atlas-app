@@ -1,6 +1,6 @@
 import {
   checkPosVersion,
-  EXPECTED_PKUSB_APP_VERSION_CODE,
+  MIN_PKUSB_APP_VERSION_CODE,
   EXPECTED_VESLC_VERSION_CODE,
   posVersionCheckMessage,
 } from '../checkPosVersion';
@@ -18,7 +18,7 @@ describe('checkPosVersion', () => {
         result: 0,
         data: {
           appVersionName: '1.0.5',
-          appVersionCode: EXPECTED_PKUSB_APP_VERSION_CODE,
+          appVersionCode: MIN_PKUSB_APP_VERSION_CODE,
           veslcInstalled: true,
           veslcVersionName: 'VESLC20260819001',
           veslcVersionCode: EXPECTED_VESLC_VERSION_CODE,
@@ -30,13 +30,22 @@ describe('checkPosVersion', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('approves PKUSB 1.0.8 (versionCode 17): newer than the minimum is fine', async () => {
+    const ecr = ecrWithResponse(
+      '{"success":true,"type":"version","result":0,"referenceNo":"VERCHK-1","data":{"veslcVersionCode":117,"veslcVersionName":"VESLC20260819001","veslcInstalled":true,"appVersionCode":17,"appVersionName":"1.0.8"},"crc":"00000000"}',
+    );
+
+    const result = await checkPosVersion(ecr);
+    expect(result).toEqual({ ok: true, appVersionCode: 17, veslcVersionCode: 117 });
+  });
+
   it('blocks when the PKUSB app version does not match', async () => {
     const ecr = ecrWithResponse(
       JSON.stringify({
         success: true,
         type: 'version',
         data: {
-          appVersionCode: EXPECTED_PKUSB_APP_VERSION_CODE - 1,
+          appVersionCode: MIN_PKUSB_APP_VERSION_CODE - 1,
           veslcInstalled: true,
           veslcVersionCode: EXPECTED_VESLC_VERSION_CODE,
         },
@@ -58,7 +67,7 @@ describe('checkPosVersion', () => {
         success: true,
         type: 'version',
         data: {
-          appVersionCode: EXPECTED_PKUSB_APP_VERSION_CODE,
+          appVersionCode: MIN_PKUSB_APP_VERSION_CODE,
           veslcInstalled: false,
         },
       }),

@@ -25,6 +25,12 @@ export type PaymentErrorScreenProps = {
   posReference?: string;
   /** La impresora fiscal no estaba lista: no se cobró nada. */
   fiscalUnavailable?: boolean;
+  /**
+   * El POS no confirmó el cobro (`unconfirmed`) o no lo ejecutó porque el anterior
+   * sigue pendiente (`previous_pending`). No se ofrece reintentar ni cambiar de método:
+   * podría cobrarse dos veces. El cliente acude al personal.
+   */
+  posUncertain?: 'unconfirmed' | 'previous_pending';
   retryCount?: number;
   onBack: () => void;
   onRetry: () => void;
@@ -37,6 +43,7 @@ export function PaymentErrorScreen({
   orderRegistrationFailed = false,
   posReference,
   fiscalUnavailable = false,
+  posUncertain,
   retryCount,
   onBack,
   onRetry,
@@ -46,18 +53,30 @@ export function PaymentErrorScreen({
   const colors = useKioskScreenColors();
 
   const isBlocked = orderRegistrationFailed && retryCount != null && retryCount >= 3;
+  const posUncertainKey =
+    posUncertain === 'unconfirmed'
+      ? 'error.posUnconfirmed'
+      : posUncertain === 'previous_pending'
+        ? 'error.posPreviousPending'
+        : null;
 
-  const titleLine1 = fiscalUnavailable
+  const titleLine1 = posUncertainKey
+    ? t(`${posUncertainKey}.titleLine1`)
+    : fiscalUnavailable
     ? t('error.fiscalUnavailable.titleLine1')
     : orderRegistrationFailed
       ? t('error.orderRegistrationFailed.titleLine1')
       : t('error.titleLine1');
-  const titleLine2 = fiscalUnavailable
+  const titleLine2 = posUncertainKey
+    ? t(`${posUncertainKey}.titleLine2`)
+    : fiscalUnavailable
     ? t('error.fiscalUnavailable.titleLine2')
     : orderRegistrationFailed
       ? t('error.orderRegistrationFailed.titleLine2')
       : t('error.titleLine2');
-  const subtitle = fiscalUnavailable
+  const subtitle = posUncertainKey
+    ? t(`${posUncertainKey}.subtitle`)
+    : fiscalUnavailable
     ? t('error.fiscalUnavailable.subtitle')
     : isBlocked
     ? t('error.orderRegistrationFailed.blockedMessage')
@@ -110,20 +129,31 @@ export function PaymentErrorScreen({
             </View>
           }
           footer={
-            <View style={referenceFlowLayoutStyles.errorActions}>
-              <PaymentPrimaryCta
-                label={orderRegistrationFailed ? t('error.orderRegistrationFailed.retryCta') : t('error.retryCta')}
-                showChevron={false}
-                disabled={isBlocked}
-                onPress={onRetry}
-                testID="payment-error-retry"
-              />
-              <PaymentReferenceOutlineCta
-                label={orderRegistrationFailed ? t('error.orderRegistrationFailed.helpCta') : t('error.changeMethodCta')}
-                onPress={onChangeMethod}
-                testID="payment-error-change-method"
-              />
-            </View>
+            posUncertainKey ? (
+              <View style={referenceFlowLayoutStyles.errorActions}>
+                <PaymentPrimaryCta
+                  label={t(`${posUncertainKey}.okCta`)}
+                  showChevron={false}
+                  onPress={onBack}
+                  testID="payment-error-pos-uncertain-ok"
+                />
+              </View>
+            ) : (
+              <View style={referenceFlowLayoutStyles.errorActions}>
+                <PaymentPrimaryCta
+                  label={orderRegistrationFailed ? t('error.orderRegistrationFailed.retryCta') : t('error.retryCta')}
+                  showChevron={false}
+                  disabled={isBlocked}
+                  onPress={onRetry}
+                  testID="payment-error-retry"
+                />
+                <PaymentReferenceOutlineCta
+                  label={orderRegistrationFailed ? t('error.orderRegistrationFailed.helpCta') : t('error.changeMethodCta')}
+                  onPress={onChangeMethod}
+                  testID="payment-error-change-method"
+                />
+              </View>
+            )
           }
         />
       </View>

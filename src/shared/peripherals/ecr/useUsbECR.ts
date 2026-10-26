@@ -11,6 +11,7 @@ import {
   stringifyWithCrc,
   verifyEcrCrc,
 } from './ecrIntegrity';
+import { EcrPosOutcomeError } from './ecrPosOutcomeError';
 import { ecrErrorFromPaymentResponse } from './ecrTransactionError';
 import { extractLastBalancedJson } from './extractLastBalancedJson';
 import { formatEcrDocumentNumber } from './formatEcrDocumentNumber';
@@ -39,6 +40,19 @@ type PendingTx = {
     deadlineTimer: ReturnType<typeof setTimeout>;
     resends: number;
   };
+  /**
+   * Sin resultado definitivo: se pregunta a PKUSB con `resend` hasta que lo tenga.
+   * `timeout`: venció la espera sin respuesta. `cancelled`: PKUSB respondió
+   * `CANCELLED_NO_RESPONSE`, pero el SDK puede aprobar después (PKUSB 1.0.8).
+   */
+  polling?: {
+    reason: 'timeout' | 'cancelled';
+    timer: ReturnType<typeof setInterval>;
+    deadlineTimer: ReturnType<typeof setTimeout>;
+  };
+  /** PKUSB contestó ocupado (-97) y descartó el pedido: reenvío programado. */
+  busyRetryTimer?: ReturnType<typeof setTimeout>;
+  lastBusy?: { payload: string; at: number };
 };
 
 /** Cada cuánto se vuelve a pedir una respuesta dañada mientras no llegue una buena. */
@@ -51,6 +65,20 @@ const ECR_RESEND_WINDOW_MS = 45_000;
 /** Reenvíos del pedido cuando PKUSB contesta que le llegó dañado (-94). */
 const ECR_MAX_REQUEST_RETRANSMITS = 5;
 const ECR_DUPLICATE_DELIVERY_MS = 500;
+/** PKUSB ocupado (-97) descarta el pedido: se reenvía el mismo tras esta pausa. */
+const ECR_BUSY_RETRY_MS = 2000;
+/** Cada cuánto se pregunta con `resend` por un resultado que todavía no se conoce. */
+const ECR_POLL_INTERVAL_MS = 3000;
+/** Tras `CANCELLED_NO_RESPONSE`: lo que se espera un resultado tardío del SDK. */
+const ECR_CANCELLED_POLL_WINDOW_MS = 120_000;
+/** Tras vencer la espera sin respuesta: margen para recuperarla con `resend`. */
+const ECR_TIMEOUT_POLL_WINDOW_MS = 15_000;
+
+const CANCELLED_NO_RESPONSE = /"responseMessage"\s*:\s*"CANCELLED_NO_RESPONSE"/;
+
+function readJsonString(payload: string, key: string): string | undefined {
+  return new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`).exec(payload)?.[1];
+}
 
 function stopPendingTimers(pending: PendingTx): void {
   if (pending.timeoutId) {
@@ -60,12 +88,21 @@ function stopPendingTimers(pending: PendingTx): void {
     clearInterval(pending.recovery.resendTimer);
     clearTimeout(pending.recovery.deadlineTimer);
   }
+  if (pending.polling) {
+    clearInterval(pending.polling.timer);
+    clearTimeout(pending.polling.deadlineTimer);
+  }
+  if (pending.busyRetryTimer) {
+    clearTimeout(pending.busyRetryTimer);
+  }
 }
 
 export type UseUsbECRReturn = {
   isConnected: boolean;
   isConnecting: boolean;
   isProcessing: boolean;
+  /** El POS no dio un resultado definitivo y se le está preguntando con `resend`. */
+  isConfirmingPosResult: boolean;
   error: string | null;
   lastTransactionResponse: string | null;
   receivedMessages: string[];
@@ -90,6 +127,7 @@ export function useUsbECR(): UseUsbECRReturn {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isConfirmingPosResult, setIsConfirmingPosResult] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastTransactionResponse, setLastTransactionResponse] = useState<string | null>(null);
   const [receivedMessages, setReceivedMessages] = useState<string[]>([]);
@@ -124,6 +162,7 @@ export function useUsbECR(): UseUsbECRReturn {
     stopPendingTimers(pending);
     pendingTransaction.current = null;
     setIsProcessing(false);
+    setIsConfirmingPosResult(false);
     if (reason) {
       setError(reason.message);
       pending.reject(reason);
@@ -138,6 +177,7 @@ export function useUsbECR(): UseUsbECRReturn {
       }
 
       if (isTransientEcrResponse(payload)) {
+        handleBusy(payload);
         return;
       }
 
@@ -172,13 +212,35 @@ export function useUsbECR(): UseUsbECRReturn {
         return;
       }
 
+      if (
+        peerSendsCrc.current &&
+        (pending.request?.type === 'payment' || pending.request?.type === 'settlement') &&
+        CANCELLED_NO_RESPONSE.test(settledPayload)
+      ) {
+        setLastTransactionResponse(settledPayload);
+        startPolling('cancelled');
+        return;
+      }
+
       setReceivedMessages((prev) => [...prev, settledPayload]);
       setLastTransactionResponse(settledPayload);
+
+      if (readEcrResult(settledPayload) === -99) {
+        rejectPendingTransaction(
+          new EcrPosOutcomeError(
+            'previous_pending',
+            readJsonString(settledPayload, 'error') ??
+              'El POS sigue procesando la operación anterior (-99)',
+          ),
+        );
+        return;
+      }
 
       const paymentError = ecrErrorFromPaymentResponse(settledPayload);
       stopPendingTimers(pending);
       pendingTransaction.current = null;
       setIsProcessing(false);
+      setIsConfirmingPosResult(false);
 
       if (paymentError) {
         setError(paymentError.message);
@@ -272,6 +334,19 @@ export function useUsbECR(): UseUsbECRReturn {
     if (pending.recovery) {
       return;
     }
+    if (pending.polling) {
+      // -96 a un `resend`: PKUSB ya no tiene la respuesta (se reinició). No se sabe si cobró.
+      if (result === -96) {
+        rejectPendingTransaction(
+          new EcrPosOutcomeError(
+            'unconfirmed',
+            `El POS ya no tiene la respuesta de ${pending.request?.referenceNo ?? 'la operación'} (-96)`,
+          ),
+        );
+      }
+      // Un -94 aquí es de un `resend` dañado: el intervalo lo repite solo.
+      return;
+    }
     if (result === -96 && pending.request?.type !== 'version') {
       return;
     }
@@ -294,6 +369,120 @@ export function useUsbECR(): UseUsbECRReturn {
     writeLine(pending.requestLine);
   }
 
+  /**
+   * -97: PKUSB estaba ocupado y descartó el pedido; se reenvía el mismo (mismo
+   * referenceNo: si ya lo hubiera ejecutado, devuelve la respuesta guardada sin cobrar).
+   * Con PKUSB viejo (sin crc) se sigue esperando como antes: ahí el -97 era un aviso
+   * intermedio y la respuesta real llegaba después.
+   */
+  function handleBusy(payload: string) {
+    const pending = pendingTransaction.current;
+    const busyBalanced = extractLastBalancedJson(payload) ?? payload;
+    if (verifyEcrCrc(busyBalanced) === 'valid') {
+      peerSendsCrc.current = true;
+    }
+    if (!pending?.requestLine || !peerSendsCrc.current) {
+      return;
+    }
+    const referenceNo = readJsonString(busyBalanced, 'referenceNo');
+    if (referenceNo != null && referenceNo !== pending.request?.referenceNo) {
+      return;
+    }
+    // Ocupado con un `resend` o una reparación: los intervalos ya lo repiten.
+    if (pending.polling || pending.recovery || pending.busyRetryTimer) {
+      return;
+    }
+    const now = Date.now();
+    if (
+      pending.lastBusy?.payload === busyBalanced &&
+      now - pending.lastBusy.at < ECR_DUPLICATE_DELIVERY_MS
+    ) {
+      return;
+    }
+    pending.lastBusy = { payload: busyBalanced, at: now };
+    pending.busyRetryTimer = setTimeout(() => {
+      const current = pendingTransaction.current;
+      if (current !== pending) {
+        return;
+      }
+      current.busyRetryTimer = undefined;
+      if (__DEV__) {
+        console.warn('[useUsbECR] el POS estaba ocupado, se reenvía el pedido');
+      }
+      writeLine(current.requestLine!);
+    }, ECR_BUSY_RETRY_MS);
+  }
+
+  /**
+   * Pregunta con `resend` cada 3 s por un resultado que PKUSB todavía no dio. Si llega
+   * uno definitivo (aprobado o rechazo del banco) lo resuelve el camino normal; si vence
+   * la ventana, el cobro queda sin confirmar y no se puede repetir sin revisar el POS.
+   */
+  function startPolling(reason: 'timeout' | 'cancelled') {
+    const pending = pendingTransaction.current;
+    const referenceNo = pending?.request?.referenceNo;
+    if (!pending || !referenceNo) {
+      return;
+    }
+    if (pending.polling?.reason === reason) {
+      return;
+    }
+    stopPendingTimers(pending);
+    pending.timeoutId = undefined;
+    pending.busyRetryTimer = undefined;
+    pending.recovery = undefined;
+
+    const windowMs =
+      reason === 'cancelled' ? ECR_CANCELLED_POLL_WINDOW_MS : ECR_TIMEOUT_POLL_WINDOW_MS;
+    if (__DEV__) {
+      console.warn(`[useUsbECR] sin resultado (${reason}), se pregunta con resend`, referenceNo);
+    }
+    const poll = () => {
+      if (pendingTransaction.current === pending) {
+        writeLine(stringifyWithCrc({ type: 'resend', referenceNo }));
+      }
+    };
+    setIsConfirmingPosResult(true);
+    pending.polling = {
+      reason,
+      timer: setInterval(poll, ECR_POLL_INTERVAL_MS),
+      deadlineTimer: setTimeout(() => {
+        if (pendingTransaction.current !== pending) {
+          return;
+        }
+        rejectPendingTransaction(
+          new EcrPosOutcomeError(
+            'unconfirmed',
+            reason === 'cancelled'
+              ? `CANCELLED_NO_RESPONSE sin resultado tardío en ${windowMs / 1000}s (${referenceNo})`
+              : `Sin respuesta del POS ni por resend (${referenceNo})`,
+          ),
+        );
+      }, windowMs),
+    };
+    // Tras CANCELLED_NO_RESPONSE la respuesta ya está guardada: el primer resend espera
+    // al intervalo (PKUSB cierra y reabre el puerto ~3 s después de responder).
+    if (reason === 'timeout') {
+      poll();
+    }
+  }
+
+  /** Venció la espera: con PKUSB 1.0.7+ se pregunta con `resend` antes de darlo por perdido. */
+  function handleRequestTimeout(timeoutMs: number) {
+    const pending = pendingTransaction.current;
+    if (!pending) {
+      return;
+    }
+    const type = pending.request?.type;
+    if (peerSendsCrc.current && (type === 'payment' || type === 'settlement')) {
+      startPolling('timeout');
+      return;
+    }
+    rejectPendingTransaction(
+      new Error(`Timeout esperando respuesta del POS (${Math.round(timeoutMs / 1000)}s)`),
+    );
+  }
+
   const rejectPendingTransaction = useCallback(
     (reason: Error) => {
       const pending = pendingTransaction.current;
@@ -303,6 +492,7 @@ export function useUsbECR(): UseUsbECRReturn {
       stopPendingTimers(pending);
       pendingTransaction.current = null;
       setIsProcessing(false);
+      setIsConfirmingPosResult(false);
       setError(reason.message);
       pending.reject(reason);
     },
@@ -328,9 +518,6 @@ export function useUsbECR(): UseUsbECRReturn {
     subscriptions.current.commandReceived = eventEmitter.current.addListener(
       'onUsbCommandReceived',
       (event: { type: string; payload: string }) => {
-        if (isTransientEcrResponse(event.payload)) {
-          return;
-        }
         settlePendingTransaction(event.payload);
       },
     );
@@ -346,6 +533,7 @@ export function useUsbECR(): UseUsbECRReturn {
           return;
         }
         if (isTransientEcrResponse(line)) {
+          settlePendingTransaction(line);
           return;
         }
         // Fallback when native could not emit command: extract last balanced JSON.
@@ -496,13 +684,7 @@ export function useUsbECR(): UseUsbECRReturn {
       const requestLine = stringifyWithCrc(payload);
 
       const txPromise = new Promise<string>((resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-          rejectPendingTransaction(
-            new Error(
-              `Timeout esperando respuesta del POS (${Math.round(timeoutMs / 1000)}s)`,
-            ),
-          );
-        }, timeoutMs);
+        const timeoutId = setTimeout(() => handleRequestTimeout(timeoutMs), timeoutMs);
         const { referenceNo, type } = payload as { referenceNo?: string; type?: string };
         pendingTransaction.current = {
           resolve,
@@ -527,6 +709,8 @@ export function useUsbECR(): UseUsbECRReturn {
 
       return txPromise;
     },
+    // handleRequestTimeout se declara arriba (function hoisting) y solo lee refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [UsbSerialModule, clearPendingTransaction, rejectPendingTransaction, usesNativeUsb],
   );
 
@@ -539,7 +723,7 @@ export function useUsbECR(): UseUsbECRReturn {
         documentNumber: doc,
         amount,
         waiterNum: '01',
-        transType: 0,
+        transType: 1,
         referenceNo: `REF-${Date.now()}`,
         timestamp: Date.now(),
       });
@@ -575,6 +759,7 @@ export function useUsbECR(): UseUsbECRReturn {
       isConnected,
       isConnecting,
       isProcessing,
+      isConfirmingPosResult,
       error,
       lastTransactionResponse,
       receivedMessages,
@@ -592,6 +777,7 @@ export function useUsbECR(): UseUsbECRReturn {
       isConnected,
       isConnecting,
       isProcessing,
+      isConfirmingPosResult,
       error,
       lastTransactionResponse,
       receivedMessages,

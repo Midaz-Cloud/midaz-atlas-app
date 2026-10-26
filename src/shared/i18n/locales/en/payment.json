@@ -117,6 +117,18 @@
       "titleLine1": "Fiscal printer",
       "titleLine2": "unavailable",
       "subtitle": "You were not charged. Please try again in a moment or call the cashier."
+    },
+    "posUnconfirmed": {
+      "titleLine1": "We could not confirm",
+      "titleLine2": "your payment",
+      "subtitle": "If the amount was already taken from your account, do not pay again. Please ask a store employee to check it.",
+      "okCta": "Got it"
+    },
+    "posPreviousPending": {
+      "titleLine1": "The point of sale",
+      "titleLine2": "is busy",
+      "subtitle": "You were not charged. Please ask a store employee before trying again.",
+      "okCta": "Got it"
     }
   },
   "assistance": {
@@ -152,7 +164,9 @@
     "waitingPos": "Waiting for point of sale response",
     "confirming": "Confirming payment",
     "tapCardHint": "Tap or insert your card",
-    "timeRemainingHint": "Time left to complete payment at the point of sale"
+    "timeRemainingHint": "Time left to complete payment at the point of sale",
+    "confirmingResult": "We are confirming your payment, please wait a moment",
+    "stayHint": "Please do not leave"
   },
   "mobile": {
     "account": {

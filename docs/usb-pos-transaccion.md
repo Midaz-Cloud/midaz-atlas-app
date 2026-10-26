@@ -103,7 +103,7 @@ Es decir: **una sola transacción pendiente a la vez**, resuelta por el primer e
   documentNumber,       // cédula ingresada en el modal
   amount,                // monto en céntimos (Math.round(amount * 100))
   waiterNum: '01',
-  transType: 0,
+  transType: 1,          // venta; 0 no es un tipo válido para el SDK (PKUSB 1.0.8 lo corrige)
   referenceNo: `REF-${Date.now()}`,
   timestamp: Date.now(),
 }

@@ -163,6 +163,9 @@ async function runPosCharge(deps: ChargeDeps): Promise<PosChargeResult> {
           rawJson: result.rawResponse ?? null,
         }),
       );
+      if (result.reason === 'unconfirmed' || result.reason === 'previous_pending') {
+        return { ok: false, kind: 'pos-uncertain', outcome: result.reason };
+      }
       return { ok: false, kind: 'payment-error' };
     }
 
