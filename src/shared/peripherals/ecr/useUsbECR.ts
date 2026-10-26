@@ -4,6 +4,7 @@ import { NativeEventEmitter } from 'react-native';
 import { shouldUseMockApi } from '@shared/config';
 
 import { createEcrClient } from './createEcrClient';
+import { applyEcrRequestFault, applyEcrResponseFault } from './ecrFaultInjection';
 import { ECR_PAYMENT_TIMEOUT_MS } from './ecrPaymentTimeoutMs';
 import {
   isStrictJson,
@@ -518,7 +519,9 @@ export function useUsbECR(): UseUsbECRReturn {
     subscriptions.current.commandReceived = eventEmitter.current.addListener(
       'onUsbCommandReceived',
       (event: { type: string; payload: string }) => {
-        settlePendingTransaction(event.payload);
+        settlePendingTransaction(
+          applyEcrResponseFault(event.payload, pendingTransaction.current?.request),
+        );
       },
     );
 
@@ -549,7 +552,9 @@ export function useUsbECR(): UseUsbECRReturn {
             return;
           }
         }
-        settlePendingTransaction(candidate);
+        settlePendingTransaction(
+          applyEcrResponseFault(candidate, pendingTransaction.current?.request),
+        );
       },
     );
 
@@ -697,7 +702,11 @@ export function useUsbECR(): UseUsbECRReturn {
       });
 
       try {
-        await UsbSerialModule.sendLine(requestLine);
+        // En debug, el botón «Falla POS» puede mandar este primer envío dañado
+        // (`request_once`); los reenvíos por -94 salen de `requestLine`, limpio.
+        await UsbSerialModule.sendLine(
+          applyEcrRequestFault(requestLine, payload as { referenceNo?: string; type?: string }),
+        );
       } catch (err) {
         rejectPendingTransaction(
           new Error(

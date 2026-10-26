@@ -25,6 +25,7 @@ import {
   EcrConnectTestButton,
   EcrPaymentTestButton,
   EcrSettlementTestButton,
+  EcrFaultModeButton,
   EcrVersionCheckButton,
   PrinterTestButton,
   FiscalHealthTestButton,
@@ -203,6 +204,7 @@ export function HomeScreen({
                   <EcrPaymentTestButton />
                   <EcrSettlementTestButton />
                   <EcrVersionCheckButton />
+                  <EcrFaultModeButton />
                   <PrinterTestButton />
                   <FiscalHealthTestButton />
                   <FiscalEmitTestButton />

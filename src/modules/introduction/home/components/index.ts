@@ -9,6 +9,7 @@ export { TouchToStartCta } from './TouchToStartCta';
 export { EcrConnectTestButton } from './EcrConnectTestButton';
 export { EcrPaymentTestButton } from './EcrPaymentTestButton';
 export { EcrSettlementTestButton } from './EcrSettlementTestButton';
+export { EcrFaultModeButton } from './EcrFaultModeButton';
 export { EcrVersionCheckButton } from './EcrVersionCheckButton';
 export { PrinterTestButton } from './PrinterTestButton';
 export { FiscalHealthTestButton } from './FiscalHealthTestButton';
