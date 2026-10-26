@@ -5,6 +5,12 @@ import { shouldUseMockApi } from '@shared/config';
 
 import { createEcrClient } from './createEcrClient';
 import { ECR_PAYMENT_TIMEOUT_MS } from './ecrPaymentTimeoutMs';
+import {
+  isStrictJson,
+  readEcrResult,
+  stringifyWithCrc,
+  verifyEcrCrc,
+} from './ecrIntegrity';
 import { ecrErrorFromPaymentResponse } from './ecrTransactionError';
 import { extractLastBalancedJson } from './extractLastBalancedJson';
 import { formatEcrDocumentNumber } from './formatEcrDocumentNumber';
@@ -21,7 +27,40 @@ type PendingTx = {
   reject: (reason?: unknown) => void;
   timeoutId?: ReturnType<typeof setTimeout>;
   request?: PendingEcrRequest;
+  /** Pedido tal como salió, para reenviarlo si PKUSB dice que llegó dañado (-94). */
+  requestLine?: string;
+  requestRetransmits: number;
+  /** El nativo entrega cada línea dos veces (comando + línea): no contar el mismo -94 dos veces. */
+  lastNack?: { payload: string; at: number };
+  /** Respuesta dañada en reparación: se pide `resend` hasta que llegue una con crc válido. */
+  recovery?: {
+    lastDamaged: string;
+    resendTimer: ReturnType<typeof setInterval>;
+    deadlineTimer: ReturnType<typeof setTimeout>;
+    resends: number;
+  };
 };
+
+/** Cada cuánto se vuelve a pedir una respuesta dañada mientras no llegue una buena. */
+const ECR_RESEND_INTERVAL_MS = 1500;
+/**
+ * Tope para reparar una respuesta dañada. Vencido, se usa la última copia dañada con
+ * el parser tolerante de siempre: el cobro ya ocurrió y perderlo es peor que adivinarlo.
+ */
+const ECR_RESEND_WINDOW_MS = 45_000;
+/** Reenvíos del pedido cuando PKUSB contesta que le llegó dañado (-94). */
+const ECR_MAX_REQUEST_RETRANSMITS = 5;
+const ECR_DUPLICATE_DELIVERY_MS = 500;
+
+function stopPendingTimers(pending: PendingTx): void {
+  if (pending.timeoutId) {
+    clearTimeout(pending.timeoutId);
+  }
+  if (pending.recovery) {
+    clearInterval(pending.recovery.resendTimer);
+    clearTimeout(pending.recovery.deadlineTimer);
+  }
+}
 
 export type UseUsbECRReturn = {
   isConnected: boolean;
@@ -60,15 +99,29 @@ export function useUsbECR(): UseUsbECRReturn {
   );
   const subscriptions = useRef<Record<string, { remove: () => void }>>({});
   const pendingTransaction = useRef<PendingTx | null>(null);
+  /** PKUSB ya mandó algo con crc válido: habla el protocolo con reenvío (versionCode 16+). */
+  const peerSendsCrc = useRef(false);
+
+  const writeLine = useCallback(
+    (line: string) => {
+      if (!UsbSerialModule) {
+        return;
+      }
+      UsbSerialModule.sendLine(line).catch((err: unknown) => {
+        if (__DEV__) {
+          console.warn('[useUsbECR] no se pudo escribir al POS', err);
+        }
+      });
+    },
+    [UsbSerialModule],
+  );
 
   const clearPendingTransaction = useCallback((reason?: Error) => {
     const pending = pendingTransaction.current;
     if (!pending) {
       return;
     }
-    if (pending.timeoutId) {
-      clearTimeout(pending.timeoutId);
-    }
+    stopPendingTimers(pending);
     pendingTransaction.current = null;
     setIsProcessing(false);
     if (reason) {
@@ -78,7 +131,7 @@ export function useUsbECR(): UseUsbECRReturn {
   }, []);
 
   const settlePendingTransaction = useCallback(
-    (payload: string) => {
+    (payload: string, skipIntegrity = false) => {
       const pending = pendingTransaction.current;
       if (!pending) {
         return;
@@ -90,6 +143,24 @@ export function useUsbECR(): UseUsbECRReturn {
 
       const balanced = extractLastBalancedJson(payload);
       const settledPayload = balanced ?? payload;
+
+      if (!skipIntegrity) {
+        const integrity = verifyEcrCrc(settledPayload);
+        if (integrity === 'valid') {
+          peerSendsCrc.current = true;
+          const result = readEcrResult(settledPayload);
+          if (result === -94 || result === -96) {
+            handleNack(settledPayload, result);
+            return;
+          }
+        } else if (
+          integrity === 'invalid' ||
+          (peerSendsCrc.current && !isStrictJson(settledPayload))
+        ) {
+          startRecovery(settledPayload);
+          return;
+        }
+      }
 
       if (pending.request && !isResponseForPendingEcrRequest(settledPayload, pending.request)) {
         if (__DEV__) {
@@ -105,9 +176,7 @@ export function useUsbECR(): UseUsbECRReturn {
       setLastTransactionResponse(settledPayload);
 
       const paymentError = ecrErrorFromPaymentResponse(settledPayload);
-      if (pending.timeoutId) {
-        clearTimeout(pending.timeoutId);
-      }
+      stopPendingTimers(pending);
       pendingTransaction.current = null;
       setIsProcessing(false);
 
@@ -120,8 +189,110 @@ export function useUsbECR(): UseUsbECRReturn {
       setError(null);
       pending.resolve(settledPayload);
     },
+    // handleNack / startRecovery se declaran abajo (function hoisting) y solo leen refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
+
+  /**
+   * La respuesta llegó dañada: se pide `resend` a PKUSB cada 1,5 s hasta que llegue
+   * una copia íntegra (la guarda por referenceNo y la reenvía sin volver a cobrar).
+   */
+  function startRecovery(damaged: string) {
+    const pending = pendingTransaction.current;
+    const referenceNo = pending?.request?.referenceNo;
+    if (!pending || !referenceNo) {
+      // Sin referencia no hay qué pedir: se procesa como siempre.
+      settlePendingTransaction(damaged, true);
+      return;
+    }
+    // Copia dañada de otra operación (llegó tarde): no es nuestra.
+    if (!isResponseForPendingEcrRequest(damaged, pending.request!)) {
+      return;
+    }
+    if (pending.recovery) {
+      pending.recovery.lastDamaged = damaged;
+      return;
+    }
+
+    // La respuesta ya llegó: el timeout de "POS no contesta" deja de aplicar.
+    if (pending.timeoutId) {
+      clearTimeout(pending.timeoutId);
+      pending.timeoutId = undefined;
+    }
+
+    const resend = () => {
+      const current = pendingTransaction.current;
+      if (current !== pending || !current.recovery) {
+        return;
+      }
+      current.recovery.resends += 1;
+      if (__DEV__) {
+        console.warn(`[useUsbECR] respuesta dañada, pidiendo reenvío #${current.recovery.resends}`, referenceNo);
+      }
+      writeLine(stringifyWithCrc({ type: 'resend', referenceNo }));
+    };
+
+    pending.recovery = {
+      lastDamaged: damaged,
+      resends: 0,
+      resendTimer: setInterval(resend, ECR_RESEND_INTERVAL_MS),
+      deadlineTimer: setTimeout(() => {
+        const current = pendingTransaction.current;
+        if (current !== pending || !current.recovery) {
+          return;
+        }
+        const { lastDamaged, resendTimer } = current.recovery;
+        clearInterval(resendTimer);
+        current.recovery = undefined;
+        if (__DEV__) {
+          console.warn('[useUsbECR] no llegó copia íntegra, se usa la dañada', referenceNo);
+        }
+        settlePendingTransaction(lastDamaged, true);
+      }, ECR_RESEND_WINDOW_MS),
+    };
+    resend();
+  }
+
+  /**
+   * -94: a PKUSB le llegó dañado el pedido y no lo ejecutó, se reenvía igual.
+   * -96: `resend` de algo que PKUSB no tiene; solo la versión se puede repetir sin riesgo,
+   * un cobro no (si PKUSB se reinició tras cobrar, repetirlo cobraría dos veces).
+   */
+  function handleNack(payload: string, result: -94 | -96) {
+    const pending = pendingTransaction.current;
+    if (!pending?.requestLine) {
+      return;
+    }
+    const referenceNo = /"referenceNo"\s*:\s*"([^"]*)"/.exec(payload)?.[1];
+    if (referenceNo != null && referenceNo !== pending.request?.referenceNo) {
+      return;
+    }
+    // Ya hay respuesta en reparación: el -94 es de un `resend` dañado y el intervalo lo repite solo.
+    if (pending.recovery) {
+      return;
+    }
+    if (result === -96 && pending.request?.type !== 'version') {
+      return;
+    }
+    const now = Date.now();
+    if (
+      pending.lastNack?.payload === payload &&
+      now - pending.lastNack.at < ECR_DUPLICATE_DELIVERY_MS
+    ) {
+      return;
+    }
+    pending.lastNack = { payload, at: now };
+    if (pending.requestRetransmits >= ECR_MAX_REQUEST_RETRANSMITS) {
+      rejectPendingTransaction(new Error('El POS no recibió el pedido completo. Verifique el cable USB.'));
+      return;
+    }
+    pending.requestRetransmits += 1;
+    if (__DEV__) {
+      console.warn(`[useUsbECR] el POS pidió reenviar el pedido (#${pending.requestRetransmits})`);
+    }
+    writeLine(pending.requestLine);
+  }
 
   const rejectPendingTransaction = useCallback(
     (reason: Error) => {
@@ -129,9 +300,7 @@ export function useUsbECR(): UseUsbECRReturn {
       if (!pending) {
         return;
       }
-      if (pending.timeoutId) {
-        clearTimeout(pending.timeoutId);
-      }
+      stopPendingTimers(pending);
       pendingTransaction.current = null;
       setIsProcessing(false);
       setError(reason.message);
@@ -323,6 +492,9 @@ export function useUsbECR(): UseUsbECRReturn {
       setError(null);
       setLastTransactionResponse(null);
 
+      // Con crc: si el pedido llega dañado, PKUSB no lo ejecuta y contesta -94.
+      const requestLine = stringifyWithCrc(payload);
+
       const txPromise = new Promise<string>((resolve, reject) => {
         const timeoutId = setTimeout(() => {
           rejectPendingTransaction(
@@ -336,12 +508,14 @@ export function useUsbECR(): UseUsbECRReturn {
           resolve,
           reject,
           timeoutId,
+          requestLine,
+          requestRetransmits: 0,
           ...(referenceNo && type ? { request: { referenceNo, type } } : {}),
         };
       });
 
       try {
-        await UsbSerialModule.sendLine(JSON.stringify(payload));
+        await UsbSerialModule.sendLine(requestLine);
       } catch (err) {
         rejectPendingTransaction(
           new Error(
