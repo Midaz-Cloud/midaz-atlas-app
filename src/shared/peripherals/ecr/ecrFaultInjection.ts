@@ -68,6 +68,13 @@ export function applyEcrResponseFault(
   if (!isActive() || !pending || !appliesTo(pending.type)) {
     return payload;
   }
+  // Una copia tardía de otra operación (la respuesta de versión llega dos veces y la
+  // segunda cae ya con el cobro pendiente) no cuenta: en `response_once` se comería la
+  // falla y la respuesta real del cobro pasaría limpia.
+  const referenceNo = /"referenceNo"\s*:\s*"([^"]*)"/.exec(payload)?.[1];
+  if (referenceNo != null && referenceNo !== pending.referenceNo) {
+    return payload;
+  }
   if (mode === 'response_always') {
     logFault(`respuesta de ${pending.referenceNo} dañada (siempre)`);
     return corruptEcrLine(payload);

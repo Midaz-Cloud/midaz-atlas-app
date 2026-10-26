@@ -168,6 +168,23 @@ describe('fallas simuladas del cable (solo debug)', () => {
     expect(paymentLines()).toHaveLength(1);
   });
 
+  it('una copia tardía de la respuesta de versión no se come la falla de una vez', async () => {
+    const ecr = mountHook();
+    await handshake108(ecr);
+    setEcrFaultMode('response_once');
+    const { referenceNo, out } = await startPayment(ecr);
+
+    // Segunda entrega de la respuesta de versión, ya con el cobro pendiente.
+    receive(
+      stringifyWithCrc({ success: true, type: 'version', result: 0, referenceNo: 'VERCHK-1', data: {} }),
+    );
+    advance(12_000);
+    receive(approvedFor(referenceNo));
+    await act(async () => {});
+    expect(out).toEqual({});
+    expect(lastRequest()).toMatchObject({ type: 'resend', referenceNo });
+  });
+
   it('respuesta siempre dañada: a los 45 s usa la copia dañada', async () => {
     const ecr = mountHook();
     await handshake108(ecr);
