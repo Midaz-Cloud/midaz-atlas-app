@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { KioskScreenLayout } from '@shared/components';
+import { useKioskInactivity } from '@shared/inactivity';
+import { useEcrConnection } from '@shared/peripherals/ecr';
 import {
   bodyTextStyle,
   displayTextStyle,
@@ -29,9 +31,21 @@ export function PosChargeProcessingScreen({
   const colors = useKioskScreenColors();
   const { phase } = usePosChargeProcessing({ enabled: true, onComplete });
   const { display: countdownDisplay } = usePosChargeCountdown(phase);
+  // El POS puede tardar ~3,5 min si queda sin respuesta y se le pregunta con resend:
+  // el aviso de inactividad no puede cortar un cobro en curso.
+  const { pauseInactivity, resumeInactivity } = useKioskInactivity();
+  const { isConfirmingPosResult } = useEcrConnection();
 
-  const statusLabel =
-    phase === 'confirming' ? t('posCharge.confirming') : t('posCharge.waitingPos');
+  useEffect(() => {
+    pauseInactivity();
+    return resumeInactivity;
+  }, [pauseInactivity, resumeInactivity]);
+
+  const statusLabel = isConfirmingPosResult
+    ? t('posCharge.confirmingResult')
+    : phase === 'confirming'
+      ? t('posCharge.confirming')
+      : t('posCharge.waitingPos');
 
   const styles = useMemo(
     () =>
@@ -84,19 +98,25 @@ export function PosChargeProcessingScreen({
       contentAlign="center"
       contentStyle={referenceFlowLayoutStyles.content}>
       <View style={[referenceFlowLayoutStyles.inner, styles.center]}>
-        <PosTapCardIllustration instruction={t('posCharge.tapCardHint')} />
+        <PosTapCardIllustration
+          instruction={isConfirmingPosResult ? t('posCharge.stayHint') : t('posCharge.tapCardHint')}
+        />
         <Text style={styles.title} testID="payment-pos-charge-title">
           {t('posCharge.title')}
         </Text>
         <Text style={styles.status} testID="payment-pos-charge-status">
           {statusLabel}
         </Text>
-        <Text style={styles.timer} testID="payment-pos-charge-timer">
-          {countdownDisplay}
-        </Text>
-        <Text style={styles.timerHint} testID="payment-pos-charge-timer-hint">
-          {t('posCharge.timeRemainingHint')}
-        </Text>
+        {isConfirmingPosResult ? null : (
+          <>
+            <Text style={styles.timer} testID="payment-pos-charge-timer">
+              {countdownDisplay}
+            </Text>
+            <Text style={styles.timerHint} testID="payment-pos-charge-timer-hint">
+              {t('posCharge.timeRemainingHint')}
+            </Text>
+          </>
+        )}
       </View>
     </KioskScreenLayout>
   );

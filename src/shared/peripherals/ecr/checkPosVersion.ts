@@ -2,12 +2,12 @@ import { parseEcrPaymentJson } from './parseEcrPaymentJson';
 import type { UseUsbECRReturn } from './useUsbECR';
 
 /**
- * PKUSB app (`versionCode` de android/app/build.gradle) y veslc (`cn.nexgo.veslc`)
- * validados este ciclo. Si el datáfono conectado trae otra versión, su comportamiento
- * puede haber cambiado sin aviso (pasó en producción) — no confiar en un pago/cierre
- * hecho contra un SDK sin verificar.
+ * PKUSB (`versionCode` de su android/app/build.gradle): mínimo 16, desde ahí existen
+ * `crc` y `resend` (1.0.8 = 17). veslc (`cn.nexgo.veslc`) va exacto: es la app
+ * financiera y ya cambió de comportamiento sin aviso (pasó en producción) — no confiar
+ * en un pago/cierre hecho contra un SDK sin verificar.
  */
-export const EXPECTED_PKUSB_APP_VERSION_CODE = 16;
+export const MIN_PKUSB_APP_VERSION_CODE = 16;
 export const EXPECTED_VESLC_VERSION_CODE = 117;
 
 export type PosVersionCheck =
@@ -53,7 +53,7 @@ export async function checkPosVersion(
   }
 
   if (
-    appVersionCode !== EXPECTED_PKUSB_APP_VERSION_CODE ||
+    !(appVersionCode >= MIN_PKUSB_APP_VERSION_CODE) ||
     veslcVersionCode !== EXPECTED_VESLC_VERSION_CODE
   ) {
     return {
@@ -61,7 +61,7 @@ export async function checkPosVersion(
       reason: 'mismatch',
       appVersionCode,
       veslcVersionCode,
-      details: `PKUSB app=${appVersionCode} (esperado ${EXPECTED_PKUSB_APP_VERSION_CODE}), veslc=${veslcVersionCode} (esperado ${EXPECTED_VESLC_VERSION_CODE})`,
+      details: `PKUSB app=${appVersionCode} (mínimo ${MIN_PKUSB_APP_VERSION_CODE}), veslc=${veslcVersionCode} (esperado ${EXPECTED_VESLC_VERSION_CODE})`,
     };
   }
 

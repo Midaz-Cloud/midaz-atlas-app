@@ -4,6 +4,7 @@ import {
   checkPosVersion,
   documentIdToEcrDocumentNumber,
   EcrDocumentNumberError,
+  isEcrPosOutcomeError,
   parseEcrPaymentResponse,
   posVersionCheckMessage,
   resolvePosChargeAmountVes,
@@ -21,6 +22,10 @@ export type ExecutePosCardPaymentFailureReason =
   | 'not_connected'
   | 'version_mismatch'
   | 'declined'
+  /** El POS no confirmó si cobró: no repetir el cobro sin revisar el datáfono. */
+  | 'unconfirmed'
+  /** El POS no ejecutó este cobro: el anterior sigue pendiente en el datáfono. */
+  | 'previous_pending'
   | 'error';
 
 export type ExecutePosCardPaymentResult =
@@ -102,7 +107,7 @@ export async function executePosCardPayment(
     const message = err instanceof Error ? err.message : String(err);
     return {
       ok: false,
-      reason: 'error',
+      reason: isEcrPosOutcomeError(err) ? err.outcome : 'error',
       message,
       ...(ecr.lastTransactionResponse
         ? { rawResponse: ecr.lastTransactionResponse }

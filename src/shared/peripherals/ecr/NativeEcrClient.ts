@@ -72,7 +72,7 @@ export class NativeEcrClient implements EcrClient {
         documentNumber: doc,
         amount,
         waiterNum: '01',
-        transType: 0,
+        transType: 1,
         referenceNo: `REF-${Date.now()}`,
         timestamp: Date.now(),
       });

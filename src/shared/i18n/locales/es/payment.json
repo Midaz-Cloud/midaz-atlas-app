@@ -117,6 +117,18 @@
       "titleLine1": "Impresora fiscal",
       "titleLine2": "no disponible",
       "subtitle": "No se realizó ningún cobro. Intenta de nuevo en un momento o llama al cajero."
+    },
+    "posUnconfirmed": {
+      "titleLine1": "No pudimos confirmar",
+      "titleLine2": "tu pago",
+      "subtitle": "Si ya se descontó el monto de tu cuenta, no pagues de nuevo. Acércate al personal de la tienda para que lo revise.",
+      "okCta": "Entendido"
+    },
+    "posPreviousPending": {
+      "titleLine1": "El punto de venta",
+      "titleLine2": "está ocupado",
+      "subtitle": "No se realizó ningún cobro. Acércate al personal de la tienda antes de intentar de nuevo.",
+      "okCta": "Entendido"
     }
   },
   "assistance": {
@@ -152,7 +164,9 @@
     "waitingPos": "Esperando respuesta del punto de venta",
     "confirming": "Confirmando pago",
     "tapCardHint": "Acerca o ingresa tu tarjeta",
-    "timeRemainingHint": "Tiempo para completar el pago en el punto de venta"
+    "timeRemainingHint": "Tiempo para completar el pago en el punto de venta",
+    "confirmingResult": "Estamos confirmando tu pago, espera un momento",
+    "stayHint": "Por favor, no te retires"
   },
   "mobile": {
     "account": {

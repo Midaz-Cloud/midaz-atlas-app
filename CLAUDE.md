@@ -94,3 +94,12 @@ Ese archivo (commit `cb0b65c`, mergeado a `develop` el 2026-09-01) trae `KIOSK_A
 - **Cédula con el token del kiosko**: `KioskApiClient.lookupCedula` → `GET /kiosk/customers/lookup-cedula` (el gateway resuelve la org por el JWT; la API key ya no viaja en la URL). Si el gateway todavía no tiene la ruta (404 "Cannot GET"), `customerLookup.ts` cae a la ruta pública histórica. Cuando prod tenga la ruta, se puede borrar el respaldo.
 - **Builds por ambiente**: `yarn android:release:qa:apk` / `yarn android:release:prod:apk` fijan `ENVFILE` (`.env.qa.local` / `.env.prod.local`). `android:release:apk` a secas usa `.env` (serial de prueba `MDZ-KIOSK-001` y cobro POS de 1 Bs): **no sirve para un equipo real**.
 - El alta del kiosko ya no se hace desde la web del ERP: Midaz lo asigna desde el inventario del Hub (complemento "Kiosko", con límite de equipos). Ver plan "Complementos".
+
+## PKUSB 1.0.8 en el cliente USB (2026-10-26)
+
+Contrato: `integracion-1.0.8-af910.md` (lo entrega el proveedor del datáfono). En `useUsbECR`:
+- Versión: PKUSB `>= 16` (`MIN_PKUSB_APP_VERSION_CODE`), veslc `== 117` exacto. Cobro con `transType: 1`; nunca mandar `timeout`.
+- Todo lo que depende de `crc` (reenvío por `-97`, `resend` al vencer la espera, espera tras `CANCELLED_NO_RESPONSE`) se activa solo si PKUSB ya mandó un mensaje con `crc` válido (`peerSendsCrc`): con PKUSB viejo se comporta como antes.
+- `CANCELLED_NO_RESPONSE` no es rechazo: se pregunta con `resend` cada 3 s hasta 120 s, porque el SDK puede aprobar tarde. Vencido eso, o con `-96`, o con `-99`, se rechaza con `EcrPosOutcomeError` (`unconfirmed` / `previous_pending`), que llega a la UI como `pos-uncertain`.
+- `pos-uncertain` muestra `PaymentErrorScreen` sin "Reintentar" ni "Usar otro método" (cobraría dos veces) y manda al cliente al personal. El texto técnico va a `failed_payments`, nunca a pantalla.
+- La pantalla de cobro pausa la inactividad: la espera puede llegar a ~3,5 min y el aviso de inactividad vaciaría el carrito a mitad del cobro.

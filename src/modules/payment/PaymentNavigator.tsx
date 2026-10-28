@@ -85,6 +85,8 @@ type PaymentRoute =
       posReference?: string;
       /** No se cobró: la impresora fiscal no estaba lista. */
       fiscalUnavailable?: boolean;
+      /** El POS no confirmó el cobro o no lo ejecutó: no se ofrece reintentar. */
+      posUncertain?: 'unconfirmed' | 'previous_pending';
     }
 
   | { name: 'assistance'; reason: CashierAssistanceReason }
@@ -419,6 +421,10 @@ export function PaymentNavigator({
         setRoute({ name: 'payment-error', methodId: 'pos', fiscalUnavailable: true });
         return;
       }
+      if (result.kind === 'pos-uncertain') {
+        setRoute({ name: 'payment-error', methodId: 'pos', posUncertain: result.outcome });
+        return;
+      }
       setRoute({ name: 'payment-error', methodId: 'pos' });
     },
     [goToProcessing],
@@ -733,6 +739,8 @@ export function PaymentNavigator({
         posReference={route.posReference}
 
         fiscalUnavailable={route.fiscalUnavailable}
+
+        posUncertain={route.posUncertain}
 
 
         onBack={onBackToCart}

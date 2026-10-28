@@ -18,9 +18,12 @@ jest.mock('@shared/peripherals/ecr', () => ({
   parseEcrPaymentResponse: jest.fn(() => ({ approved: true })),
   resolvePosChargeAmountVes: jest.fn((total: number) => total),
   toEcrTerminalAmount: jest.fn((ves: number) => Math.round(ves * 100)),
+  isEcrPosOutcomeError: jest.requireActual('@shared/peripherals/ecr/ecrPosOutcomeError')
+    .isEcrPosOutcomeError,
 }));
 
 import { checkPosVersion } from '@shared/peripherals/ecr';
+import { EcrPosOutcomeError } from '@shared/peripherals/ecr/ecrPosOutcomeError';
 
 const mockEcr = {
   isConnected: true,
@@ -76,6 +79,29 @@ describe('executePosCardPayment', () => {
     }
     expect(result.reason).toBe('version_mismatch');
     expect(mockEcr.performPayment).not.toHaveBeenCalled();
+  });
+
+  it.each(['unconfirmed', 'previous_pending'] as const)(
+    'reports %s when the POS leaves the charge in doubt',
+    async (outcome) => {
+      mockEcr.performPayment.mockRejectedValueOnce(new EcrPosOutcomeError(outcome, 'detalle técnico'));
+      const result = await executePosCardPayment({
+        ecr: mockEcr as never,
+        documentId: 'V1234567',
+        cartTotalVes: 50,
+      });
+      expect(result).toMatchObject({ ok: false, reason: outcome, message: 'detalle técnico' });
+    },
+  );
+
+  it('keeps a plain error as error', async () => {
+    mockEcr.performPayment.mockRejectedValueOnce(new Error('USB desconectado durante operación'));
+    const result = await executePosCardPayment({
+      ecr: mockEcr as never,
+      documentId: 'V1234567',
+      cartTotalVes: 50,
+    });
+    expect(result).toMatchObject({ ok: false, reason: 'error' });
   });
 
   it('returns not_connected when native USB stays disconnected', async () => {

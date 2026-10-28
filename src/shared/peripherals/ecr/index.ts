@@ -2,7 +2,7 @@ export type { EcrClient, EcrPaymentResult } from './EcrClient';
 export {
   checkPosVersion,
   posVersionCheckMessage,
-  EXPECTED_PKUSB_APP_VERSION_CODE,
+  MIN_PKUSB_APP_VERSION_CODE,
   EXPECTED_VESLC_VERSION_CODE,
 } from './checkPosVersion';
 export type { PosVersionCheck } from './checkPosVersion';
@@ -13,6 +13,8 @@ export {
   EcrDocumentNumberError,
 } from './documentIdToEcrDocumentNumber';
 export { ECR_PAYMENT_TIMEOUT_MS } from './ecrPaymentTimeoutMs';
+export { EcrPosOutcomeError, isEcrPosOutcomeError } from './ecrPosOutcomeError';
+export type { EcrPosOutcome } from './ecrPosOutcomeError';
 export { extractLastBalancedJson } from './extractLastBalancedJson';
 export { formatEcrDocumentNumber } from './formatEcrDocumentNumber';
 export { isTransientEcrResponse } from './isTransientEcrResponse';
