@@ -2,15 +2,19 @@
 
 Este documento detalla, capa por capa, cómo el kiosco se comunica con el punto de venta (POS Nexgo/PKBUSB) por **USB serial**: qué se envía, qué se recibe, cómo se separan los mensajes dentro del buffer serial, cómo se extrae el JSON útil de una respuesta "sucia", y cómo cada capa (nativa Kotlin → hook React → UI) interpreta esa respuesta para decidir si el pago fue aprobado, rechazado, cancelado o si hay que reintentar.
 
+> **Nota (2026-10-17).** Protocolo verificado contra el código; tabla de archivos actualizada a las rutas reales de Atlas. En el cuerpo quedan nombres del proyecto predecesor (`PaymentModal`, `PaymentScreen`, `hooks/useUsbECR.ts`): léelos como "la capa equivalente de Atlas" según esta tabla.
+
 Referencia rápida de archivos:
 
 | Capa | Archivo |
 |---|---|
-| Transporte USB serial (nativo Android) | `android/app/src/main/java/com/keiver/pacheco/conviasa/UsbSerialModule.kt` |
-| Puente React Native / orquestación de transacción | `hooks/useUsbECR.ts` |
-| UI de pago + interpretación de negocio de la respuesta | `components/PaymentModal.tsx` |
-| Parseo tolerante del cierre de lote (settlement) para impresión | `android/app/src/main/java/com/keiver/pacheco/conviasa/PrinterModule2.kt` (`parseSettlementData`) |
-| Consumo del resultado en la pantalla de pago | `app/screens/PaymentScreen.tsx` |
+| Transporte USB serial (nativo Android) | `android/app/src/main/java/com/midazatlasapp/ecr/UsbSerialModule.kt` |
+| Puente React Native / orquestación de transacción | `src/shared/peripherals/ecr/useUsbECR.ts` (+ `NativeEcrClient.ts`, `createEcrClient.ts`, `EcrConnectionProvider.tsx`) |
+| Extracción y parseo tolerante de la respuesta del POS | `src/shared/peripherals/ecr/extractLastBalancedJson.ts`, `parseEcrPaymentResponse.ts`, `parseEcrPaymentJson.ts`, `isTransientEcrResponse.ts`, `fuzzyEcrFieldExtract.ts` |
+| UI de pago + interpretación de negocio de la respuesta | `src/modules/payment/pos/` (`PosPaymentFlow.tsx`, `PosPaymentScreen.tsx`, `hooks/usePosPaymentScreen.ts`, `services/executePosCardPayment.ts`) |
+| Parseo tolerante del cierre de lote (settlement) para impresión | `android/app/src/main/java/com/midazatlasapp/printer/PrinterModule2.kt` (`parseSettlementData`) |
+| Salvamento/reintento de pagos cobrados sin orden | `src/modules/payment/recovery/` + tabla `failed_payments` (`src/shared/persistence/`) |
+| Payloads reales para tests | `src/shared/peripherals/ecr/__fixtures__/` |
 
 ---
 
@@ -265,7 +269,6 @@ sequenceDiagram
 | JSON de settlement corrupto (bytes perdidos, `::`) | `parseSettlementData` en `PrinterModule2.kt` | Fallback a regex tolerante + mapeo de alias de campos |
 | Campos de POS inconsistentes entre sí (ej. `success` no coincide con `responseCode`) | `isApproved` en `processTransactionResponse` | Exige 5 condiciones simultáneas en vez de confiar en un solo campo |
 | Operación cancelada en el POS físico | `responseCode === 'CANCELLED'` en `processTransactionResponse` | Vuelve a estado `connected`, permite reintentar sin cerrar el modal |
-| Pago aprobado por USB pero falla el booking/ticket después | `PaymentScreen.handlePaymentComplete` | Encola en `recoveryQueue` (`RETRY_BOOKING`/`RETRY_TICKET`) + log **C1**/**C2**/**C3** — ver `utils/recoveryQueue.ts` y `utils/criticalLogger.ts` |
 
 ---
 
